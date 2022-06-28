@@ -69,12 +69,15 @@ def get_goose_lm(
 def get_open_ai_lm(
     model_name: str = "text-ada-001",
     api_key_secret: SecretInterface = None,
+    organization: str = None,
 ):
     if api_key_secret is None:
         api_key_secret = SecretFile(Path("~/oai_key.txt").expanduser())
     assert_is_a_secret(api_key_secret)
     import openai
     openai.api_key = api_key_secret.get_secret().strip()
+    if organization:
+        openai.organization = organization
     return OpenAIPredictor(
         api=openai,
         engine_name=model_name,
