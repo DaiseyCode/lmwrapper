@@ -32,6 +32,9 @@ class OpenAIPredictor(LmPredictor):
             "engine": self._engine_name,
         }
 
+    def list_engines(self):
+        return self._api.Engine.list()
+
     def _predict_maybe_cached(self, prompt: LmPrompt) -> LmPrediction:
         completion = self._api.Completion.create(
             engine=self._engine_name,
