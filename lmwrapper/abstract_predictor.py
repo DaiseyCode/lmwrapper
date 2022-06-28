@@ -28,6 +28,7 @@ class LmPredictor:
         self,
         prompt: Union[str, LmPrompt],
     ) -> LmPrediction:
+        prompt = self._cast_prompt(prompt)
         should_cache = self._cache_default if prompt.cache is None else prompt.cache
         if should_cache:
             return self._cached_predict(prompt, self._get_cache_key_metadata())
