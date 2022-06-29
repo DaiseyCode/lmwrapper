@@ -36,6 +36,7 @@ class OpenAIPredictor(LmPredictor):
         return self._api.Engine.list()
 
     def _predict_maybe_cached(self, prompt: LmPrompt) -> LmPrediction:
+        print("SUBMIT Prompt", prompt)
         completion = self._api.Completion.create(
             engine=self._engine_name,
             prompt=prompt.text,

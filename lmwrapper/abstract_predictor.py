@@ -7,22 +7,24 @@ from lmwrapper.caching import get_disk_cache
 from lmwrapper.structs import LmPrompt, LmPrediction
 
 
+disk_cache = get_disk_cache()
+
+
+@disk_cache.cache(verbose=0, ignore=['func'])
+def _predict_definately_cached(
+    func,
+    prompt: LmPrompt,
+    extra_params: Dict,
+):
+    return func(prompt)
+
+
 class LmPredictor:
     def __init__(
         self,
         cache_default: bool = False,
-        cache_object: Memory = None,
     ):
-        if cache_object is None:
-            cache_object = get_disk_cache()
         self._cache_default = cache_default
-        self._cached_predict = cache_object.cache(
-            func=self._predict_maybe_cached,
-        )
-
-    def _get_cache_key_metadata(self):
-        """Used to potentially add extra info that defines how predictions are cached"""
-        return {}
 
     def predict(
         self,
@@ -31,10 +33,13 @@ class LmPredictor:
         prompt = self._cast_prompt(prompt)
         should_cache = self._cache_default if prompt.cache is None else prompt.cache
         if should_cache:
-            return self._cached_predict(prompt, self._get_cache_key_metadata())
+            return _predict_definately_cached(
+                self._predict_maybe_cached, prompt, self._get_cache_key_metadata())
         else:
             return self._predict_maybe_cached(prompt)
 
+    def _get_cache_key_metadata(self):
+        return {'name': type(self).__name__}
 
     @abstractmethod
     def _predict_maybe_cached(

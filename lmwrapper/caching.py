@@ -14,5 +14,6 @@ def get_disk_cache() -> Memory:
 
 
 def clear_cache_dir():
-    _cache_dir().rmdir()
+    import shutil
+    shutil.rmtree(_cache_dir())
 
