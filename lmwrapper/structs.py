@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import statistics
 from typing import List, Any
 
 
@@ -53,3 +54,6 @@ class LmPrediction:
 
     def get_full_text(self):
         return self.prompt.text + self.completion_text
+
+    def completion_mean_logprob(self):
+        return statistics.mean(self.completion_logprobs)
