@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Union, Dict
+from typing import Union, Dict, List
 
 from joblib import Memory
 
@@ -42,10 +42,7 @@ class LmPredictor:
         return {'name': type(self).__name__}
 
     @abstractmethod
-    def _predict_maybe_cached(
-        self,
-        prompt: LmPrompt,
-    ) -> LmPrediction:
+    def _predict_maybe_cached(self, prompt: LmPrompt) -> Union[LmPrediction, List[LmPrediction]]:
         pass
 
     def _cast_prompt(self, prompt: Union[str, LmPrompt]) -> LmPrompt:

@@ -1,15 +1,71 @@
 import random
 from pathlib import Path
-from typing import Union
+from typing import Union, List
 from termcolor import colored
 from lmwrapper.abstract_predictor import LmPredictor
 from lmwrapper.caching import get_disk_cache
 from lmwrapper.secret_manage import SecretInterface, SecretFile, assert_is_a_secret
 from lmwrapper.structs import LmPrompt, LmPrediction
+import bisect
 
 
 cur_file = Path(__file__).parent.absolute()
 diskcache = get_disk_cache()
+
+
+class OpenAiLmPrediction(LmPrediction):
+    def _get_completion_token_index(self):
+        """If echoing the completion text might not start at the begining. Returns the
+        index of the actually new tokens"""
+        if not self.prompt.echo:
+            return 0
+        # binary search for the first token after the prompt length
+        prompt_len = len(self.prompt.text) - 1
+        all_offsets: List[int] = self._all_toks_offsets()
+        return bisect.bisect_right(all_offsets, prompt_len)
+
+    def _all_toks(self):
+        return self.metad['logprobs']['tokens']
+
+    def _all_toks_offsets(self):
+        return self.metad['logprobs']['text_offset']
+
+    def _all_logprobs(self):
+        return self.metad['logprobs']['token_logprobs']
+
+    @property
+    def completion_tokens(self):
+        return self._all_toks()[self._get_completion_token_index():]
+
+    @property
+    def completion_token_offsets(self):
+        return self._all_toks_offsets()[self._get_completion_token_index():]
+
+    @property
+    def completion_logprobs(self):
+        return self._all_logprobs()[self._get_completion_token_index():]
+
+    def _verify_echo(self):
+        if not self.prompt.echo:
+            raise ValueError("This property is not available when prompt is not echoed")
+
+    @property
+    def prompt_tokens(self):
+        self._verify_echo()
+        return self._all_toks()[:self._get_completion_token_index()]
+
+    @property
+    def prompt_token_offsets(self):
+        self._verify_echo()
+        return self._all_toks_offsets()[:self._get_completion_token_index()]
+
+    @property
+    def prompt_logprobs(self):
+        self._verify_echo()
+        return self._all_logprobs()[:self._get_completion_token_index()]
+
+    def get_full_text(self):
+        return self.prompt.text + self.completion_text
 
 
 class OpenAIPredictor(LmPredictor):
@@ -35,8 +91,8 @@ class OpenAIPredictor(LmPredictor):
     def list_engines(self):
         return self._api.Engine.list()
 
-    def _predict_maybe_cached(self, prompt: LmPrompt) -> LmPrediction:
-        print("SUBMIT Prompt", prompt)
+    def _predict_maybe_cached(self, prompt: LmPrompt) -> Union[LmPrediction, List[LmPrediction]]:
+        print(self._engine_name)
         completion = self._api.Completion.create(
             engine=self._engine_name,
             prompt=prompt.text,
@@ -47,8 +103,22 @@ class OpenAIPredictor(LmPredictor):
             temperature=prompt.temperature,
             top_p=prompt.top_p,
             presence_penalty=prompt.presence_penalty,
+            n=prompt.num_completions,
+            echo=prompt.echo,
         )
-        return LmPrediction(completion.choices[0].text, completion)
+        choices = completion['choices']
+
+        def get_completion_text(text):
+            if not prompt.echo:
+                return text
+            return text[len(prompt.text):]
+        out = [
+            OpenAiLmPrediction(get_completion_text(choice['text']), prompt, choice)
+            for choice in choices
+        ]
+        if len(choices) == 1:
+            return out[0]
+        return out
 
 
 def get_goose_lm(
