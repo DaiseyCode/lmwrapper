@@ -13,7 +13,7 @@ def get_requirments():
 
 setup(
     name='lmwrapper',
-    version='0.0.8',
+    version='0.0.9',
     author='David Gros',
     description='Wrapper around language model APIs',
     license='MIT',

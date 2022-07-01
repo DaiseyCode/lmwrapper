@@ -19,6 +19,7 @@ def play_with_probs():
     print(out._get_completion_token_index())
     print(out.completion_tokens)
     print(out.completion_token_offsets)
+    print(out.completion_logprobs)
     print(out.prompt_tokens)
 
 
