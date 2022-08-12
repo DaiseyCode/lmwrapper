@@ -10,7 +10,8 @@ from lmwrapper.structs import LmPrompt, LmPrediction
 disk_cache = get_disk_cache()
 
 
-@disk_cache.cache(verbose=0, ignore=['func'])
+#@disk_cache.cache(verbose=0, ignore=['func'])
+@disk_cache.memoize(ignore=('func',))
 def _predict_definately_cached(
     func,
     prompt: LmPrompt,
@@ -33,8 +34,12 @@ class LmPredictor:
         prompt = self._cast_prompt(prompt)
         should_cache = self._cache_default if prompt.cache is None else prompt.cache
         if should_cache:
-            return _predict_definately_cached(
-                self._predict_maybe_cached, prompt, self._get_cache_key_metadata())
+            cache_key = (prompt, self._get_cache_key_metadata())
+            if cache_key in disk_cache:
+                return disk_cache.get(cache_key)
+            val = self._predict_maybe_cached(prompt)
+            disk_cache.set(cache_key, val)
+            return val
         else:
             return self._predict_maybe_cached(prompt)
 

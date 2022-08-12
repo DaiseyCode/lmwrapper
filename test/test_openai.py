@@ -23,6 +23,22 @@ def play_with_probs():
     print(out.prompt_tokens)
 
 
+def test_simple_pred():
+    lm = get_open_ai_lm()
+    out = lm.predict(
+        LmPrompt(
+            "Once upon a",
+            max_toks=1,
+            logprobs=10,
+            cache=True,
+            num_completions=1,
+            echo=False
+        ))
+    assert out.completion_text.strip() == "time"
+    print(out)
+
+
+
 def main():
     play_with_probs()
     exit()
