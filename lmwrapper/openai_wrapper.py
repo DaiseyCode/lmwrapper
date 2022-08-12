@@ -97,8 +97,6 @@ class OpenAIPredictor(LmPredictor):
         return self._api.Engine.list()
 
     def _predict_maybe_cached(self, prompt: LmPrompt) -> Union[LmPrediction, List[LmPrediction]]:
-        print(self._engine_name)
-
         def run_func():
             try:
                 completion = self._api.Completion.create(
