@@ -1,6 +1,9 @@
 import random
+import time
 from pathlib import Path
 from typing import Union, List
+
+import openai.error
 from termcolor import colored
 from lmwrapper.abstract_predictor import LmPredictor
 from lmwrapper.caching import get_disk_cache
@@ -74,11 +77,13 @@ class OpenAIPredictor(LmPredictor):
         api,
         engine_name: str,
         cache_outputs_default: bool = False,
+        retry_on_rate_limit: bool = False,
     ):
         super().__init__(cache_outputs_default)
         self._api = api
         self._engine_name = engine_name
         self._cache_outputs_default = cache_outputs_default
+        self._retry_on_rate_limit = retry_on_rate_limit
 
     def model_name(self):
         return self._engine_name
@@ -93,19 +98,35 @@ class OpenAIPredictor(LmPredictor):
 
     def _predict_maybe_cached(self, prompt: LmPrompt) -> Union[LmPrediction, List[LmPrediction]]:
         print(self._engine_name)
-        completion = self._api.Completion.create(
-            engine=self._engine_name,
-            prompt=prompt.text,
-            max_tokens=prompt.max_toks,
-            stop=prompt.stop,
-            stream=False,
-            logprobs=prompt.logprobs,
-            temperature=prompt.temperature,
-            top_p=prompt.top_p,
-            presence_penalty=prompt.presence_penalty,
-            n=prompt.num_completions,
-            echo=prompt.echo,
-        )
+
+        def run_func():
+            try:
+                completion = self._api.Completion.create(
+                    engine=self._engine_name,
+                    prompt=prompt.text,
+                    max_tokens=prompt.max_toks,
+                    stop=prompt.stop,
+                    stream=False,
+                    logprobs=prompt.logprobs,
+                    temperature=prompt.temperature,
+                    top_p=prompt.top_p,
+                    presence_penalty=prompt.presence_penalty,
+                    n=prompt.num_completions,
+                    echo=prompt.echo,
+                )
+                return completion
+            except openai.error.RateLimitError as e:
+                print(e)
+                return e
+
+        def is_success_func(result):
+            return not isinstance(result, openai.error.RateLimitError)
+
+        if self._retry_on_rate_limit:
+            completion = attempt_with_exponential_backoff(run_func, is_success_func)
+        else:
+            completion = run_func()
+
         choices = completion['choices']
 
         def get_completion_text(text):
@@ -121,9 +142,27 @@ class OpenAIPredictor(LmPredictor):
         return out
 
 
+def attempt_with_exponential_backoff(
+    call_func,
+    is_success_func,
+    backoff_cap=60,
+):
+    """Attempts to get a result from call_func. Uses is_success_func
+    to determine if the result was a success or not. If not a success
+    then will sleep for a random amount of time between 1 and 2^attempts"""
+    result = call_func()
+    attempts = 1
+    while not is_success_func(result):
+        time.sleep(random.randint(1, min(2**attempts, backoff_cap)))
+        result = call_func()
+        attempts += 1
+    return result
+
+
 def get_goose_lm(
     model_name: str = "gpt-neo-125m",
     api_key_secret: SecretInterface = None,
+    retry_on_rate_limit: bool = False,
 ):
     if api_key_secret is None:
         api_key_secret = SecretFile(Path("~/goose_key.txt").expanduser())
@@ -134,6 +173,7 @@ def get_goose_lm(
     return OpenAIPredictor(
         api=openai,
         engine_name=model_name,
+        retry_on_rate_limit=retry_on_rate_limit,
     )
 
 
@@ -141,6 +181,7 @@ def get_open_ai_lm(
     model_name: str = "text-ada-001",
     api_key_secret: SecretInterface = None,
     organization: str = None,
+    retry_on_rate_limit: bool = False,
 ):
     if api_key_secret is None:
         api_key_secret = SecretFile(Path("~/oai_key.txt").expanduser())
@@ -152,4 +193,5 @@ def get_open_ai_lm(
     return OpenAIPredictor(
         api=openai,
         engine_name=model_name,
+        retry_on_rate_limit=retry_on_rate_limit,
     )
