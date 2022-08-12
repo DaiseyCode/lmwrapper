@@ -151,7 +151,9 @@ def attempt_with_exponential_backoff(
     result = call_func()
     attempts = 1
     while not is_success_func(result):
-        time.sleep(random.randint(1, min(2**attempts, backoff_cap)))
+        sleep_time = random.randint(1, min(2**attempts, backoff_cap))
+        print("Rate limit error. Sleeping for {} seconds".format(sleep_time))
+        time.sleep(sleep_time)
         result = call_func()
         attempts += 1
     return result
