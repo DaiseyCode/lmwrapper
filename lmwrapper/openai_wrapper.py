@@ -16,6 +16,9 @@ cur_file = Path(__file__).parent.absolute()
 diskcache = get_disk_cache()
 
 
+PRINT_ON_PREDICT = True
+
+
 class OpenAiLmPrediction(LmPrediction):
     def _get_completion_token_index(self):
         """If echoing the completion text might not start at the begining. Returns the
@@ -97,6 +100,9 @@ class OpenAIPredictor(LmPredictor):
         return self._api.Engine.list()
 
     def _predict_maybe_cached(self, prompt: LmPrompt) -> Union[LmPrediction, List[LmPrediction]]:
+        if PRINT_ON_PREDICT:
+            print("RUN PREDICT ", prompt.text[:min(10, len(prompt.text))])
+
         def run_func():
             try:
                 completion = self._api.Completion.create(

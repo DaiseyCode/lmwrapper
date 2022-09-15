@@ -14,8 +14,9 @@ def _get_disk_cache_joblib() -> Memory:
     return diskcache
 
 
-def _get_disk_cache_diskcache() -> diskcache.Cache:
-    return diskcache.Cache(str(_cache_dir()), timeout=int(9e9))
+def _get_disk_cache_diskcache() -> diskcache.FanoutCache:
+    return diskcache.FanoutCache(
+        str(_cache_dir()), timeout=int(9e9), size_limit=50e9, shards=4, eviction_policy='none')
 
 
 def get_disk_cache():
