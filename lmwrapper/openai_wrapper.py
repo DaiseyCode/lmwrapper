@@ -11,6 +11,7 @@ from lmwrapper.secret_manage import SecretInterface, SecretFile, assert_is_a_sec
 from lmwrapper.structs import LmPrompt, LmPrediction
 import bisect
 
+from lmwrapper.util import StrEnum
 
 cur_file = Path(__file__).parent.absolute()
 diskcache = get_disk_cache()
@@ -131,6 +132,9 @@ class OpenAIPredictor(LmPredictor):
         else:
             completion = run_func()
 
+        if not is_success_func(completion):
+            raise completion
+
         choices = completion['choices']
 
         def get_completion_text(text):
@@ -181,6 +185,18 @@ def get_goose_lm(
         engine_name=model_name,
         retry_on_rate_limit=retry_on_rate_limit,
     )
+
+
+
+class OpenAiModelNames(StrEnum):
+    text_ada_001 = "text-ada-001"
+    """Capable of very simple tasks, usually the fastest model in the GPT-3 series, and lowest cost."""
+
+    text_davinci_003 = "text-davinci-003"
+    """Can do any language task with better quality, longer output, and consistent instruction-following 
+    than the curie, babbage, or ada models. 
+    Also supports some additional features such as inserting text."""
+
 
 
 def get_open_ai_lm(

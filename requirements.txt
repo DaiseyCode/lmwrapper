@@ -1,4 +1,5 @@
-joblib==1.1.0
-openai==0.20.0
-setuptools==61.2.0
-termcolor==1.1.0
+openai~=0.27.0
+setuptools
+termcolor~=1.0
+diskcache
+joblib~=1.1
