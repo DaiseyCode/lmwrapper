@@ -118,7 +118,7 @@ class OpenAIPredictor(LmPredictor):
                 completion = self._api.Completion.create(
                     engine=self._engine_name,
                     prompt=prompt.text,
-                    max_tokens=prompt.max_toks,
+                    max_tokens=prompt.max_tokens,
                     stop=prompt.stop,
                     stream=False,
                     logprobs=prompt.logprobs,

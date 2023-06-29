@@ -1,12 +1,12 @@
 from dataclasses import dataclass
 import statistics
-from typing import List, Any
+from typing import List, Any, Union
 
 
 @dataclass(frozen=True)
 class LmPrompt:
-    text: str
-    max_toks: int
+    text: Union[str]
+    max_tokens: int
     stop: List[str] = None
     logprobs: int = None
     temperature: float = 1.0
@@ -20,6 +20,7 @@ class LmPrompt:
     echo: bool = False
     """Whether to echo back the original prompt. Also allows you to get the
     probability of the prompt under the model"""
+
 
 
 @dataclass

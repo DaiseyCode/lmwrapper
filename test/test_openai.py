@@ -9,7 +9,7 @@ def play_with_probs():
     out = lm.predict(
         LmPrompt(
             "Once upon",
-            max_toks=2,
+            max_tokens=2,
             logprobs=10,
             cache=True,
             num_completions=1,
@@ -28,7 +28,7 @@ def test_simple_pred():
     out = lm.predict(
         LmPrompt(
             "Once upon a",
-            max_toks=1,
+            max_tokens=1,
             logprobs=10,
             cache=True,
             num_completions=1,
@@ -47,14 +47,14 @@ def main():
     text = lm.predict(
         LmPrompt(
             "Once upon a time there was a Goose. And",
-            max_toks=1, logprobs=10, cache=True
+            max_tokens=1, logprobs=10, cache=True
         ))
     print(text.completion_text)
     lm = get_open_ai_lm()
     new_text = lm.predict(
         LmPrompt(
             "Once upon a time there was a Goose. And",
-            max_toks=1, logprobs=10, cache=True
+            max_tokens=1, logprobs=10, cache=True
         ))
     print(new_text.completion_text)
     assert text.completion_text == new_text.completion_text
@@ -63,7 +63,7 @@ def main():
     text = lm.predict(
         LmPrompt(
             "Once upon a time there was a Goose. And",
-            max_toks=1, logprobs=10,
+            max_tokens=1, logprobs=10,
         ))
     #print(type(completion_text))
     print(text.completion_text)
