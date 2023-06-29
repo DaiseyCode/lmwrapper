@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Union, List
 
 import openai.error
-from termcolor import colored
 from lmwrapper.abstract_predictor import LmPredictor
 from lmwrapper.caching import get_disk_cache
 from lmwrapper.secret_manage import SecretInterface, SecretFile, assert_is_a_secret
@@ -38,6 +37,9 @@ class OpenAiLmPrediction(LmPrediction):
         return self.metad['logprobs']['text_offset']
 
     def _all_logprobs(self):
+        if self.metad['logprobs'] is None:
+            assert self.prompt.logprobs is None or self.prompt.logprobs == 0
+            return None
         return self.metad['logprobs']['token_logprobs']
 
     @property
@@ -48,8 +50,15 @@ class OpenAiLmPrediction(LmPrediction):
     def completion_token_offsets(self):
         return self._all_toks_offsets()[self._get_completion_token_index():]
 
+    def _verify_logprobs(self):
+        if self.prompt.logprobs is None or self.prompt.logprobs == 0:
+            raise ValueError("This property is not available unless the prompt logprobs is set")
+
     @property
     def completion_logprobs(self):
+        """Note that this will only be valid if set a logprob value in the prompt"""
+        all_logprobs = self._all_logprobs()
+        self._verify_logprobs()
         return self._all_logprobs()[self._get_completion_token_index():]
 
     def _verify_echo(self):

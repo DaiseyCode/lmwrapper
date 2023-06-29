@@ -37,7 +37,7 @@ class LmPrediction:
         raise NotImplemented("This version of prediction does not support completion token offsets")
 
     @property
-    def completion_logprobs(self):
+    def completion_logprobs(self) -> List[float]:
         raise NotImplemented("This version of prediction does not support completion logprobs")
 
     @property
