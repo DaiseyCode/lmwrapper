@@ -1,6 +1,5 @@
 from abc import abstractmethod
 from typing import Optional, List, Union
-import numpy as np
 
 
 class PromptTrimmer():
