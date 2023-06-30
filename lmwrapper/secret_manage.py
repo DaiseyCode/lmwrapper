@@ -31,7 +31,6 @@ class SecretEnvVar:
     def __init__(self, name: str):
         self.name = name
 
-
     def is_defined(self) -> bool:
         return self.name in os.environ
 

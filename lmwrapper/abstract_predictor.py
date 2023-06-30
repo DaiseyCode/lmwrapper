@@ -1,8 +1,5 @@
 from abc import abstractmethod
 from typing import Union, Dict, List
-
-from joblib import Memory
-
 from lmwrapper.caching import get_disk_cache
 from lmwrapper.structs import LmPrompt, LmPrediction
 
@@ -10,7 +7,6 @@ from lmwrapper.structs import LmPrompt, LmPrediction
 disk_cache = get_disk_cache()
 
 
-#@disk_cache.cache(verbose=0, ignore=['func'])
 @disk_cache.memoize(ignore=('func',))
 def _predict_definately_cached(
     func,

@@ -10,8 +10,7 @@ def _cache_dir():
 
 
 def _get_disk_cache_joblib() -> Memory:
-    diskcache = Memory(_cache_dir(), verbose=0)
-    return diskcache
+    return Memory(_cache_dir(), verbose=0)
 
 
 def _get_disk_cache_diskcache() -> diskcache.FanoutCache:
@@ -26,4 +25,3 @@ def get_disk_cache():
 def clear_cache_dir():
     import shutil
     shutil.rmtree(_cache_dir())
-

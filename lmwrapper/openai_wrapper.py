@@ -241,7 +241,6 @@ def is_model_chat_model(model_name: str) -> bool:
         OpenAiModelNames.text_ada_001: False,
         OpenAiModelNames.text_davinci_003: False,
         OpenAiModelNames.gpt_3_5_turbo: True,
-
     }.get(model_name, None)
 
 

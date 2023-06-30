@@ -5,6 +5,7 @@ from typing import Any, List, Type, TypeVar
 
 _S = TypeVar("_S", bound="StrEnum")
 
+
 class StrEnum(str, Enum):
     """
     Enum where members are also (and must be) strings

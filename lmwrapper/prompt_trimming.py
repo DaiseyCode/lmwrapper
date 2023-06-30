@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Optional, List, Union
+from typing import List, Union
 
 
 class PromptTrimmer():

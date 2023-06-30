@@ -9,6 +9,7 @@ LM_CHAT_DIALOG_COERCIBLE_TYPES = Union[
     "LmChatDialog",
 ]  # Defines a set of types that can be converted into a LmChatDialog
 
+
 @dataclass(frozen=True)
 class LmPrompt:
     text: Union[str, LM_CHAT_DIALOG_COERCIBLE_TYPES]
