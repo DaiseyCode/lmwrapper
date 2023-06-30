@@ -223,7 +223,6 @@ def get_goose_lm(
     )
 
 
-
 class OpenAiModelNames(StrEnum):
     text_ada_001 = "text-ada-001"
     """Capable of very simple tasks, usually the fastest model in the GPT-3 series, and lowest cost."""

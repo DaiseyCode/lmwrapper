@@ -1,6 +1,6 @@
 from lmwrapper.caching import clear_cache_dir
 from lmwrapper.openai_wrapper import get_goose_lm, get_open_ai_lm, OpenAiModelNames
-from lmwrapper.structs import LmPrompt
+from lmwrapper.structs import LmPrompt, LmChatDialog
 
 
 def play_with_probs():
@@ -48,6 +48,26 @@ def test_simple_chat_mode():
     ))
     assert out.completion_text.strip() == "4"
 
+
+def test_simple_chat_mode_multiturn():
+    lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo)
+    prompt = [
+        "What is 2+2? Answer with just one number.",
+        "4",
+        "What is 3+2?"
+    ]
+    assert LmChatDialog(prompt).as_dicts() == [
+        {'role': 'user', 'content': 'What is 2+2? Answer with just one number.'},
+        {'role': 'system', 'content': '4'},
+        {'role': 'user', 'content': 'What is 3+2?'}
+    ]
+    out = lm.predict(LmPrompt(
+        prompt,
+        max_tokens=1,
+        num_completions=1,
+        cache=False,
+    ))
+    assert out.completion_text.strip() == "5"
 
 
 def main():

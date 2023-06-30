@@ -5,7 +5,7 @@ from typing import List, Any, Union, Tuple
 
 LM_CHAT_DIALOG_COERCIBLE_TYPES = Union[
     str,
-    List[Union["LmChatTurn", Tuple[str, str], str]],
+    List[Union["LmChatTurn", Tuple[str, str], dict, str]],
     "LmChatDialog",
 ]  # Defines a set of types that can be converted into a LmChatDialog
 
@@ -61,8 +61,13 @@ class LmChatDialog(list[LmChatTurn]):
                     current_role = "user" if current_role == "system" else "system"
                 case (str(role), str(content)):
                     out.append(LmChatTurn(role=role, content=content))
+                    current_role = "user" if role == "system" else "system"
+                case dict(turn):
+                    out.append(LmChatTurn(**turn))
+                    current_role = "user" if turn['role'] == "system" else "system"
                 case LmChatTurn(role=role, content=content):
                     out.append(turn)
+                    current_role = "user" if role == "system" else "system"
                 case _:
                     raise ValueError(f"Invalid type for text: {type(turn)}. "
                                      f"It should be a tuple of strings (role, content) or a LmChatTurn.")
