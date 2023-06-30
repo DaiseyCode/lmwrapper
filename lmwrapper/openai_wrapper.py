@@ -84,11 +84,17 @@ class OpenAiLmPrediction(LmPrediction):
         return self.prompt.text + self.completion_text
 
 
+class OpenAiLmChatPrediction(LmPrediction):
+    pass
+
+
+
 class OpenAIPredictor(LmPredictor):
     def __init__(
         self,
         api,
         engine_name: str,
+        chat_mode: bool = None,
         cache_outputs_default: bool = False,
         retry_on_rate_limit: bool = False,
     ):
@@ -97,6 +103,12 @@ class OpenAIPredictor(LmPredictor):
         self._engine_name = engine_name
         self._cache_outputs_default = cache_outputs_default
         self._retry_on_rate_limit = retry_on_rate_limit
+        self._chat_mode = (
+            is_model_chat_model(engine_name)
+            if chat_mode is None else chat_mode
+        )
+        if self._chat_mode is None:
+            raise ValueError("Chat mode is not defined and cannot be inferred from engine name")
 
     def model_name(self):
         return self._engine_name
@@ -115,20 +127,31 @@ class OpenAIPredictor(LmPredictor):
 
         def run_func():
             try:
-                completion = self._api.Completion.create(
-                    engine=self._engine_name,
-                    prompt=prompt.text,
-                    max_tokens=prompt.max_tokens,
-                    stop=prompt.stop,
-                    stream=False,
-                    logprobs=prompt.logprobs,
-                    temperature=prompt.temperature,
-                    top_p=prompt.top_p,
-                    presence_penalty=prompt.presence_penalty,
-                    n=prompt.num_completions,
-                    echo=prompt.echo,
-                )
-                return completion
+                if not self._chat_mode:
+                    return self._api.Completion.create(
+                        engine=self._engine_name,
+                        prompt=prompt.text,
+                        max_tokens=prompt.max_tokens,
+                        stop=prompt.stop,
+                        stream=False,
+                        logprobs=prompt.logprobs,
+                        temperature=prompt.temperature,
+                        top_p=prompt.top_p,
+                        presence_penalty=prompt.presence_penalty,
+                        n=prompt.num_completions,
+                        echo=prompt.echo,
+                    )
+                else:
+                    return self._api.ChatCompletion.create(
+                        model=self._engine_name,
+                        messages=prompt.get_text_as_chat().as_dicts(),
+                        temperature=prompt.temperature,
+                        max_tokens=prompt.max_tokens,
+                        stop=prompt.stop,
+                        top_p=prompt.top_p,
+                        n=prompt.num_completions,
+                        presence_penalty=prompt.presence_penalty,
+                    )
             except openai.error.RateLimitError as e:
                 print(e)
                 return e
@@ -150,8 +173,12 @@ class OpenAIPredictor(LmPredictor):
             if not prompt.echo:
                 return text
             return text[len(prompt.text):]
+
+        def get_text_from_choice(choice):
+            return choice['text'] if not self._chat_mode else choice['message']['content']
+
         out = [
-            OpenAiLmPrediction(get_completion_text(choice['text']), prompt, choice)
+            OpenAiLmPrediction(get_completion_text(get_text_from_choice(choice)), prompt, choice)
             for choice in choices
         ]
         if len(choices) == 1:
@@ -206,10 +233,21 @@ class OpenAiModelNames(StrEnum):
     than the curie, babbage, or ada models. 
     Also supports some additional features such as inserting text."""
 
+    gpt_3_5_turbo = "gpt-3.5-turbo"
+    gpt_4 = "gpt-4"
+
+
+def is_model_chat_model(model_name: str) -> bool:
+    return {
+        OpenAiModelNames.text_ada_001: False,
+        OpenAiModelNames.text_davinci_003: False,
+        OpenAiModelNames.gpt_3_5_turbo: True,
+
+    }.get(model_name, None)
 
 
 def get_open_ai_lm(
-    model_name: str = "text-ada-001",
+    model_name: str = OpenAiModelNames.text_ada_001,
     api_key_secret: SecretInterface = None,
     organization: str = None,
     retry_on_rate_limit: bool = False,

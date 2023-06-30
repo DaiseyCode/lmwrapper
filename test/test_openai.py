@@ -1,5 +1,5 @@
 from lmwrapper.caching import clear_cache_dir
-from lmwrapper.openai_wrapper import get_goose_lm, get_open_ai_lm
+from lmwrapper.openai_wrapper import get_goose_lm, get_open_ai_lm, OpenAiModelNames
 from lmwrapper.structs import LmPrompt
 
 
@@ -36,6 +36,17 @@ def test_simple_pred():
         ))
     assert out.completion_text.strip() == "time"
     print(out)
+
+
+def test_simple_chat_mode():
+    lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo)
+    out = lm.predict(LmPrompt(
+        "What is 2+2? Answer with just one number.",
+        max_tokens=1,
+        num_completions=1,
+        cache=False,
+    ))
+    assert out.completion_text.strip() == "4"
 
 
 
