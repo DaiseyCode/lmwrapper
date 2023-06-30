@@ -57,7 +57,6 @@ class OpenAiLmPrediction(LmPrediction):
     @property
     def completion_logprobs(self):
         """Note that this will only be valid if set a logprob value in the prompt"""
-        all_logprobs = self._all_logprobs()
         self._verify_logprobs()
         return self._all_logprobs()[self._get_completion_token_index():]
 
@@ -86,7 +85,6 @@ class OpenAiLmPrediction(LmPrediction):
 
 class OpenAiLmChatPrediction(LmPrediction):
     pass
-
 
 
 class OpenAIPredictor(LmPredictor):
@@ -226,12 +224,10 @@ def get_goose_lm(
 class OpenAiModelNames(StrEnum):
     text_ada_001 = "text-ada-001"
     """Capable of very simple tasks, usually the fastest model in the GPT-3 series, and lowest cost."""
-
     text_davinci_003 = "text-davinci-003"
-    """Can do any language task with better quality, longer output, and consistent instruction-following 
-    than the curie, babbage, or ada models. 
+    """Can do any language task with better quality, longer output, and consistent instruction-following
+    than the curie, babbage, or ada models.
     Also supports some additional features such as inserting text."""
-
     gpt_3_5_turbo = "gpt-3.5-turbo"
     gpt_4 = "gpt-4"
 

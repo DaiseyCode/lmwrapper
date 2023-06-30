@@ -1,5 +1,6 @@
 from setuptools import setup
 
+
 def get_requirments():
     # https://stackoverflow.com/a/53069528
     import os
@@ -10,6 +11,7 @@ def get_requirments():
         with open(requirement_path) as f:
             install_requires = f.read().splitlines()
     return install_requires
+
 
 setup(
     name='lmwrapper',

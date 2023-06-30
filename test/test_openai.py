@@ -1,10 +1,9 @@
 from lmwrapper.caching import clear_cache_dir
-from lmwrapper.openai_wrapper import get_goose_lm, get_open_ai_lm, OpenAiModelNames
+from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
 from lmwrapper.structs import LmPrompt, LmChatDialog
 
 
 def play_with_probs():
-    #clear_cache_dir()
     lm = get_open_ai_lm()
     out = lm.predict(
         LmPrompt(
@@ -96,7 +95,6 @@ def main():
             "Once upon a time there was a Goose. And",
             max_tokens=1, logprobs=10,
         ))
-    #print(type(completion_text))
     print(text.completion_text)
 
 

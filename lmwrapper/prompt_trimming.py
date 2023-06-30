@@ -18,7 +18,7 @@ class CharPromptTrimmer(PromptTrimmer):
         self.char_limit = char_limit
 
     def trim_text_line_level(self, text: str) -> str:
-        lines = [l + "\n" for l in text.split("\n")]
+        lines = [line + "\n" for line in text.split("\n")]
         lines[-1] = lines[-1][:-1]
         return self.trim_text(lines)
 
