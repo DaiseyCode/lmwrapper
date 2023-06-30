@@ -6,7 +6,7 @@ from typing import Union, List
 import openai.error
 from lmwrapper.abstract_predictor import LmPredictor
 from lmwrapper.caching import get_disk_cache
-from lmwrapper.secret_manage import SecretInterface, SecretFile, assert_is_a_secret
+from lmwrapper.secret_manage import SecretInterface, SecretFile, assert_is_a_secret, SecretEnvVar
 from lmwrapper.structs import LmPrompt, LmPrediction
 import bisect
 
@@ -252,7 +252,9 @@ def get_open_ai_lm(
     retry_on_rate_limit: bool = False,
 ):
     if api_key_secret is None:
-        api_key_secret = SecretFile(Path("~/oai_key.txt").expanduser())
+        api_key_secret = SecretEnvVar("OPENAI_API_KEY")
+        if not api_key_secret.is_defined():
+            api_key_secret = SecretFile(Path("~/oai_key.txt").expanduser())
     assert_is_a_secret(api_key_secret)
     import openai
     openai.api_key = api_key_secret.get_secret().strip()

@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from builtins import issubclass
+import os
 from pathlib import Path
 
 
@@ -25,3 +25,15 @@ class SecretFile:
 
     def get_secret(self) -> str:
         return Path(self.path).read_text()
+
+
+class SecretEnvVar:
+    def __init__(self, name: str):
+        self.name = name
+
+
+    def is_defined(self) -> bool:
+        return self.name in os.environ
+
+    def get_secret(self) -> str:
+        return os.environ[self.name]
