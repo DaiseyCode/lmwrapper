@@ -21,7 +21,7 @@ pip install git+https://github.com/DNGros/lmwrapper.git
 from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
 from lmwrapper.structs import LmPrompt
 
-lm = get_open_ai_lm(  # Returns a LmPredictor object
+lm = get_open_ai_lm(
     model_name=OpenAiModelNames.text_ada_001,
     api_key_secret=None, # By default this will read from the OPENAI_API_KEY environment variable.
                          # If that isn't set, it will try the file ~/oai_key.txt
@@ -31,7 +31,7 @@ lm = get_open_ai_lm(  # Returns a LmPredictor object
 )
 
 prediction = lm.predict(
-    LmPrompt(  # A LmPrompt object lets your IDE write args
+    LmPrompt(  # A LmPrompt object lets your IDE hint on args
         "Once upon a",
         max_tokens=10,
     )
