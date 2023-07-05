@@ -254,19 +254,33 @@ def get_open_ai_lm(
     model_name: str = OpenAiModelNames.text_ada_001,
     api_key_secret: SecretInterface = None,
     organization: str = None,
+    cache_outputs_default: bool = False,
     retry_on_rate_limit: bool = False,
-):
+) -> OpenAIPredictor:
     if api_key_secret is None:
         api_key_secret = SecretEnvVar("OPENAI_API_KEY")
-        if not api_key_secret.is_defined():
+        if not api_key_secret.is_readable():
             api_key_secret = SecretFile(Path("~/oai_key.txt").expanduser())
+        if not api_key_secret.is_readable():
+            raise ValueError((
+                "Cannot find an API key. "
+                "By default the OPENAI_API_KEY environment variable is used if it is available. "
+                "Otherwise it it read from a file at ~/oai_key.txt. "
+                "Please place the key at one of the locations or pass in a SecretInterface "
+                "(like SecretEnvVar or SecretFile object) to the api_key_secret argument."
+                "\n"
+                "You can get an API key from https://platform.openai.com/account/api-keys"
+            ))
     assert_is_a_secret(api_key_secret)
     import openai
+    if not api_key_secret.is_readable():
+        raise ValueError("API key is not defined")
     openai.api_key = api_key_secret.get_secret().strip()
     if organization:
         openai.organization = organization
     return OpenAIPredictor(
         api=openai,
         engine_name=model_name,
+        cache_outputs_default=cache_outputs_default,
         retry_on_rate_limit=retry_on_rate_limit,
     )
