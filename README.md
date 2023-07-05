@@ -1,6 +1,8 @@
-This provides an object oriented wrapper around the OpenAI API.
-Being object-oriented means that your IDE can provide you more hints
-about how the arguments and returns of the API making it more user friendly.
+This provides a wrapper around the OpenAI API focusing
+on being a clean and user-friendly interface. Because every input 
+and output is object-oriented (rather than just JSON dictionaries with string
+keys and values), your IDE can help you with things like argument and
+property names and catch certain bugs statically.
 
 The goal is also to unify the interface for both openai models and huggingface
 models, but that is still a work in progress.
