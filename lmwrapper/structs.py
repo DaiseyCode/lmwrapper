@@ -16,6 +16,13 @@ class LmPrompt:
     max_tokens: int
     stop: List[str] = None
     logprobs: int = None
+    """Include the log probabilities on the logprobs most likely tokens, as well the chosen tokens. 
+    For example, if logprobs is 5, the API will return a list of the 5 most likely tokens. 
+    The model will always return the logprob of the sampled token, 
+    so there may be up to logprobs+1 elements in the response.
+
+    In the case of openai the maximum value for logprobs is 5.
+    """
     temperature: float = 1.0
     top_p: float = 0.9
     presence_penalty: float = 0.0
@@ -27,6 +34,27 @@ class LmPrompt:
     echo: bool = False
     """Whether to echo back the original prompt. Also allows you to get the
     probability of the prompt under the model"""
+
+    def __post_init__(self):
+        if not isinstance(self.max_tokens, int):
+            raise ValueError("The max_tokens parameter should be an int.")
+        if self.stop is not None:
+            if not isinstance(self.stop, list):
+                raise ValueError("The stop parameter should be a list of strings on where to stop.")
+            if not all(isinstance(x, str) for x in stop):
+                raise ValueError("The stop parameter should be a list of strings on where to stop.")
+        if not isinstance(self.temperature, float):
+            raise ValueError("The temperature parameter should be a float.")
+        if not isinstance(self.top_p, float):
+            raise ValueError("The top_p parameter should be a float.")
+        if not isinstance(self.presence_penalty, float):
+            raise ValueError("The presence_penalty parameter should be a float.")
+        if not isinstance(self.num_completions, int):
+            raise ValueError("The num_completions parameter should be an int.")
+        if self.cache is not None and not isinstance(self.cache, bool):
+            raise ValueError("The cache parameter should be a bool.")
+        if self.logprobs is not None and not isinstance(self.logprobs, int):
+            raise ValueError("The logprob parameter should be int denoting number of probs return, or None.")
 
     def is_text_a_chat(self) -> bool:
         return isinstance(self.text, list)

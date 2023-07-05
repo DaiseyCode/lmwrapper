@@ -29,6 +29,7 @@ class LmPredictor:
     ) -> LmPrediction:
         prompt = self._cast_prompt(prompt)
         should_cache = self._cache_default if prompt.cache is None else prompt.cache
+        self._validate_prompt(prompt, raise_on_invalid=True)
         if should_cache:
             cache_key = (prompt, self._get_cache_key_metadata())
             if cache_key in disk_cache:
@@ -38,6 +39,10 @@ class LmPredictor:
             return val
         else:
             return self._predict_maybe_cached(prompt)
+
+    def _validate_prompt(self, prompt: LmPrompt, raise_on_invalid: bool = True) -> bool:
+        """Called on prediction to make sure the prompt is valid for the model"""
+        return True
 
     def _get_cache_key_metadata(self):
         return {'name': type(self).__name__}

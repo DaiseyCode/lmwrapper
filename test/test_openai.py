@@ -1,3 +1,7 @@
+import warnings
+
+import pytest
+
 from lmwrapper.caching import clear_cache_dir
 from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
 from lmwrapper.structs import LmPrompt, LmChatDialog
@@ -9,7 +13,7 @@ def play_with_probs():
         LmPrompt(
             "Once upon",
             max_tokens=2,
-            logprobs=10,
+            logprobs=5,
             cache=True,
             num_completions=1,
             echo=False
@@ -28,13 +32,57 @@ def test_simple_pred():
         LmPrompt(
             "Once upon a",
             max_tokens=1,
-            logprobs=10,
-            cache=True,
+            logprobs=5,
+            cache=False,
             num_completions=1,
             echo=False
         ))
     assert out.completion_text.strip() == "time"
     print(out)
+
+
+def test_simple_pred_cache():
+    lm = get_open_ai_lm()
+    for i in range(2):
+        out = lm.predict(
+            LmPrompt(
+                "Once upon a",
+                max_tokens=1,
+                logprobs=5,
+                cache=True,
+                num_completions=1,
+                echo=False
+            ))
+        assert out.completion_text.strip() == "time"
+        print(out)
+
+
+def test_too_large_logprob():
+    lm = get_open_ai_lm()
+    with pytest.warns(None) as called_warnings:
+        lm.predict(
+            LmPrompt(
+                "Once",
+                max_tokens=1,
+                logprobs=5,
+                cache=False,
+                num_completions=1,
+                echo=False
+            )
+        )
+    assert len(called_warnings) == 0
+    with pytest.warns(UserWarning):
+        lm.predict(
+            LmPrompt(
+                "Once",
+                max_tokens=1,
+                logprobs=10,
+                cache=False,
+                num_completions=1,
+                echo=False
+            )
+        )
+
 
 
 def test_simple_chat_mode():

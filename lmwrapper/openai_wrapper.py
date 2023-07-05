@@ -1,5 +1,6 @@
 import random
 import time
+import warnings
 from pathlib import Path
 from typing import Union, List
 
@@ -17,6 +18,8 @@ diskcache = get_disk_cache()
 
 
 PRINT_ON_PREDICT = True
+
+MAX_LOG_PROB_PARM = 5
 
 
 class OpenAiLmPrediction(LmPrediction):
@@ -106,7 +109,14 @@ class OpenAIPredictor(LmPredictor):
             if chat_mode is None else chat_mode
         )
         if self._chat_mode is None:
-            raise ValueError("Chat mode is not defined and cannot be inferred from engine name")
+            raise ValueError("`chat_mode` is not provided as a parameter and "
+                             "cannot be inferred from engine name")
+
+    def _validate_prompt(self, prompt: LmPrompt, raise_on_invalid: bool = True) -> bool:
+        if prompt.logprobs is not None and prompt.logprobs > MAX_LOG_PROB_PARM:
+            warnings.warn(f"Openai limits logprobs to be <= {MAX_LOG_PROB_PARM}. "
+                          f"Larger values might cause unexpected behavior if you later are depending"
+                          f"on more returns")
 
     def model_name(self):
         return self._engine_name
