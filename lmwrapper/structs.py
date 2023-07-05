@@ -41,10 +41,14 @@ class LmPrompt:
         if self.stop is not None:
             if not isinstance(self.stop, list):
                 raise ValueError("The stop parameter should be a list of strings on where to stop.")
-            if not all(isinstance(x, str) for x in stop):
+            if not all(isinstance(x, str) for x in self.stop):
                 raise ValueError("The stop parameter should be a list of strings on where to stop.")
+        if isinstance(self.temperature, int):
+            object.__setattr__(self, "temperature", float(self.temperature))
         if not isinstance(self.temperature, float):
             raise ValueError("The temperature parameter should be a float.")
+        if self.temperature < 0.0:
+            raise ValueError("The temperature parameter should be a positive float.")
         if not isinstance(self.top_p, float):
             raise ValueError("The top_p parameter should be a float.")
         if not isinstance(self.presence_penalty, float):
