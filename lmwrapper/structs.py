@@ -151,5 +151,12 @@ class LmPrediction:
     def get_full_text(self):
         return self.prompt.text + self.completion_text
 
+    def get_full_tokens(self):
+        raise NotImplementedError("This version of prediction does not support full tokens")
+
+    @property
+    def full_logprobs(self):
+        raise NotImplementedError("This version of prediction does not support full logprobs")
+
     def completion_mean_logprob(self):
         return statistics.mean(self.completion_logprobs)

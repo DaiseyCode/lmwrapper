@@ -80,7 +80,15 @@ class OpenAiLmPrediction(LmPrediction):
     @property
     def prompt_logprobs(self):
         self._verify_echo()
+        self._verify_logprobs()
         return self._all_logprobs()[:self._get_completion_token_index()]
+
+    @property
+    def full_logprobs(self):
+        return self.prompt_logprobs + self.completion_logprobs
+
+    def get_full_tokens(self):
+        return self.prompt_tokens + self.completion_tokens
 
     def get_full_text(self):
         return self.prompt.text + self.completion_text

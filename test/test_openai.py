@@ -1,3 +1,4 @@
+import math
 import warnings
 
 import pytest
@@ -39,6 +40,8 @@ def test_simple_pred():
         ))
     assert out.completion_text.strip() == "time"
     print(out)
+    assert out.completion_tokens == [" time"]
+    assert math.exp(out.completion_logprobs[0]) >= 0.9
 
 
 def test_simple_pred_cache():
@@ -57,7 +60,33 @@ def test_simple_pred_cache():
         print(out)
 
 
+def test_echo():
+    lm = get_open_ai_lm()
+    out = lm.predict(
+        LmPrompt(
+            "Once upon a",
+            max_tokens=1,
+            logprobs=5,
+            cache=True,
+            num_completions=1,
+            echo=True
+        )
+    )
+    print(out.get_full_text())
+    assert out.get_full_text().strip() == "Once upon a time"
+    assert out.completion_text.strip() == "time"
+    assert out.prompt_tokens == ['Once', ' upon', ' a']
+    assert len(out.prompt_logprobs) == 3
+    assert len(out.prompt_logprobs) == 3
+    assert len(out.full_logprobs) == 4
+    assert out.get_full_tokens() == ['Once', ' upon', ' a', ' time']
+
+
+
+
 def test_too_large_logprob():
+    """Expect a warning to be thrown when logprobs is greater than 5 (which
+    is the limit the openai api supports)"""
     lm = get_open_ai_lm()
     with pytest.warns(None) as called_warnings:
         lm.predict(

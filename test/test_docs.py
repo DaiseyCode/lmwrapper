@@ -1,3 +1,5 @@
+"""Tests to verify that any examples given in user-facing documentation
+will execute."""
 import re
 from pathlib import Path
 import pytest
