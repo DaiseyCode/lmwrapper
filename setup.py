@@ -21,4 +21,5 @@ setup(
     license='MIT',
     packages=['lmwrapper'],
     install_requires=get_requirments(),
+    python_requires='>=3.10',
 )

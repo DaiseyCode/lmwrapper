@@ -25,7 +25,7 @@ lm = get_open_ai_lm(
     model_name=OpenAiModelNames.text_ada_001,
     api_key_secret=None, # By default this will read from the OPENAI_API_KEY environment variable.
                          # If that isn't set, it will try the file ~/oai_key.txt
-                         # You need to place the key one of these places, 
+                         # You need to place the key in one of these places, 
                          # or pass in a different location. You can get an API 
                          # key at (https://platform.openai.com/account/api-keys)
 )
