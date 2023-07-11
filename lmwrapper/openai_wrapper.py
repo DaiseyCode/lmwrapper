@@ -137,6 +137,10 @@ class OpenAIPredictor(LmPredictor):
     def list_engines(self):
         return self._api.Engine.list()
 
+    @property
+    def is_chat_model(self):
+        return self._chat_mode
+
     def _predict_maybe_cached(self, prompt: LmPrompt) -> Union[LmPrediction, List[LmPrediction]]:
         if PRINT_ON_PREDICT:
             print("RUN PREDICT ", prompt.text[:min(10, len(prompt.text))])
