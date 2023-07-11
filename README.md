@@ -71,7 +71,7 @@ pred = lm.predict(LmPrompt(
         LmChatTurn(role="system", content="You always answer like a pirate"),
         LmChatTurn(role="user", content="How does bitcoin work?"),
     ],
-    max_tokens=30,
+    max_tokens=25,
     temperature=0,
 ))
 print(pred.completion_text) 
