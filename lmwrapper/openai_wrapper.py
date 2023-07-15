@@ -165,9 +165,6 @@ class OpenAIPredictor(LmPredictor):
             val = len(self._tokenizer.encode(prompt.get_text_as_string_default_form()))
         return val
 
-    def _maybe_format_as_chat(self, prompt: LmPrompt) -> LmPrompt:
-        pass
-
     def _predict_maybe_cached(self, prompt: LmPrompt) -> Union[LmPrediction, List[LmPrediction]]:
         if PRINT_ON_PREDICT:
             print("RUN PREDICT ", prompt.text[:min(10, len(prompt.text))])
