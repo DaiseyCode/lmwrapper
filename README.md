@@ -80,8 +80,34 @@ print(pred.completion_text)
 
 # Features
 
+`lmwrapper` provides several features missing from the OpenAI API.
+
 ## Caching
 Add `caching = True` in the prompt to cache the output to disk. Any
 subsequent calls with this prompt will return the same value. Note that
 this might be unexpected behavior if your temperature is non-zero. (You
 will always sample the same output on reruns.)
+
+## Retries on rate limit
+```python
+from lmwrapper.openai_wrapper import *
+lm = get_open_ai_lm(OpenAiModelNames.text_ada_001, retry_on_rate_limit=True)
+```
+
+## Other features
+
+### Built-in token counting
+```python
+from lmwrapper.openai_wrapper import *
+lm = get_open_ai_lm(OpenAiModelNames.text_ada_001)
+assert lm.estimate_tokens_in_prompt(
+    LmPrompt("My name is Spingldorph", max_tokens=10)) == 7
+assert not lm.could_completion_go_over_token_limit(LmPrompt(
+    "My name is Spingldorph", max_tokens=1000))
+```
+
+## TODOs
+- [ ] Huggingface interface
+- [ ] Improved caching (per-project cache and committable)
+- [ ] Anthropic interface
+- [ ] Cost estimating
