@@ -1,8 +1,9 @@
 import random
+import tiktoken
 import time
 import warnings
 from pathlib import Path
-from typing import Union, List
+from typing import Union, List, Optional, Iterable
 
 import openai.error
 from lmwrapper.abstract_predictor import LmPredictor
@@ -112,13 +113,16 @@ class OpenAIPredictor(LmPredictor):
         self._engine_name = engine_name
         self._cache_outputs_default = cache_outputs_default
         self._retry_on_rate_limit = retry_on_rate_limit
+        info = OpenAiModelNames.name_to_info(engine_name)
         self._chat_mode = (
-            is_model_chat_model(engine_name)
+            info.is_chat_model
             if chat_mode is None else chat_mode
         )
         if self._chat_mode is None:
             raise ValueError("`chat_mode` is not provided as a parameter and "
                              "cannot be inferred from engine name")
+        self._token_limit = info.token_limit if info is not None else None
+        self._tokenizer = None
 
     def _validate_prompt(self, prompt: LmPrompt, raise_on_invalid: bool = True) -> bool:
         if prompt.logprobs is not None and prompt.logprobs > MAX_LOG_PROB_PARM:
@@ -141,6 +145,29 @@ class OpenAIPredictor(LmPredictor):
     def is_chat_model(self):
         return self._chat_mode
 
+    @property
+    def token_limit(self):
+        return self._token_limit
+
+    def estimate_tokens_in_prompt(self, prompt: LmPrompt):
+        """Estimate the number of tokens in the prompt. 
+        This is not always an exact measure, as for the chat models there extra metadata provided.
+        The documentation on ChatMl (https://github.com/openai/openai-python/blob/main/chatml.md)
+        gives some details but is imprecise. We want to write this to ideally overestimate the
+        number of tokens ideally"""
+        if self._tokenizer is None:
+            self._tokenizer = tiktoken.encoding_for_model(self._engine_name)
+        if self._chat_mode:
+            val = len(self._tokenizer.encode(prompt.get_text_as_chat().to_default_string_prompt()))
+            val += len(prompt.get_text_as_chat()) * 3  # Extra buffer for each turn transition
+            val += 2  # Extra setup tokens
+        else:
+            val = len(self._tokenizer.encode(prompt.get_text_as_string_default_form()))
+        return val
+
+    def _maybe_format_as_chat(self, prompt: LmPrompt) -> LmPrompt:
+        pass
+
     def _predict_maybe_cached(self, prompt: LmPrompt) -> Union[LmPrediction, List[LmPrediction]]:
         if PRINT_ON_PREDICT:
             print("RUN PREDICT ", prompt.text[:min(10, len(prompt.text))])
@@ -150,7 +177,7 @@ class OpenAIPredictor(LmPredictor):
                 if not self._chat_mode:
                     return self._api.Completion.create(
                         engine=self._engine_name,
-                        prompt=prompt.text,
+                        prompt=prompt.get_text_as_string_default_form(),
                         max_tokens=prompt.max_tokens,
                         stop=prompt.stop,
                         stream=False,
@@ -243,23 +270,56 @@ def get_goose_lm(
     )
 
 
-class OpenAiModelNames(StrEnum):
-    text_ada_001 = "text-ada-001"
+class OpenAiModelInfo(str):
+    def __new__(cls, name: str, is_chat_model: bool, token_limit: int):
+        instance = super().__new__(cls, name)
+        instance._is_chat_model = is_chat_model
+        instance._token_limit = token_limit
+        return instance
+
+    @property
+    def is_chat_model(self):
+        return self._is_chat_model
+
+    @property
+    def token_limit(self):
+        return self._token_limit
+
+
+class _ModelNamesMeta(type):
+    def __iter__(cls):
+        for attr in cls.__dict__:
+            if isinstance(cls.__dict__[attr], OpenAiModelInfo):
+                yield cls.__dict__[attr]
+
+
+class OpenAiModelNames(metaclass=_ModelNamesMeta):
+    text_ada_001 = OpenAiModelInfo("text-ada-001", False, 2049)
     """Capable of very simple tasks, usually the fastest model in the GPT-3 series, and lowest cost."""
-    text_davinci_003 = "text-davinci-003"
+    text_davinci_003 = OpenAiModelInfo("text-davinci-003", False, 4097)
     """Can do any language task with better quality, longer output, and consistent instruction-following
     than the curie, babbage, or ada models.
     Also supports some additional features such as inserting text."""
-    gpt_3_5_turbo = "gpt-3.5-turbo"
-    gpt_4 = "gpt-4"
+    gpt_3_5_turbo = OpenAiModelInfo("gpt-3.5-turbo", True, 4096)
+    """	Most capable GPT-3.5 model and optimized for chat at 1/10th the cost of text-davinci-003. 
+    Will be updated with our latest model iteration 2 weeks after it is released."""
+    gpt_3_5_turbo_16k = OpenAiModelInfo("gpt-3.5-turbo-16k", True, 16384)
+    """Same capabilities as the standard gpt-3.5-turbo model but with 4 times the context."""
+    gpt_4 = OpenAiModelInfo("gpt-4", True, 8192)
+    """More capable than any GPT-3.5 model, able to do more complex tasks, and optimized for chat. 
+    Will be updated with our latest model iteration 2 weeks after it is released."""
+    gpt_4_32k = OpenAiModelInfo("gpt-4-32k", True, 32768)
+    """Same capabilities as the base gpt-4 mode but with 4x the context length. 
+    Will be updated with our latest model iteration."""
 
-
-def is_model_chat_model(model_name: str) -> bool:
-    return {
-        OpenAiModelNames.text_ada_001: False,
-        OpenAiModelNames.text_davinci_003: False,
-        OpenAiModelNames.gpt_3_5_turbo: True,
-    }.get(model_name, None)
+    @classmethod
+    def name_to_info(cls, name: str) -> Optional[OpenAiModelInfo]:
+        if isinstance(name, OpenAiModelInfo):
+            return name
+        for info in cls:
+            if info == name:
+                return info
+        return None
 
 
 def get_open_ai_lm(
@@ -277,7 +337,7 @@ def get_open_ai_lm(
             raise ValueError((
                 "Cannot find an API key. "
                 "By default the OPENAI_API_KEY environment variable is used if it is available. "
-                "Otherwise it it read from a file at ~/oai_key.txt. "
+                "Otherwise it will read from a file at ~/oai_key.txt. "
                 "Please place the key at one of the locations or pass in a SecretInterface "
                 "(like SecretEnvVar or SecretFile object) to the api_key_secret argument."
                 "\n"

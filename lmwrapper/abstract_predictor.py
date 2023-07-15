@@ -56,5 +56,16 @@ class LmPredictor:
             return LmPrompt(prompt, 100)
         return prompt
 
+    def estimate_tokens_in_prompt(self, prompt: LmPrompt) -> int:
+        raise NotImplementedError
+
+    @property
+    def token_limit(self):
+        raise NotImplementedError
+
+    def could_completion_go_over_token_limit(self, prompt: LmPrompt) -> bool:
+        count = self.estimate_tokens_in_prompt(prompt)
+        return (count + prompt.max_tokens) > self.token_limit
+
     def model_name(self):
         return self.__class__.__name__

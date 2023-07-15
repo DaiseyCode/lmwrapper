@@ -185,3 +185,4 @@ fabric.properties
 .idea
 
 lm_model_cache
+*.swp

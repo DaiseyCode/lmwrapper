@@ -175,5 +175,36 @@ def main():
     print(text.completion_text)
 
 
+def test_tokenizer_gpt3():
+    lm = get_open_ai_lm(
+        OpenAiModelNames.text_ada_001
+    )
+    assert lm.token_limit == 2049
+    assert lm.estimate_tokens_in_prompt(LmPrompt("Once", max_tokens=10)) == 1
+    assert lm.estimate_tokens_in_prompt(LmPrompt(
+        "Once upon a time there was a magical place with a Spunctulus that was 3281 years old",
+        max_tokens=10
+    )) == 20
+    assert lm.estimate_tokens_in_prompt(LmPrompt(
+       " ".join(["once"] * 2000), max_tokens=10
+    )) == 2000
+    assert not lm.could_completion_go_over_token_limit(LmPrompt(
+        " ".join(["once"] * 2000), max_tokens=10
+    ))
+    assert lm.could_completion_go_over_token_limit(LmPrompt(
+        " ".join(["once"] * 2000), max_tokens=50
+    ))
+
+
+def test_tokenizer_chat():
+    lm = get_open_ai_lm(
+        OpenAiModelNames.gpt_3_5_turbo
+    )
+    assert lm.token_limit == 4096
+    assert 5 < lm.estimate_tokens_in_prompt(LmPrompt(
+        "Once upon a time", max_tokens=10
+    )) < 4 + 12
+
+
 if __name__ == "__main__":
     main()

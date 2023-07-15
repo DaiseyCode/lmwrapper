@@ -66,6 +66,14 @@ class LmPrompt:
     def get_text_as_chat(self) -> "LmChatDialog":
         return LmChatDialog(self.text)
 
+    def get_text_as_string_default_form(self) -> str:
+        """Will always return a string, even if it was originally a chat. It will use
+        the default form of the chat specified in LmChatDialog.to_default_string_prompt()"""
+        if self.is_text_a_chat():
+            return self.text.to_default_string_prompt()
+        else:
+            return self.text
+
 
 @dataclass
 class LmChatTurn:
@@ -116,6 +124,21 @@ class LmChatDialog(list[LmChatTurn]):
             }
             for chat_turn in self
         ]
+
+    def to_default_string_prompt(self) -> str:
+        """A simple method of representing the dialogue as a string.
+        Has the format:
+        ```
+        user: message
+        system: message
+        user: message
+        ...
+        ```
+        Different models might not follow this default format though internally.
+        """
+        output = "\n".join(f"{turn.role}: {turn.content}" for turn in self)
+        output += "\nsystem:"
+        return output
 
 
 @dataclass
