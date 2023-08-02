@@ -24,6 +24,8 @@ except ImportError:
 class HuggingfacePrediction(LmPrediction):
     _prompt_encoding: Any
     _tokens: Any
+    _log_probs: Any
+
 
     def __post_init__(self):
         assert len(self._prompt_encoding["input_ids"]) == 1
@@ -32,6 +34,11 @@ class HuggingfacePrediction(LmPrediction):
     @property
     def completion_tokens(self) -> List[str]:
         return self._tokens[self._num_prompt_tokens:]
+
+    @property
+    def completion_logprobs(self) -> List[float]:
+        self._verify_logprobs()
+        return self._log_probs
 
 
 class HuggingfacePredictor(LmPredictor):
@@ -47,8 +54,6 @@ class HuggingfacePredictor(LmPredictor):
     def _predict_maybe_cached(self, prompt: LmPrompt) -> Union[LmPrediction, List[LmPrediction]]:
         if prompt.stop:
             raise NotImplementedError
-        if prompt.logprobs is not None:
-            raise NotImplementedError
         if prompt.presence_penalty:
             raise NotImplementedError
         temperature = prompt.temperature
@@ -62,12 +67,13 @@ class HuggingfacePredictor(LmPredictor):
             temperature=temperature,
             top_p=prompt.top_p,
         )
+        need_log_prob = prompt.logprobs is not None and prompt.logprobs > 0
         with torch.no_grad():
             generation_output = self._model.generate(
                 input_ids=encoded_input['input_ids'],
                 generation_config=gen_config,
                 return_dict_in_generate=True,
-                output_scores=True,
+                output_scores=need_log_prob,
                 max_new_tokens=prompt.max_tokens,
                 pad_token_id=self._tokenizer.pad_token_id,
                 eos_token_id=self._tokenizer.eos_token_id,
@@ -75,6 +81,12 @@ class HuggingfacePredictor(LmPredictor):
         s = generation_output.sequences[0]
         text = self._tokenizer.decode(s[len(encoded_input['input_ids'][0]):])
         tokens = self._tokenizer.convert_ids_to_tokens(s)
+        if need_log_prob:
+            transition_scores = self._model.compute_transition_scores(
+                generation_output.sequences, generation_output.scores, normalize_logits=True
+            )
+        else:
+            transition_scores = None
         #output = self._pipeline(
         #    prompt.get_text_as_string_default_form(),
         #    max_length=prompt.max_tokens,
@@ -88,6 +100,7 @@ class HuggingfacePredictor(LmPredictor):
             metad=generation_output,
             _prompt_encoding=encoded_input,
             _tokens=tokens,
+            _log_probs=transition_scores
         )
 
 
@@ -95,6 +108,6 @@ class HuggingfacePredictor(LmPredictor):
 def get_huggingface_lm(
     model_name: str
 ) -> HuggingfacePredictor:
-    tokenizer = AutoTokenizer.from_pretrained('gpt2')
-    model = AutoModelForCausalLM.from_pretrained('gpt2')
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name)
     return HuggingfacePredictor(tokenizer, model)

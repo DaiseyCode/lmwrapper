@@ -54,10 +54,6 @@ class OpenAiLmPrediction(LmPrediction):
     def completion_token_offsets(self):
         return self._all_toks_offsets()[self._get_completion_token_index():]
 
-    def _verify_logprobs(self):
-        if self.prompt.logprobs is None or self.prompt.logprobs == 0:
-            raise ValueError("This property is not available unless the prompt logprobs is set")
-
     @property
     def completion_logprobs(self):
         """Note that this will only be valid if set a logprob value in the prompt"""

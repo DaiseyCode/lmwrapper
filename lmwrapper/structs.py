@@ -147,6 +147,10 @@ class LmPrediction:
     prompt: LmPrompt
     metad: Any
 
+    def _verify_logprobs(self):
+        if self.prompt.logprobs is None or self.prompt.logprobs == 0:
+            raise ValueError("This property is not available unless the prompt logprobs is set")
+
     @property
     def completion_tokens(self) -> List[str]:
         raise NotImplementedError("This version of prediction does not support completion tokens")
