@@ -148,7 +148,7 @@ class LmPrediction:
     metad: Any
 
     @property
-    def completion_tokens(self):
+    def completion_tokens(self) -> List[str]:
         raise NotImplementedError("This version of prediction does not support completion tokens")
 
     @property
