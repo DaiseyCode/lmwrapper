@@ -62,7 +62,7 @@ class OpenAiLmPrediction(LmPrediction):
 
     def _verify_echo(self):
         if not self.prompt.echo:
-            raise ValueError("This property is not available when prompt is not echoed")
+            raise ValueError("This property is only available when the prompt `echo` flag is set")
 
     @property
     def prompt_tokens(self):
@@ -224,6 +224,9 @@ class OpenAIPredictor(LmPredictor):
         if len(choices) == 1:
             return out[0]
         return out
+
+    def remove_special_chars_from_tokens(self, tokens: list[str]) -> list[str]:
+        return tokens
 
 
 def attempt_with_exponential_backoff(

@@ -69,3 +69,9 @@ class LmPredictor:
 
     def model_name(self):
         return self.__class__.__name__
+
+    def remove_special_chars_from_tokens(self, tokens: list[str]) -> list[str]:
+        """Certain tokenizers have special characters (such as a Ġ to represent a space).
+        This method is to try to remove those and get it in a form that could be joined
+        and represent the original text."""
+        raise NotImplementedError()

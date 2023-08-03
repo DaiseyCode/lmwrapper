@@ -34,6 +34,11 @@ class LmPrompt:
     echo: bool = False
     """Whether to echo back the original prompt. Also allows you to get the
     probability of the prompt under the model"""
+    add_bos_token: bool = True
+    """Whether to add a bos (beginning-of-sentence) token at the beginning of the prompt.
+    This allows for unconditional generation and allows for the first token to have
+    a probability. This always happens in the openai endpoints (presumably), but
+    could be controlled in other models (NOT IMPLEMENTED yet though)."""
 
     def __post_init__(self):
         if not isinstance(self.max_tokens, int):
@@ -59,6 +64,9 @@ class LmPrompt:
             raise ValueError("The cache parameter should be a bool.")
         if self.logprobs is not None and not isinstance(self.logprobs, int):
             raise ValueError("The logprob parameter should be int denoting number of probs return, or None.")
+        if not self.add_bos_token:
+            raise NotImplementedError("Currently, the add_bos_token parameter must be True. "
+                                      "Please make a github issue if you need this feature.")
 
     def is_text_a_chat(self) -> bool:
         return isinstance(self.text, list)
