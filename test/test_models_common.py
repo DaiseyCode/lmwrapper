@@ -157,3 +157,25 @@ def test_many_gen(lm):
         )
     )
     assert len(val.completion_tokens) == 5
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.skip(reason="OpenAI will insert an <|endoftext|> when doing"
+                         "unconditional generation and need to look into if also"
+                         "happens with the chat models and how to handle it")
+def test_unconditional_gen(lm):
+    # TODO: handle for openai
+    val = lm.predict(
+        LmPrompt(
+            "",
+            max_tokens=2,
+            logprobs=1,
+            cache=False,
+            echo=True,
+        )
+    )
+    assert len(val.prompt_tokens) == 0
+    assert len(val.prompt_logprobs) == 0
+    assert len(val.completion_tokens) == 2
+    assert len(val.completion_text) > 2
+    assert len(val.completion_logprobs) == 2
