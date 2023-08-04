@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Union, List, Any
 
-from sympy.polys.polyoptions import Auto
 from transformers.models.auto.tokenization_auto import PreTrainedTokenizerFast
 
 from lmwrapper.abstract_predictor import LmPredictor
