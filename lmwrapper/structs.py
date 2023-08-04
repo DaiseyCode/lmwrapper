@@ -15,7 +15,7 @@ class LmPrompt:
     text: Union[str, LM_CHAT_DIALOG_COERCIBLE_TYPES]
     max_tokens: int
     stop: List[str] = None
-    logprobs: int = None
+    logprobs: int = 1
     """Include the log probabilities on the logprobs most likely tokens, as well the chosen tokens. 
     For example, if logprobs is 5, the API will return a list of the 5 most likely tokens. 
     The model will always return the logprob of the sampled token, 

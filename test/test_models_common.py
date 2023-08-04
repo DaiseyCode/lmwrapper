@@ -17,6 +17,17 @@ def test_simple_pred(lm):
         LmPrompt(
             "Here is a story. Once upon a",
             max_tokens=1,
+            cache=False,
+        ))
+    assert out.completion_text.strip() == "time"
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_simple_pred_lp(lm):
+    out = lm.predict(
+        LmPrompt(
+            "Here is a story. Once upon a",
+            max_tokens=1,
             logprobs=5,
             cache=False,
             num_completions=1,
@@ -75,3 +86,74 @@ def test_echo(lm):
     )
 
 
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_low_prob_in_weird_sentence(lm):
+    weird = lm.predict(
+        LmPrompt(
+            "The Empire State Building is in New run and is my favorite",
+            max_tokens=1,
+            logprobs=5,
+            cache=False,
+            num_completions=1,
+            echo=True
+        )
+    )
+    normal = lm.predict(
+        LmPrompt(
+            "The Empire State Building is in New York and is my favorite",
+            max_tokens=1,
+            logprobs=5,
+            cache=False,
+            num_completions=1,
+            echo=True
+        )
+    )
+    no_space = lm.remove_special_chars_from_tokens(weird.prompt_tokens)
+    assert (
+        no_space
+        == ["The", " Empire", " State", " Building", " is", " in", " New", " run", " and", " is", " my", " favorite"]
+    )
+    assert len(weird.prompt_logprobs) == len(weird.prompt_tokens)
+    weird_idx = no_space.index(' run')
+    assert math.exp(weird.prompt_logprobs[weird_idx]) < 0.001
+    assert math.exp(normal.prompt_logprobs[weird_idx]) > .5
+    assert (
+        math.exp(weird.prompt_logprobs[weird_idx])
+        < math.exp(normal.prompt_logprobs[weird_idx])
+    )
+    assert (
+            math.exp(weird.prompt_logprobs[weird_idx - 1])
+            == pytest.approx(math.exp(normal.prompt_logprobs[weird_idx - 1]), rel=1e-5)
+    )
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_no_gen(lm):
+    val = lm.predict(
+        LmPrompt(
+            "I like pie",
+            max_tokens=0,
+            logprobs=5,
+            cache=False,
+            num_completions=1,
+            echo=True
+        )
+    )
+    assert len(val.prompt_tokens) == 3
+    assert len(val.prompt_logprobs) == 3
+    assert len(val.completion_tokens) == 0
+    assert len(val.completion_text) == 0
+    assert len(val.completion_logprobs) == 0
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_many_gen(lm):
+    val = lm.predict(
+        LmPrompt(
+            "Write a story about a pirate:",
+            max_tokens=5,
+            logprobs=1,
+            cache=False
+        )
+    )
+    assert len(val.completion_tokens) == 5

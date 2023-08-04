@@ -35,6 +35,10 @@ class OpenAiLmPrediction(LmPrediction):
         return bisect.bisect_right(all_offsets, prompt_len)
 
     def _all_toks(self):
+        if not self.prompt.logprobs:
+            raise ValueError("This property is only available when the prompt "
+                             "`logprobs` flag is set (openai endpoint only will "
+                             "return tokens when logprobs is set)")
         return self.metad['logprobs']['tokens']
 
     def _all_toks_offsets(self):

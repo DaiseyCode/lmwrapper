@@ -99,12 +99,13 @@ class HuggingfacePredictor(LmPredictor):
         # Instead we are going to patch the model forward to log calls
 
         old_forward = self._model.forward
-        cached_returns = None
+        cached_logits = []
 
         def new_call(*args, **kwargs):
-            nonlocal cached_returns
-            cached_returns = old_forward(*args, **kwargs)
-            return cached_returns
+            nonlocal cached_logits
+            val = old_forward(*args, **kwargs)
+            cached_logits.append(val.logits)
+            return val
         self._model.forward = new_call
 
         with torch.no_grad():
@@ -128,14 +129,22 @@ class HuggingfacePredictor(LmPredictor):
         tokens = tokens[1:]
         # Calculate the logprobs if needed
         if need_log_prob:
-            assert cached_returns.logits.shape[0] == 1  # batch
-            assert cached_returns.logits.shape[1] == len(tokens)
+            all_logits = torch.cat(cached_logits, dim=1)
+            assert all_logits.shape[0] == 1  # batch
+            assert all_logits.shape[1] == len(tokens)
             logprobs = _gather_logprobs_from_logits(
-                cached_returns.logits[0], s[1:],
+                all_logits[0], s[1:],
             )
             assert len(logprobs) == len(tokens)
         else:
             logprobs = None
+
+        if prompt.max_tokens == 0:
+            # Huggingface seems to default to one token always return an extra token
+            tokens = tokens[:-1]
+            logprobs = logprobs[:-1]
+            text = ""
+            generation_output.sequences = generation_output.sequences[:, :-1]
 
         return HuggingfacePrediction(
             completion_text=text,
@@ -160,6 +169,7 @@ class HuggingfacePredictor(LmPredictor):
         if self.space_char is None:
             return tokens
         return [tok.replace(self.space_char, " ") for tok in tokens]
+
 
 def _gather_logprobs_from_logits(
     logits: torch.Tensor,
