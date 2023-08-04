@@ -1,11 +1,10 @@
-This provides a wrapper around the OpenAI API focusing
+This provides a wrapper around OpenAI API and Huggingface Language models focusing
 on being a clean and user-friendly interface. Because every input 
 and output is object-oriented (rather than just JSON dictionaries with string
 keys and values), your IDE can help you with things like argument and
-property names and catch certain bugs statically.
+property names and catch certain bugs statically. Additionally, it allows
+you to switch inbetween openai endpoints and local models with minimal changes.
 
-The goal is also to unify the interface for both openai models and huggingface
-models, but that is still a work in progress.
 
 # Installation
 
@@ -78,6 +77,27 @@ print(pred.completion_text)
 # "Arr, me matey! Bitcoin be a digital currency that be workin' on a technology called blockchain..."
 ```
 
+
+## Huggingface models
+
+Causal LM models on huggingface models can be used interchangeably with the
+OpenAI models. Note it is still a todo to make sure devices and GPUs are used
+appropriately.
+
+```python
+from lmwrapper.huggingface_wrapper import get_huggingface_lm
+from lmwrapper.structs import LmPrompt
+lm = get_huggingface_lm("gpt2")  # The smallest 124M parameter model
+
+prediction = lm.predict(LmPrompt(
+    "The capital of Germany is Berlin. The capital of France is", 
+    max_tokens=1,
+    temperature=0,
+))
+print(prediction.completion_text)
+assert prediction.completion_text == " Paris"
+```
+
 # Features
 
 `lmwrapper` provides several features missing from the OpenAI API.
@@ -107,7 +127,8 @@ assert not lm.could_completion_go_over_token_limit(LmPrompt(
 ```
 
 ## TODOs
-- [ ] Huggingface interface
+- [X] Huggingface interface
+- [ ] Proper GPU handling with huggingface
 - [ ] Improved caching (per-project cache and committable)
 - [ ] Anthropic interface
 - [ ] Cost estimating
