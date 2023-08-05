@@ -127,8 +127,11 @@ assert not lm.could_completion_go_over_token_limit(LmPrompt(
 ```
 
 ## TODOs
+- [X] Openai completion
+- [X] Openai chat
 - [X] Huggingface interface
 - [ ] Proper GPU handling with huggingface
+- [ ] sort through usage of quantized models
 - [ ] Improved caching (per-project cache and committable)
 - [ ] Anthropic interface
 - [ ] Cost estimating
