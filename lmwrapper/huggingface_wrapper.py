@@ -1,15 +1,15 @@
+import os
 from dataclasses import dataclass
+from enum import Enum
 from functools import cached_property
+from importlib.metadata import version as import_version
 from pathlib import Path
-from typing import Union, List, Any
+from typing import Any
+
+from packaging import version
 
 from lmwrapper.abstract_predictor import LmPredictor
-from lmwrapper.structs import LmPrompt, LmPrediction
-from packaging import version
-from importlib.metadata import version as import_version
-from enum import Enum
-import numpy as np
-import os
+from lmwrapper.structs import LmPrediction, LmPrompt
 
 _QUANT_CONFIG = None
 # TODO: Several models do not work on Apple MPS.
@@ -21,15 +21,21 @@ try:
 
     assert version.parse(torch.__version__) >= version.parse("2.0")
 except ImportError:
+    msg = (
+        "Expect to work on torch. Please see https://pytorch.org/ for install"
+        " info."
+    )
     raise ImportError(
-        "Expect to work on torch. Please see https://pytorch.org/ for install info."
+        msg,
     )
 
 
 try:
     import bitsandbytes
 
-    assert version.parse(import_version("bitsandbytes")) >= version.parse("0.41.1")
+    assert version.parse(import_version("bitsandbytes")) >= version.parse(
+        "0.41.1",
+    )
 
     from transformers import BitsAndBytesConfig
 
@@ -47,7 +53,9 @@ try:
         bnb_4bit_use_double_quant=True,
     )
 except ImportError:
-    print("8/4bit quantization is disabled as bitsandbytes could not be loaded.")
+    print(
+        "8/4bit quantization is disabled as bitsandbytes could not be loaded.",
+    )
 
 try:
     import transformers
@@ -55,54 +63,62 @@ try:
     assert version.parse(transformers.__version__) >= version.parse("4.31.0")
 
     from transformers import (
-        GenerationConfig,
-        AutoTokenizer,
         AutoModelForCausalLM,
+        AutoModelForSeq2SeqLM,
+        AutoTokenizer,
+        GenerationConfig,
+        PretrainedConfig,
         PreTrainedModel,
         PreTrainedTokenizerFast,
-        set_seed,
         T5ForConditionalGeneration,
-        AutoModelForSeq2SeqLM,
-        PretrainedConfig,
+        set_seed,
     )
 
     set_seed(42)
 except ImportError:
+    msg = (
+        "You must install torch and transformers to use Huggingface models."
+        " `pip install transformers` and torch. Please see https://pytorch.org/"
+        " for install info."
+    )
     raise ImportError(
-        "You must install torch and transformers to use Huggingface models. "
-        "`pip install transformers` and torch. Please see https://pytorch.org/ for install info."
+        msg,
     )
 
 if _ONNX_RUNTIME:
     try:
         from optimum import version as optimum_version
 
-        assert version.parse(optimum_version.__version__) >= version.parse("1.11.0")
-
-        from optimum.onnxruntime import (
-            ORTModelForCausalLM,
-            ORTModelForSeq2SeqLM,
-            ORTModel,
-            ORTOptimizer,
+        assert version.parse(optimum_version.__version__) >= version.parse(
+            "1.11.0",
         )
-        from optimum.onnxruntime.configuration import AutoOptimizationConfig
-        from optimum.bettertransformer import BetterTransformer
 
         import xformers
 
         assert version.parse(xformers.__version__) >= version.parse("0.0.20")
 
         import onnxruntime
+        from optimum.bettertransformer import BetterTransformer
+        from optimum.onnxruntime import (
+            ORTModel,
+            ORTModelForCausalLM,
+            ORTModelForSeq2SeqLM,
+            ORTOptimizer,
+        )
+        from optimum.onnxruntime.configuration import AutoOptimizationConfig
 
         assert version.parse(onnxruntime.__version__) >= version.parse("1.15.1")
 
         session_options = onnxruntime.SessionOptions()
         # session_options.log_severity_level = 0 TODO: set configurable log level
     except ImportError:
-        raise ImportError(
+        msg = (
             "You must install Optimum, ONNX runtime, and Xformers to use"
             " accelerated Huggingface models. `pip install"
             " optimum[onnxruntime-gpu] xformers`"
+        )
+        raise ImportError(
+            msg,
         )
 
 
@@ -127,11 +143,11 @@ class HuggingfacePrediction(LmPrediction):
             self._num_prompt_tokens -= 1
 
     @property
-    def completion_tokens(self) -> List[str]:
+    def completion_tokens(self) -> list[str]:
         return self._tokens[self._num_prompt_tokens :]
 
     @property
-    def completion_logprobs(self) -> List[float]:
+    def completion_logprobs(self) -> list[float]:
         self._verify_logprobs()
         return self._log_probs[self._num_prompt_tokens :]
 
@@ -164,8 +180,9 @@ class HuggingfacePredictor(LmPredictor):
         self._device = device
 
     def _predict_maybe_cached(
-        self, prompt: LmPrompt
-    ) -> Union[LmPrediction, List[LmPrediction]]:
+        self,
+        prompt: LmPrompt,
+    ) -> LmPrediction | list[LmPrediction]:
         if prompt.stop:
             raise NotImplementedError
         if prompt.presence_penalty:
@@ -176,9 +193,10 @@ class HuggingfacePredictor(LmPredictor):
         assert self._tokenizer.bos_token
 
         encoded_input = self._tokenizer(
-            self._tokenizer.bos_token + prompt.text, return_tensors="pt"
+            self._tokenizer.bos_token + prompt.text,
+            return_tensors="pt",
         ).to(
-            self._device
+            self._device,
         )  # Move to device
 
         # ONNX models themselves cannot be moved to a device
@@ -271,8 +289,7 @@ class HuggingfacePredictor(LmPredictor):
         tokens = self._tokenizer.tokenize("I went to")
         for tok in tokens:
             if "went" in tok:
-                val = tok.replace("went", "")
-                return val
+                return tok.replace("went", "")
         return None
 
     def remove_special_chars_from_tokens(self, tokens: list[str]) -> list[str]:
@@ -286,8 +303,7 @@ def _gather_logprobs_from_logits(
     selected_toks: torch.LongTensor,
 ):
     logprobs = torch.log_softmax(logits, dim=-1).detach()
-    gen_probs = torch.gather(logprobs, -1, selected_toks.unsqueeze(-1)).squeeze(-1)
-    return gen_probs
+    return torch.gather(logprobs, -1, selected_toks.unsqueeze(-1)).squeeze(-1)
 
 
 def _get_accelerator() -> torch.device:
@@ -311,9 +327,12 @@ def get_huggingface_lm(
     trust_remote_code: bool = False,
 ) -> HuggingfacePredictor:
     if runtime != Runtime.PYTORCH:
+        msg = (
+            "Accelerated inference model support is still under"
+            " development.Please use Runtime.PYTORCH until support matures."
+        )
         raise Exception(
-            "Accelerated inference model support is still under development."
-            "Please use Runtime.PYTORCH until support matures."
+            msg,
         )
 
     _kwargs = {"trust_remote_code": trust_remote_code}
@@ -326,18 +345,29 @@ def get_huggingface_lm(
     )
 
     if not trust_remote_code and has_remote_code:
+        msg = (
+            "The model provided has remote code and likely will not work as"
+            " expected. Please call with `trust_remote_code = True` If you have"
+            " read and trust the code."
+        )
         raise Exception(
-            "The model provided has remote code and likely will not work as expected. Please call with `trust_remote_code = True`"
-            " If you have read and trust the code."
+            msg,
         )
 
-    if "auto_map" in config_dict and "AutoModelForSeq2SeqLM" in config_dict["auto_map"]:
+    if (
+        "auto_map" in config_dict
+        and "AutoModelForSeq2SeqLM" in config_dict["auto_map"]
+    ):
         model_class = AutoModelForSeq2SeqLM
 
     if model.startswith("Salesforce/codegen"):
         if runtime == Runtime.BETTER_TRANSFORMER:
+            msg = (
+                "WARNING BetterTransformer breaks CodeGen models with"
+                " AutoClass. Please use a different model or runtime."
+            )
             raise Exception(
-                "WARNING BetterTransformer breaks CodeGen models with AutoClass. Please use a different model or runtime."
+                msg,
             )
         else:
             _kwargs |= {
@@ -358,7 +388,11 @@ def get_huggingface_lm(
         }
 
     return initialize_hf_model(
-        model, model_class, runtime=runtime, precision=precision, _kwargs=_kwargs
+        model,
+        model_class,
+        runtime=runtime,
+        precision=precision,
+        _kwargs=_kwargs,
     )
 
 
@@ -384,13 +418,16 @@ def initialize_hf_model(
 
     if runtime == Runtime.PYTORCH:
         model = model_class.from_pretrained(
-            model_name, torch_dtype=precision, device_map="auto", **_kwargs
+            model_name,
+            torch_dtype=precision,
+            device_map="auto",
+            **_kwargs,
         ).to(torch_device)
     elif runtime == Runtime.ORT_CPU:
-        if not torch_device.type == "cpu":
+        if torch_device.type != "cpu":
             print(
                 f"Specified torch device {torch_device} but ORT CPU runtime"
-                " can only use CPU. Please specify device='cpu'."
+                " can only use CPU. Please specify device='cpu'.",
             )
 
         # ORT models do not support these flags
@@ -411,15 +448,21 @@ def initialize_hf_model(
             optimizer = ORTOptimizer.from_pretrained(model)
             optimization_config = AutoOptimizationConfig.O3()
             optimizer.optimize(
-                save_dir=save_dir, optimization_config=optimization_config
+                save_dir=save_dir,
+                optimization_config=optimization_config,
             )
         model = get_ort_model(model_class).from_pretrained(
-            save_dir, provider="CPUExecutionProvider"
+            save_dir,
+            provider="CPUExecutionProvider",
         )
     elif runtime == Runtime.ORT_CUDA:
-        if not torch_device.type == "cuda":
+        if torch_device.type != "cuda":
+            msg = (
+                "Cannot run model on CUDA without CUDA. Please specify"
+                " device='cuda'."
+            )
             raise Exception(
-                "Cannot run model on CUDA without CUDA. Please specify device='cuda'."
+                msg,
             )
 
         # ORT models do not support these flags
@@ -440,20 +483,28 @@ def initialize_hf_model(
             optimizer = ORTOptimizer.from_pretrained(model)
             optimization_config = AutoOptimizationConfig.O3()
             optimizer.optimize(
-                save_dir=save_dir, optimization_config=optimization_config
+                save_dir=save_dir,
+                optimization_config=optimization_config,
             )
         model = get_ort_model(model_class).from_pretrained(
-            save_dir, provider="CUDAExecutionProvider"
+            save_dir,
+            provider="CUDAExecutionProvider",
         )
     elif runtime == Runtime.ORT_TENSORRT:
-        if not torch_device.type == "cuda":
+        if torch_device.type != "cuda":
+            msg = (
+                "Cannot run model on CUDA without CUDA. Please specify"
+                " device='cuda'."
+            )
             raise Exception(
-                "Cannot run model on CUDA without CUDA. Please specify device='cuda'."
+                msg,
             )
 
         provider_options = {
             "trt_engine_cache_enable": True,
-            "trt_engine_cache_path": f"tmp/trt_cache_{model_name.replace('/','_')}_tensorrt",
+            "trt_engine_cache_path": (
+                f"tmp/trt_cache_{model_name.replace('/','_')}_tensorrt"
+            ),
         }
 
         # TensorRT models do not support these flags
@@ -472,11 +523,15 @@ def initialize_hf_model(
     elif runtime == Runtime.BETTER_TRANSFORMER:
         model = BetterTransformer.transform(
             model_class.from_pretrained(
-                model_name, device_map="auto", torch_dtype=precision, **_kwargs
-            )
+                model_name,
+                device_map="auto",
+                torch_dtype=precision,
+                **_kwargs,
+            ),
         )
     else:
-        raise Exception("Invalid Runtime provided.")
+        msg = "Invalid Runtime provided."
+        raise Exception(msg)
 
     predictor = HuggingfacePredictor(tokenizer, model, device=torch_device)
 

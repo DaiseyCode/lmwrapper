@@ -23,12 +23,16 @@ setup(
     install_requires=get_requirments("requirements.txt"),
     extras_require={
         "huggingface": get_requirments("requirements-hf.txt"),
-        "ort": get_requirments("requirements-hf.txt")
-        + get_requirments("requirements-ort.txt")
-        + ["optimum[onnxruntime]>=1.11.0"],
-        "ort-gpu": get_requirments("requirements-hf.txt")
-        + get_requirments("requirements-ort.txt")
-        + ["optimum[onnxruntime-gpu]>=1.11.0"],
+        "ort": (
+            get_requirments("requirements-hf.txt")
+            + get_requirments("requirements-ort.txt")
+            + ["optimum[onnxruntime]>=1.11.0"]
+        ),
+        "ort-gpu": (
+            get_requirments("requirements-hf.txt")
+            + get_requirments("requirements-ort.txt")
+            + ["optimum[onnxruntime-gpu]>=1.11.0"]
+        ),
     },
     python_requires=">=3.10",
 )
