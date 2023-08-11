@@ -77,7 +77,7 @@ try:
 except ImportError:
     msg = (
         "You must install torch and transformers to use Huggingface models."
-        " `pip install transformers` and torch. Please see https://pytorch.org/"
+        " `pip install lmwrapper[huggingface]`. Please see https://pytorch.org/"
         " for install info."
     )
     raise ImportError(
@@ -113,8 +113,7 @@ if _ONNX_RUNTIME:
     except ImportError:
         msg = (
             "You must install Optimum, ONNX runtime, and Xformers to use"
-            " accelerated Huggingface models. `pip install"
-            " optimum[onnxruntime-gpu] xformers`"
+            " accelerated Huggingface models. `pip install lmwrapper[ort-gpu]`"
         )
         raise ImportError(
             msg,
