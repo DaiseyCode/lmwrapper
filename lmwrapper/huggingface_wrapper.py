@@ -22,8 +22,7 @@ try:
     assert version.parse(torch.__version__) >= version.parse("2.0")
 except ImportError:
     msg = (
-        "Expect to work on torch. Please see https://pytorch.org/ for install"
-        " info."
+        "Expect to work on torch. Please see https://pytorch.org/ for install info."
     )
     raise ImportError(
         msg,
@@ -204,6 +203,8 @@ class HuggingfacePredictor(LmPredictor):
         if not _ONNX_RUNTIME or not isinstance(self._model, ORTModel):
             self._model.to(self._device)  # Ensure model is on device
 
+        need_log_prob = prompt.logprobs is not None and prompt.logprobs > 0
+
         # Ref https://gist.github.com/kinoc/8a042d8c5683725aa8c372274c02ea2f
         gen_config = GenerationConfig(
             max_new_tokens=prompt.max_tokens,
@@ -216,7 +217,6 @@ class HuggingfacePredictor(LmPredictor):
             eos_token_id=self._tokenizer.eos_token_id,
             bos_token_id=self._tokenizer.bos_token_id,
         )
-        need_log_prob = prompt.logprobs is not None and prompt.logprobs > 0
 
         # We need a way of getting the raw logprobs of the whole sequence.
         #   The scores we get back are possibly already warped by the configuration
@@ -238,7 +238,7 @@ class HuggingfacePredictor(LmPredictor):
 
         with torch.no_grad():
             generation_output = self._model.generate(
-                **encoded_input,
+                input_ids=encoded_input["input_ids"],
                 generation_config=gen_config,
             )
 
@@ -329,7 +329,7 @@ def get_huggingface_lm(
     if runtime != Runtime.PYTORCH:
         msg = (
             "Accelerated inference model support is still under"
-            " development.Please use Runtime.PYTORCH until support matures."
+            " development. Please use Runtime.PYTORCH until support matures."
         )
         raise Exception(
             msg,
@@ -354,10 +354,7 @@ def get_huggingface_lm(
             msg,
         )
 
-    if (
-        "auto_map" in config_dict
-        and "AutoModelForSeq2SeqLM" in config_dict["auto_map"]
-    ):
+    if "auto_map" in config_dict and "AutoModelForSeq2SeqLM" in config_dict["auto_map"]:
         model_class = AutoModelForSeq2SeqLM
 
     if model.startswith("Salesforce/codegen"):
@@ -396,7 +393,7 @@ def get_huggingface_lm(
     )
 
 
-def get_ort_model(model: PreTrainedModel) -> ORTModel:
+def get_ort_model(model: PreTrainedModel) -> "ORTModel":
     if model in {T5ForConditionalGeneration, AutoModelForSeq2SeqLM}:
         return ORTModelForSeq2SeqLM
 
