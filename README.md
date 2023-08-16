@@ -18,16 +18,6 @@ For usage with HuggingFace models as well:
 pip install lmwrapper[huggingface] @ git+https://github.com/DNGros/lmwrapper.git
 ```
 
-To take advantage of faster inference via [Optimum](https://github.com/huggingface/optimum) and [Xformers](https://github.com/facebookresearch/xformers):
-```bash
-pip install lmwrapper[ort] @ git+https://github.com/DNGros/lmwrapper.git
-```
-
-To take advantage of faster inference using the ONNX CUDA runtime on GPU(s):
-```bash
-pip install lmwrapper[ort-gpu] @ git+https://github.com/DNGros/lmwrapper.git
-```
-
 # Example usage
 
 ## Completion models
