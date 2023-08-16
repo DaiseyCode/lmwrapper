@@ -5,6 +5,7 @@ from functools import cached_property
 from importlib.metadata import version as import_version
 from pathlib import Path
 from typing import Any
+import logging
 
 from packaging import version
 
@@ -52,7 +53,7 @@ try:
         bnb_4bit_use_double_quant=True,
     )
 except ImportError:
-    print(
+    logging.warning(
         "8/4bit quantization is disabled as bitsandbytes could not be loaded.",
     )
 
@@ -176,6 +177,7 @@ class HuggingfacePredictor(LmPredictor):
         self._tokenizer = tokenizer
         self._model = model
         self._device = device
+        self.is_chat_model = False
 
     def _predict_maybe_cached(
         self,
@@ -237,7 +239,8 @@ class HuggingfacePredictor(LmPredictor):
 
         with torch.no_grad():
             generation_output = self._model.generate(
-                input_ids=encoded_input["input_ids"],
+                # input_ids=encoded_input["input_ids"],
+                **encoded_input,
                 generation_config=gen_config,
             )
 
@@ -372,6 +375,10 @@ def get_huggingface_lm(
             }
     elif model.startswith("Salesforce/codet5") and not model.endswith("b"):
         model_class = T5ForConditionalGeneration
+
+        # T5 class does not support this arg,
+        # only autoclasses do
+        _kwargs.pop("trust_remote_code", None)
     elif model.startswith("Salesforce/codet5p-") and model.endswith("b"):
         model_class = AutoModelForSeq2SeqLM
         _kwargs |= {
@@ -383,7 +390,7 @@ def get_huggingface_lm(
             "low_cpu_mem_usage": True,
         }
 
-    return initialize_hf_model(
+    return _initialize_hf_model(
         model,
         model_class,
         runtime=runtime,
@@ -399,7 +406,7 @@ def get_ort_model(model: PreTrainedModel) -> "ORTModel":
     return ORTModelForCausalLM
 
 
-def initialize_hf_model(
+def _initialize_hf_model(
     model_name: str,
     model_class: PreTrainedModel,
     runtime: Runtime = Runtime.PYTORCH,
@@ -421,7 +428,7 @@ def initialize_hf_model(
         ).to(torch_device)
     elif runtime == Runtime.ORT_CPU:
         if torch_device.type != "cpu":
-            print(
+            logging.warn(
                 f"Specified torch device {torch_device} but ORT CPU runtime"
                 " can only use CPU. Please specify device='cpu'.",
             )
@@ -533,19 +540,20 @@ def initialize_hf_model(
 
     if runtime == Runtime.ORT_TENSORRT:
         # Warm up TensorRT model once instantiated.
-        print("Warmimg up TensorRT model.")
-        warmup_model(predictor)
-        print("Warmup successful.")
+        logging.info("Warmimg up TensorRT model.")
+        _warmup_model(predictor)
+        logging.info("Warmup successful.")
 
     return predictor
 
 
-def warmup_model(predictor: HuggingfacePredictor):
+def _warmup_model(predictor: HuggingfacePredictor):
+    raise NotImplementedError("Model warmup is not support yet.")
     small_prompt = LmPrompt("!", cache=False, temperature=0)
     predictor.predict(small_prompt)
 
     long_prompt_str = (
         "hello world" * predictor.get_model_max_length()
-    )  # TODO: this should be valid model tokens!
+    )
     long_prompt = LmPrompt(long_prompt_str, cache=False, temperature=0)
     predictor.predict(long_prompt)

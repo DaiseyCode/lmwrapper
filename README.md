@@ -1,5 +1,5 @@
 This provides a wrapper around OpenAI API and Huggingface Language models focusing
-on being a clean and user-friendly interface. Because every input 
+on being a clean and user-friendly interface. Because every input
 and output is object-oriented (rather than just JSON dictionaries with string
 keys and values), your IDE can help you with things like argument and
 property names and catch certain bugs statically. Additionally, it allows
@@ -8,8 +8,24 @@ you to switch inbetween openai endpoints and local models with minimal changes.
 
 # Installation
 
+For usage with just OpenAI models:
 ```bash
-pip install git+https://github.com/DNGros/lmwrapper.git
+pip install lmwrapper @ git+https://github.com/DNGros/lmwrapper.git
+```
+
+For usage with HuggingFace models as well:
+```bash
+pip install lmwrapper[huggingface] @ git+https://github.com/DNGros/lmwrapper.git
+```
+
+To take advantage of faster inference via [Optimum](https://github.com/huggingface/optimum) and [Xformers](https://github.com/facebookresearch/xformers):
+```bash
+pip install lmwrapper[ort] @ git+https://github.com/DNGros/lmwrapper.git
+```
+
+To take advantage of faster inference using the ONNX CUDA runtime on GPU(s):
+```bash
+pip install lmwrapper[ort-gpu] @ git+https://github.com/DNGros/lmwrapper.git
 ```
 
 # Example usage
@@ -24,8 +40,8 @@ lm = get_open_ai_lm(
     model_name=OpenAiModelNames.text_ada_001,
     api_key_secret=None, # By default this will read from the OPENAI_API_KEY environment variable.
                          # If that isn't set, it will try the file ~/oai_key.txt
-                         # You need to place the key in one of these places, 
-                         # or pass in a different location. You can get an API 
+                         # You need to place the key in one of these places,
+                         # or pass in a different location. You can get an API
                          # key at (https://platform.openai.com/account/api-keys)
 )
 
@@ -73,7 +89,7 @@ pred = lm.predict(LmPrompt(
     max_tokens=25,
     temperature=0,
 ))
-print(pred.completion_text) 
+print(pred.completion_text)
 # "Arr, me matey! Bitcoin be a digital currency that be workin' on a technology called blockchain..."
 ```
 
@@ -90,7 +106,7 @@ from lmwrapper.structs import LmPrompt
 lm = get_huggingface_lm("gpt2")  # The smallest 124M parameter model
 
 prediction = lm.predict(LmPrompt(
-    "The capital of Germany is Berlin. The capital of France is", 
+    "The capital of Germany is Berlin. The capital of France is",
     max_tokens=1,
     temperature=0,
 ))
