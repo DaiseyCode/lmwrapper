@@ -150,7 +150,7 @@ class OpenAIPredictor(LmPredictor):
         return self._token_limit
 
     def estimate_tokens_in_prompt(self, prompt: LmPrompt) -> int:
-        """Estimate the number of tokens in the prompt. 
+        """Estimate the number of tokens in the prompt.
         This is not always an exact measure, as for the chat models there extra metadata provided.
         The documentation on ChatMl (https://github.com/openai/openai-python/blob/main/chatml.md)
         gives some details but is imprecise. We want to write this to ideally overestimate the
@@ -297,19 +297,20 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
     text_ada_001 = OpenAiModelInfo("text-ada-001", False, 2049)
     """Capable of very simple tasks, usually the fastest model in the GPT-3 series, and lowest cost."""
     text_davinci_003 = OpenAiModelInfo("text-davinci-003", False, 4097)
+    code_davinci_002 = OpenAiModelInfo("code-davinci-002", False, 4097)
     """Can do any language task with better quality, longer output, and consistent instruction-following
     than the curie, babbage, or ada models.
     Also supports some additional features such as inserting text."""
     gpt_3_5_turbo = OpenAiModelInfo("gpt-3.5-turbo", True, 4096)
-    """	Most capable GPT-3.5 model and optimized for chat at 1/10th the cost of text-davinci-003. 
+    """	Most capable GPT-3.5 model and optimized for chat at 1/10th the cost of text-davinci-003.
     Will be updated with our latest model iteration 2 weeks after it is released."""
     gpt_3_5_turbo_16k = OpenAiModelInfo("gpt-3.5-turbo-16k", True, 16384)
     """Same capabilities as the standard gpt-3.5-turbo model but with 4 times the context."""
     gpt_4 = OpenAiModelInfo("gpt-4", True, 8192)
-    """More capable than any GPT-3.5 model, able to do more complex tasks, and optimized for chat. 
+    """More capable than any GPT-3.5 model, able to do more complex tasks, and optimized for chat.
     Will be updated with our latest model iteration 2 weeks after it is released."""
     gpt_4_32k = OpenAiModelInfo("gpt-4-32k", True, 32768)
-    """Same capabilities as the base gpt-4 mode but with 4x the context length. 
+    """Same capabilities as the base gpt-4 mode but with 4x the context length.
     Will be updated with our latest model iteration."""
 
     @classmethod
