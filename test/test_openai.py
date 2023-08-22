@@ -79,7 +79,7 @@ def test_simple_chat_mode_multiturn():
     ]
     assert LmChatDialog(prompt).as_dicts() == [
         {'role': 'user', 'content': 'What is 2+2? Answer with just one number.'},
-        {'role': 'system', 'content': '4'},
+        {'role': 'assistant', 'content': '4'},
         {'role': 'user', 'content': 'What is 3+2?'}
     ]
     out = lm.predict(LmPrompt(
