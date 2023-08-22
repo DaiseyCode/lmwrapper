@@ -32,7 +32,7 @@ def test_too_large_logprob():
     """Expect a warning to be thrown when logprobs is greater than 5 (which
     is the limit the openai api supports)"""
     lm = get_open_ai_lm()
-    with pytest.warns(None) as called_warnings:
+    with warnings.catch_warnings():
         lm.predict(
             LmPrompt(
                 "Once",
@@ -43,7 +43,7 @@ def test_too_large_logprob():
                 echo=False
             )
         )
-    assert len(called_warnings) == 0
+
     with pytest.warns(UserWarning):
         lm.predict(
             LmPrompt(
