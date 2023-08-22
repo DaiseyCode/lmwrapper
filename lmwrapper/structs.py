@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import statistics
 from typing import List, Any, Union, Tuple
 
+from lmwrapper.util import StrEnum
 
 LM_CHAT_DIALOG_COERCIBLE_TYPES = Union[
     str,
@@ -83,6 +84,13 @@ class LmPrompt:
             return self.text
 
 
+class ChatGptRoles(StrEnum):
+    system = "system"
+    user = "user"
+    assistant = "assistant"
+    function = "function"
+
+
 @dataclass
 class LmChatTurn:
     role: str
@@ -102,25 +110,26 @@ class LmChatTurn:
 class LmChatDialog(list[LmChatTurn]):
     def __init__(self, values: LM_CHAT_DIALOG_COERCIBLE_TYPES):
         out = []
-        current_role = "user"
+        current_role = ChatGptRoles.user
         text_list = values if isinstance(values, list) else [values]
         for turn in text_list:
+            observe_role = current_role
             match turn:
                 case str(text):
                     out.append(LmChatTurn(role=current_role, content=text))
-                    current_role = "user" if current_role == "system" else "system"
                 case (str(role), str(content)):
                     out.append(LmChatTurn(role=role, content=content))
-                    current_role = "user" if role == "system" else "system"
+                    observe_role = role
                 case dict(turn):
                     out.append(LmChatTurn(**turn))
-                    current_role = "user" if turn['role'] == "system" else "system"
-                case LmChatTurn(role=role, content=content):
+                    observe_role = turn['role']
+                case LmChatTurn(role=observe_role, content=content):
                     out.append(turn)
-                    current_role = "user" if role == "system" else "system"
                 case _:
                     raise ValueError(f"Invalid type for text: {type(turn)}. "
                                      f"It should be a tuple of strings (role, content) or a LmChatTurn.")
+            current_role = (ChatGptRoles.user
+                            if observe_role == ChatGptRoles.assistant else ChatGptRoles.assistant)
         super().__init__(out)
 
     def as_dicts(self) -> List[dict]:
