@@ -189,7 +189,7 @@ class HuggingfacePredictor(LmPredictor):
             raise NotImplementedError
         temperature = prompt.temperature
         if temperature == 0:
-            temperature = 1e-9
+            temperature = None
         assert self._tokenizer.bos_token
 
         encoded_input = self._tokenizer(
@@ -239,8 +239,9 @@ class HuggingfacePredictor(LmPredictor):
 
         with torch.no_grad():
             generation_output = self._model.generate(
-                # input_ids=encoded_input["input_ids"],
-                **encoded_input,
+                input_ids=encoded_input["input_ids"],
+                # TODO: some models require an attention mask, others not?
+                # **encoded_input
                 generation_config=gen_config,
             )
 
