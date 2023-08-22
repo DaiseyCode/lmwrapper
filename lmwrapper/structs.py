@@ -147,14 +147,14 @@ class LmChatDialog(list[LmChatTurn]):
         Has the format:
         ```
         user: message
-        system: message
+        assistant: message
         user: message
         ...
         ```
         Different models might not follow this default format though internally.
         """
         output = "\n".join(f"{turn.role}: {turn.content}" for turn in self)
-        output += "\nsystem:"
+        output += f"\n{ChatGptRoles.assistant}:"
         return output
 
 
