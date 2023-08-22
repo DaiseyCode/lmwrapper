@@ -1,4 +1,4 @@
-from enum import StrEnum
+from lmwrapper.util import StrEnum
 
 import pytest
 import torch
