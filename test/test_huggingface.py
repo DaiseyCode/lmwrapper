@@ -19,24 +19,22 @@ class Models(StrEnum):
 
 
 CUDA_UNAVAILABLE = not torch.cuda.is_available()
-SMALL_GPU = (
-    CUDA_UNAVAILABLE or torch.cuda.mem_get_info()[0] < 17_179_869_184
-)  # 16GB
+SMALL_GPU = CUDA_UNAVAILABLE or torch.cuda.mem_get_info()[0] < 17_179_869_184  # 16GB
 
-
-if SMALL_GPU:
-    SEQ2SEQ_MODELS = {Models.CodeT5plus_220M}
-    CAUSAL_MODELS = {Models.DistilGPT2, Models.GPT2, Models.CodeGen2_1B}
-else:
-    SEQ2SEQ_MODELS = {Models.CodeT5plus_6B, Models.InstructCodeT5plus_16B}
-    CAUSAL_MODELS = {Models.DistilGPT2, Models.GPT2, Models.CodeGen2_3_7B}
-
-ALL_MODELS = SEQ2SEQ_MODELS | CAUSAL_MODELS
+SEQ2SEQ_MODELS = {Models.CodeT5plus_220M}
+CAUSAL_MODELS = {Models.DistilGPT2, Models.GPT2, Models.CodeGen2_1B}
+BIG_SEQ2SEQ_MODELS = {Models.CodeT5plus_6B, Models.InstructCodeT5plus_16B}
+BIG_CAUSAL_MODELS = {Models.CodeGen2_3_7B}
+BIG_MODELS = BIG_SEQ2SEQ_MODELS | BIG_CAUSAL_MODELS
+ALL_MODELS = SEQ2SEQ_MODELS | CAUSAL_MODELS | BIG_MODELS
 
 
 def test_distilgpt2_pytorch_runtime():
     prompt = LmPrompt(
-        "print('Hello world", max_tokens=15, cache=False, temperature=0,
+        "print('Hello world",
+        max_tokens=15,
+        cache=False,
+        temperature=0,
     )
     lm = get_huggingface_lm(Models.DistilGPT2, runtime=Runtime.PYTORCH)
     out = lm.predict(prompt)
@@ -46,8 +44,15 @@ def test_distilgpt2_pytorch_runtime():
 @pytest.mark.slow()
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_all_pytorch_runtime(lm: str):
+    if SMALL_GPU and lm in BIG_MODELS:
+        pytest.skip(
+            f"Skipped model '{lm}' as model too large for available GPU memory."
+        )
     prompt = LmPrompt(
-        "print('Hello world", max_tokens=15, cache=False, temperature=0,
+        "print('Hello world",
+        max_tokens=15,
+        cache=False,
+        temperature=0,
     )
     lm = get_huggingface_lm(lm, runtime=Runtime.PYTORCH)
     out = lm.predict(prompt)
@@ -60,7 +65,10 @@ def test_all_pytorch_runtime(lm: str):
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_get_ort(runtime: Runtime, lm: str):
     prompt = LmPrompt(
-        "print('Hello world", max_tokens=1, cache=False, temperature=0,
+        "print('Hello world",
+        max_tokens=1,
+        cache=False,
+        temperature=0,
     )
     lm = get_huggingface_lm(lm, runtime=runtime)
     out = lm.predict(prompt)
@@ -72,7 +80,10 @@ def test_get_ort(runtime: Runtime, lm: str):
 @pytest.mark.parametrize("lm", [Models.DistilGPT2, Models.GPT2])
 def test_get_better_transformer(lm):
     prompt = LmPrompt(
-        "print('Hello world", max_tokens=1, cache=False, temperature=0,
+        "print('Hello world",
+        max_tokens=1,
+        cache=False,
+        temperature=0,
     )
     lm = get_huggingface_lm(lm, runtime=Runtime.BETTER_TRANSFORMER)
     out = lm.predict(prompt)

@@ -11,14 +11,14 @@ from lmwrapper.caching import get_disk_cache
 from lmwrapper.secret_manage import SecretInterface, SecretFile, assert_is_a_secret, SecretEnvVar
 from lmwrapper.structs import LmPrompt, LmPrediction
 import bisect
-
+import re
 from lmwrapper.util import StrEnum
 
 cur_file = Path(__file__).parent.absolute()
 diskcache = get_disk_cache()
 
 
-PRINT_ON_PREDICT = True
+PRINT_ON_PREDICT = False
 
 MAX_LOG_PROB_PARM = 5
 
@@ -203,8 +203,16 @@ class OpenAIPredictor(LmPredictor):
         def is_success_func(result):
             return not isinstance(result, openai.error.RateLimitError)
 
+        def backoff_time(exception: openai.error.RateLimitError) -> int:
+            # Please try again in 3s.
+            regex = r".*Please try again in (\d+)s\..*"
+            matches = re.findall(regex, exception._message)
+            if matches:
+                return int(matches[0])
+            return None
+
         if self._retry_on_rate_limit:
-            completion = attempt_with_exponential_backoff(run_func, is_success_func)
+            completion = attempt_with_exponential_backoff(run_func, is_success_func, backoff_time=backoff_time)
         else:
             completion = run_func()
 
@@ -236,6 +244,7 @@ class OpenAIPredictor(LmPredictor):
 def attempt_with_exponential_backoff(
     call_func,
     is_success_func,
+    backoff_time = None,
     backoff_cap=60,
 ):
     """Attempts to get a result from call_func. Uses is_success_func
@@ -243,8 +252,12 @@ def attempt_with_exponential_backoff(
     then will sleep for a random amount of time between 1 and 2^attempts"""
     result = call_func()
     attempts = 1
+    sleep_time = False
     while not is_success_func(result):
-        sleep_time = random.randint(1, min(2**attempts, backoff_cap))
+        if backoff_time:
+            sleep_time = backoff_time(result)
+        if not backoff_time or not sleep_time:
+            sleep_time = random.randint(1, min(2**attempts, backoff_cap))
         print("Rate limit error. Sleeping for {} seconds".format(sleep_time))
         time.sleep(sleep_time)
         result = call_func()
