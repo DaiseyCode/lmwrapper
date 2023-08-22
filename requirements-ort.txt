@@ -1,0 +1,6 @@
+onnx>=1.14.0
+datasets>=2.14.4
+evaluate>=0.4.0
+accelerate>=0.21.0
+xformers>=0.0.20
+peft>=0.4.0
