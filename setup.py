@@ -1,9 +1,8 @@
 from setuptools import setup
+from pathlib import Path
 
 
 def get_requirments(requirements_file: str):
-    from pathlib import Path
-
     lib_folder = Path(__file__).resolve().parent
 
     requirement_path = lib_folder / requirements_file
@@ -13,9 +12,17 @@ def get_requirments(requirements_file: str):
     return install_requires
 
 
+def get_readme() -> str:
+    lib_folder = Path(__file__).resolve().parent
+    readme_path = lib_folder / "README.md"
+    if readme_path.is_file():
+        return readme_path.read_text()
+    return ""
+
+
 setup(
     name="lmwrapper",
-    version="0.03.02",
+    version="0.3.3",
     author="David Gros",
     description="Wrapper around language model APIs",
     license="MIT",
@@ -35,4 +42,6 @@ setup(
         ),
     },
     python_requires=">=3.10",
+    long_description=get_readme(),
+    long_description_content_type='text/markdown',
 )
