@@ -56,15 +56,17 @@ lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo)
 pred = lm.predict("What is 2+2?")
 print(pred.completion_text)  # "2+2 is equal to 4."
 
-# Conversation alternating between `user` and `system`.
+# Conversation alternating between `user` and `assistant`.
 pred = lm.predict(LmPrompt(
     [
         "What is 2+2?",  # user turn
-        "4",             # system turn
+        "4",             # assistant turn
         "What is 5+3?"   # user turn
-        "8",             # system turn
+        "8",             # assistant turn
         "What is 4+4?"   # user turn
-        # Because we have the fewshot examples, we might expect one number
+        # We use few-shot turns to encourage the answer to be our desired format.
+        #   If you don't give example turns you might get something like
+        #   "The answer is 8." instead of just "8".
     ],
     max_tokens=10,
 ))
@@ -87,8 +89,7 @@ print(pred.completion_text)
 ## Huggingface models
 
 Causal LM models on huggingface models can be used interchangeably with the
-OpenAI models. Note it is still a todo to make sure devices and GPUs are used
-appropriately.
+OpenAI models.
 
 ```python
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
@@ -115,6 +116,8 @@ this might be unexpected behavior if your temperature is non-zero. (You
 will always sample the same output on reruns.)
 
 ## Retries on rate limit
+An OpenAIPredictor can be configured to read rate limit errors and wait the appropriate
+amount of seconds in the error before retrying.
 ```python
 from lmwrapper.openai_wrapper import *
 lm = get_open_ai_lm(OpenAiModelNames.text_ada_001, retry_on_rate_limit=True)
@@ -133,11 +136,14 @@ assert not lm.could_completion_go_over_token_limit(LmPrompt(
 ```
 
 ## TODOs
+If you are interested in one of these particular features or something else
+please make a Github Issue.
 - [X] Openai completion
 - [X] Openai chat
 - [X] Huggingface interface
-- [ ] Proper GPU handling with huggingface
-- [ ] sort through usage of quantized models
+- [X] Huggingface device checking on PyTorch
 - [ ] Improved caching (per-project cache and committable)
+- [ ] sort through usage of quantized models
+- [ ] Additional Huggingface runtimes (TensorRT, BetterTransformers, etc)
 - [ ] Anthropic interface
-- [ ] Cost estimating
+- [ ] Cost estimating (so can estimate cost of a prompt before running / track total cost)
