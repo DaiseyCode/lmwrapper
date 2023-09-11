@@ -20,7 +20,7 @@ class _TokenStoppingCriteria(StoppingCriteria):
         else:
             stop_tokens = self._tokenizer(
                 stop_sequences, add_special_tokens=False, return_attention_mask=False
-            )["input_ids"]
+            ).input_ids
             assert len(stop_tokens) == len(stop_sequences)
 
             self.stop_sequences = stop_tokens

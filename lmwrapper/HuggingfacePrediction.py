@@ -10,6 +10,7 @@ class HuggingfacePrediction(LmPrediction):
     _prompt_encoding: Any
     _tokens: Any
     _log_probs: Any
+    _logprobs_dict: dict
 
     def __post_init__(self):
         assert len(self._prompt_encoding["input_ids"]) == 1
@@ -24,15 +25,11 @@ class HuggingfacePrediction(LmPrediction):
     @property
     def completion_logprobs(self) -> list[float]:
         self._verify_logprobs()
-        return self._log_probs[self._num_prompt_tokens :]
+        return self._log_probs
 
     @property
     def prompt_tokens(self):
         return self._tokens[: self._num_prompt_tokens]
-
-    @property
-    def prompt_logprobs(self):
-        return self._log_probs[: self._num_prompt_tokens]
 
     @property
     def full_logprobs(self):
@@ -40,3 +37,7 @@ class HuggingfacePrediction(LmPrediction):
 
     def get_full_tokens(self):
         return self._tokens
+
+    @property
+    def logprobs_dict(self):
+        return self._logprobs_dict

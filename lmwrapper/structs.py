@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import statistics
 from typing import List, Any, Union, Tuple
+from enum import Enum
 
 from lmwrapper.util import StrEnum
 
@@ -10,6 +11,14 @@ LM_CHAT_DIALOG_COERCIBLE_TYPES = Union[
     "LmChatDialog",
 ]  # Defines a set of types that can be converted into a LmChatDialog
 
+class TruncationStrategy(Enum):
+    NONE = 1
+    """Do not apply any truncation strategy.
+    Model will raise error if prompt too long"""
+    TRIM_END = 2
+    """Trim prompt from end."""
+    TRIM_START = 2
+    """Trim prompt from beginning."""
 
 @dataclass(frozen=True)
 class LmPrompt:
@@ -17,9 +26,9 @@ class LmPrompt:
     max_tokens: int
     stop: List[str] = None
     logprobs: int = 1
-    """Include the log probabilities on the logprobs most likely tokens, as well the chosen tokens. 
-    For example, if logprobs is 5, the API will return a list of the 5 most likely tokens. 
-    The model will always return the logprob of the sampled token, 
+    """Include the log probabilities on the logprobs most likely tokens, as well the chosen tokens.
+    For example, if logprobs is 5, the API will return a list of the 5 most likely tokens.
+    The model will always return the logprob of the sampled token,
     so there may be up to logprobs+1 elements in the response.
 
     In the case of openai the maximum value for logprobs is 5.
@@ -40,6 +49,11 @@ class LmPrompt:
     This allows for unconditional generation and allows for the first token to have
     a probability. This always happens in the openai endpoints (presumably), but
     could be controlled in other models (NOT IMPLEMENTED yet though)."""
+    patch_model_forward: bool = False
+    """Whether to patch model forward for raw logits or use built-in
+    HuggingFace transition scores."""
+    truncation_strategy: TruncationStrategy = TruncationStrategy.NONE
+    """Which truncation strategy to follow if prompt is too long."""
 
     def __post_init__(self):
         if not isinstance(self.max_tokens, int):
@@ -68,6 +82,10 @@ class LmPrompt:
         if not self.add_bos_token:
             raise NotImplementedError("Currently, the add_bos_token parameter must be True. "
                                       "Please make a github issue if you need this feature.")
+        if not isinstance(self.patch_model_forward, bool):
+            raise ValueError("The patch_model_forward parameter should be a boolean.")
+        if not isinstance(self.truncation_strategy, TruncationStrategy):
+            raise ValueError("The truncation_strategy parameter should be a TruncationStrategy.")
 
     def is_text_a_chat(self) -> bool:
         return isinstance(self.text, list)

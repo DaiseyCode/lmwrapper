@@ -10,7 +10,9 @@ from lmwrapper.HuggingfacePrediction import HuggingfacePrediction
 from lmwrapper._TokenStoppingCriteria import _TokenStoppingCriteria
 
 from lmwrapper.abstract_predictor import LmPredictor
-from lmwrapper.structs import LmPrediction, LmPrompt
+from lmwrapper.structs import LmPrediction, LmPrompt, TruncationStrategy
+
+import numpy as np
 
 _QUANT_CONFIG = None
 # TODO: Several models do not work on Apple MPS.
@@ -22,9 +24,7 @@ try:
 
     assert version.parse(torch.__version__) >= version.parse("2.0")
 except ImportError:
-    msg = (
-        "Expect to work on torch. Please see https://pytorch.org/ for install info."
-    )
+    msg = "Expect to work on torch. Please see https://pytorch.org/ for install info."
     raise ImportError(
         msg,
     )
@@ -123,10 +123,11 @@ if _ONNX_RUNTIME:
 
 class Runtime(Enum):
     PYTORCH = 1
-    ORT_CUDA = 2
-    ORT_TENSORRT = 3
-    ORT_CPU = 4
-    BETTER_TRANSFORMER = 5
+    ACCELERATE = 2
+    ORT_CUDA = 3
+    ORT_TENSORRT = 4
+    ORT_CPU = 5
+    BETTER_TRANSFORMER = 6
 
 
 class HuggingfacePredictor(LmPredictor):
@@ -135,39 +136,90 @@ class HuggingfacePredictor(LmPredictor):
         tokenizer: PreTrainedTokenizerFast,
         model: PreTrainedModel,
         device: torch.device,
+        runtime: Runtime,
     ):
         super().__init__()
         self._tokenizer = tokenizer
         self._model = model
         self._device = device
         self.is_chat_model = False
+        self.runtime = runtime
 
     def _predict_maybe_cached(
         self,
         prompt: LmPrompt,
     ) -> LmPrediction | list[LmPrediction]:
-        if prompt.stop:
-            raise NotImplementedError
+        if not isinstance(prompt.text, str) and len(prompt.text) != 1:
+            raise NotImplementedError(
+                "Prompt batches other than size 1 are not supported."
+            )
+
         if prompt.presence_penalty:
             raise NotImplementedError
+
+        stopping_criteria = None
+        if prompt.stop:
+            stopping_criteria = [
+                _TokenStoppingCriteria(
+                    prompt.stop, decode=True, tokenizer=self._tokenizer
+                )
+            ]
+
         temperature = prompt.temperature
         if temperature == 0:
             temperature = None
-        assert self._tokenizer.bos_token
 
-        encoded_input = self._tokenizer(
-            self._tokenizer.bos_token + prompt.text,
-            return_tensors="pt",
-        ).to(
-            self._device,
-        )  # Move to device
+        if prompt.text == "" and not prompt.add_bos_token:
+            raise Exception(
+                "Cannot do unconditional generation without `add_bos_token`."
+            )
+
+        if prompt.add_bos_token:
+            assert self._tokenizer.bos_token
+            prompt_text = self._tokenizer.bos_token + prompt.text
+        else:
+            prompt_text = prompt.text
+
+        max_length = self._model.config.max_length
+
+        if prompt.truncation_strategy == TruncationStrategy.NONE:
+            encoded_input = self._tokenizer(
+                prompt_text,
+                return_tensors="pt",
+            )
+        elif prompt.truncation_strategy == TruncationStrategy.TRIM_END:
+            self._tokenizer.truncation_side = "right"
+            encoded_input = self._tokenizer(
+                prompt_text,
+                return_tensors="pt",
+                truncation=True,
+                max_length=max_length,
+            )
+        elif prompt.truncation_strategy == TruncationStrategy.TRIM_START:
+            self._tokenizer.truncation_side = "left"
+            encoded_input = self._tokenizer(
+                prompt_text,
+                return_tensors="pt",
+                max_length=max_length,
+            )
+
+        if self.runtime != Runtime.ACCELERATE:
+            encoded_input = encoded_input.to(
+                self._device,
+            )  # Move to device
 
         # ONNX models themselves cannot be moved to a device
         # but their input tensors must be moved to GPU
-        if not _ONNX_RUNTIME or not isinstance(self._model, ORTModel):
+        # Similarly, Accelerate takes care of moving tensors
+        if self.runtime != Runtime.ACCELERATE or (not _ONNX_RUNTIME or not isinstance(self._model, ORTModel)):
             self._model.to(self._device)  # Ensure model is on device
 
         need_log_prob = prompt.logprobs is not None and prompt.logprobs > 0
+
+        # Some models do not have a pad token, default to 0
+        pad_token_id = (
+            self._tokenizer.pad_token_id if self._tokenizer.pad_token_id else 0
+        )
 
         # Ref https://gist.github.com/kinoc/8a042d8c5683725aa8c372274c02ea2f
         gen_config = GenerationConfig(
@@ -177,7 +229,7 @@ class HuggingfacePredictor(LmPredictor):
             do_sample=prompt.temperature > 0,
             return_dict_in_generate=True,
             output_scores=need_log_prob,
-            pad_token_id=self._tokenizer.pad_token_id,
+            pad_token_id=pad_token_id,
             eos_token_id=self._tokenizer.eos_token_id,
             bos_token_id=self._tokenizer.bos_token_id,
         )
@@ -189,61 +241,132 @@ class HuggingfacePredictor(LmPredictor):
         #   require calling the model again https://discuss.huggingface.co/t/announcement-generation-get-probabilities-for-generated-output/30075/17
         # Instead we are going to patch the model forward to log calls
 
-        old_forward = self._model.forward
-        cached_logits = []
+        if prompt.patch_model_forward:
+            old_forward = self._model.forward
+            cached_logits = []
 
-        def new_call(*args, **kwargs):
-            nonlocal cached_logits
-            val = old_forward(*args, **kwargs)
-            cached_logits.append(val.logits)
-            return val
+            def new_call(*args, **kwargs):
+                nonlocal cached_logits
+                val = old_forward(*args, **kwargs)
+                cached_logits.append(val.logits)
+                return val
 
-        self._model.forward = new_call
+            self._model.forward = new_call
 
         with torch.no_grad():
             generation_output = self._model.generate(
-                input_ids=encoded_input["input_ids"],
+                input_ids=encoded_input.input_ids,
                 # TODO: some models require an attention mask, others not?
                 # **encoded_input
                 generation_config=gen_config,
+                stopping_criteria=stopping_criteria,
             )
 
-        self._model.forward = old_forward
+        if prompt.patch_model_forward:
+            self._model.forward = old_forward
 
-        s = generation_output.sequences[0]
-        text = self._tokenizer.decode(s[len(encoded_input["input_ids"][0]) :])
-        tokens = self._tokenizer.convert_ids_to_tokens(s)
+        output_sequence = generation_output.sequences[0]
 
-        # strip the bos token
-        tokens = tokens[1:]
+        # input_length is the length of the input prompt for decoder-only models,
+        # like the GPT family, and 1 for encoder-decoder models, like BART or T5.
+        input_length = (
+            1
+            if self._model.config.is_encoder_decoder
+            else encoded_input.input_ids.shape[1]
+        )
+
+        generated_sequence = output_sequence[input_length:]
+        generated_text = self._tokenizer.decode(generated_sequence)
+
+        delta = None
+
+        if prompt.stop:
+            sorted_stop_sequences = sorted(prompt.stop, key=len, reverse=True)
+
+            stop_strategy = "rencode"  # or "backtrack"
+
+            if stop_strategy == "backtrack":
+                stop_idx = len(generated_sequence)
+                for stop_sequence in sorted_stop_sequences:
+                    if generated_text.endswith(stop_sequence):
+                        for idx, token_id in reversed(
+                            list(enumerate(generated_sequence))
+                        ):
+                            decoded_tkn = self._tokenizer.decode(token_id)
+                            if stop_sequence in decoded_tkn:
+                                stop_idx = idx - 1
+                                break
+                delta = -(len(generated_sequence) - stop_idx)
+            else:
+                for stop_sequence in sorted_stop_sequences:
+                    if generated_text.endswith(stop_sequence):
+                        generated_text = generated_text[: -len(stop_sequence)]
+                rencoded = self._tokenizer.encode(
+                    generated_text, add_special_tokens=False
+                )
+                delta = -(len(generated_sequence) - len(rencoded))
+
+            if delta == 0:
+                delta = None
+            else:
+                assert delta < 0
+
+            output_sequence = output_sequence[:delta]
+            generated_sequence = output_sequence[input_length:]
+
+            if stop_strategy == "backtrack":
+                generated_text = self._tokenizer.decode(generated_sequence)
+
+        output_tokens = self._tokenizer.convert_ids_to_tokens(output_sequence)
 
         # Calculate the logprobs if needed
         if need_log_prob:
-            all_logits = torch.cat(cached_logits, dim=1)
-            assert all_logits.shape[0] == 1  # batch
-            assert all_logits.shape[1] == len(tokens)
-            logprobs = _gather_logprobs_from_logits(
-                all_logits[0],
-                s[1:],
-            )
-            assert len(logprobs) == len(tokens)
+            if prompt.patch_model_forward:
+                all_logits = torch.cat(cached_logits, dim=1)[:, :delta]
+                assert all_logits.shape[0] == 1  # batch
+                assert all_logits.shape[1] == len(output_tokens[1:])
+                logprobs = _gather_logprobs_from_logits(
+                    all_logits[0],
+                    output_sequence[1:],
+                )
+                logprobs = logprobs[input_length - 1 :]
+            else:
+                logprobs = self._model.compute_transition_scores(
+                    generation_output.sequences,
+                    generation_output.scores,
+                    normalize_logits=True,
+                )[0, :delta]
+            assert len(generated_sequence) == len(logprobs)
+
+            # Create logprobs dict
+            logprobs_dicts = []
+            for tok, score in zip(generated_sequence, logprobs, strict=True):
+                logprobs_dicts.append(
+                    {
+                        "token": int(tok.detach().cpu()),
+                        "repr": repr(self._tokenizer.decode(tok)),
+                        "logit": float(score.item()),
+                        "probability": float(np.exp(score.detach().cpu())),
+                    }
+                )
         else:
             logprobs = None
 
         if prompt.max_tokens == 0:
             # Huggingface seems to default to one token always return an extra token
-            tokens = tokens[:-1]
+            output_tokens = output_tokens[:-1]
             logprobs = logprobs[:-1]
-            text = ""
+            generated_text = ""
             generation_output.sequences = generation_output.sequences[:, :-1]
 
         return HuggingfacePrediction(
-            completion_text=text,
+            completion_text=generated_text,
             prompt=prompt,
             metad=generation_output,
-            _prompt_encoding=encoded_input,
-            _tokens=tokens,
-            _log_probs=logprobs,
+            _prompt_encoding=encoded_input.to("cpu"),
+            _tokens=output_tokens,
+            _log_probs=logprobs.detach().cpu().numpy(),
+            _logprobs_dict=logprobs_dicts,
         )
 
     def get_model_max_length(self) -> int:
@@ -374,7 +497,7 @@ def _initialize_hf_model(
     model_name: str,
     model_class: PreTrainedModel,
     runtime: Runtime = Runtime.PYTORCH,
-    precision: torch.dtype = torch.float32,
+    precision: torch.dtype | str = "auto",
     _kwargs: dict = {},
 ) -> HuggingfacePredictor:
     torch_device = _get_accelerator()
@@ -387,9 +510,15 @@ def _initialize_hf_model(
         model = model_class.from_pretrained(
             model_name,
             torch_dtype=precision,
+            **_kwargs,
+        )
+    elif runtime == Runtime.ACCELERATE:
+        model = model_class.from_pretrained(
+            model_name,
+            torch_dtype=precision,
             device_map="auto",
             **_kwargs,
-        ).to(torch_device)
+        )
     elif runtime == Runtime.ORT_CPU:
         if torch_device.type != "cpu":
             logging.warn(
@@ -500,7 +629,9 @@ def _initialize_hf_model(
         msg = "Invalid Runtime provided."
         raise Exception(msg)
 
-    predictor = HuggingfacePredictor(tokenizer, model, device=torch_device)
+    predictor = HuggingfacePredictor(
+        tokenizer, model, device=torch_device, runtime=runtime
+    )
 
     if runtime == Runtime.ORT_TENSORRT:
         # Warm up TensorRT model once instantiated.
@@ -516,8 +647,6 @@ def _warmup_model(predictor: HuggingfacePredictor):
     small_prompt = LmPrompt("!", cache=False, temperature=0)
     predictor.predict(small_prompt)
 
-    long_prompt_str = (
-        "hello world" * predictor.get_model_max_length()
-    )
+    long_prompt_str = "hello world" * predictor.get_model_max_length()
     long_prompt = LmPrompt(long_prompt_str, cache=False, temperature=0)
     predictor.predict(long_prompt)
