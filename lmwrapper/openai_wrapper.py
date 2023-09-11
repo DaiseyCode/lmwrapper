@@ -102,7 +102,7 @@ class OpenAiLmChatPrediction(LmPrediction):
 class OpenAIPredictor(LmPredictor):
     def __init__(
         self,
-        api,
+        api: openai,
         engine_name: str,
         chat_mode: bool = None,
         cache_outputs_default: bool = False,
@@ -170,6 +170,9 @@ class OpenAIPredictor(LmPredictor):
             print("RUN PREDICT ", prompt.text[:min(10, len(prompt.text))])
 
         def run_func():
+             # Wait for rate limit
+            LmPredictor._wait_ratelimit()
+
             try:
                 if not self._chat_mode:
                     return self._api.Completion.create(
