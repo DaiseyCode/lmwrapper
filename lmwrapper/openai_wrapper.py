@@ -1,9 +1,11 @@
 import random
+from abc import ABC, abstractmethod
+
 import tiktoken
 import time
 import warnings
 from pathlib import Path
-from typing import Union, List, Optional, Iterable
+from typing import Union, List, Optional, Iterable, Callable
 
 import openai.error
 from lmwrapper.abstract_predictor import LmPredictor
@@ -100,6 +102,8 @@ class OpenAiLmChatPrediction(LmPrediction):
 
 
 class OpenAIPredictor(LmPredictor):
+    _instantiation_hooks: List['OpenAiInstantiationHook'] = []
+
     def __init__(
         self,
         api,
@@ -108,6 +112,8 @@ class OpenAIPredictor(LmPredictor):
         cache_outputs_default: bool = False,
         retry_on_rate_limit: bool = False,
     ):
+        for hook in self._instantiation_hooks:
+            hook.before_init(self, api, engine_name, chat_mode, cache_outputs_default, retry_on_rate_limit)
         super().__init__(cache_outputs_default)
         self._api = api
         self._engine_name = engine_name
@@ -123,6 +129,15 @@ class OpenAIPredictor(LmPredictor):
                              "cannot be inferred from engine name")
         self._token_limit = info.token_limit if info is not None else None
         self._tokenizer = None
+
+    @classmethod
+    def add_instantiation_hook(cls, hook: 'OpenAiInstantiationHook'):
+        """This method should likely not be used normally.
+        It is intended add constraints on kinds of models that are
+        instantiation to better control usage. An example usage checking
+        keys are used correctly like that certain keys are used with particular
+        models"""
+        cls._instantiation_hooks.append(hook)
 
     def _validate_prompt(self, prompt: LmPrompt, raise_on_invalid: bool = True) -> bool:
         if prompt.logprobs is not None and prompt.logprobs > MAX_LOG_PROB_PARM:
@@ -241,6 +256,27 @@ class OpenAIPredictor(LmPredictor):
         return tokens
 
 
+class OpenAiInstantiationHook(ABC):
+    """Potentially used to add API controls on predictor instantiation.
+    An example usecase is to make sure certain keys are only used with
+    certain models.."""
+    def __init__(self):
+        pass
+
+    @abstractmethod
+    def before_init(
+        self,
+        new_predictor: OpenAIPredictor,
+        api,
+        engine_name: str,
+        chat_mode: bool,
+        cache_outputs_default: bool,
+        retry_on_rate_limit: bool,
+    ):
+        raise NotImplementedError()
+
+
+
 def attempt_with_exponential_backoff(
     call_func,
     is_success_func,
@@ -334,6 +370,7 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
             if info == name:
                 return info
         return None
+
 
 
 def get_open_ai_lm(
