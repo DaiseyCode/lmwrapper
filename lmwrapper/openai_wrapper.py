@@ -94,6 +94,16 @@ class OpenAiLmPrediction(LmPrediction):
     def get_full_text(self):
         return self.prompt.text + self.completion_text
 
+    @property
+    def logprobs_dict(self):
+        return [
+            {
+                "repr": repr(token),
+                "probability": logprob,
+            } for token, logprob in zip(self.completion_tokens,
+                                        self.completion_logprobs,
+                                        strict=True)
+        ]
 
 class OpenAiLmChatPrediction(LmPrediction):
     pass

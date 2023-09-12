@@ -56,12 +56,12 @@ def test_logprobs_codegen2():
     outa = lm.predict(prompt)
     logprobs_a = np.array(outa.full_logprobs)
 
+    lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH, patch_model_forward=True)
     prompt = LmPrompt(
         "def hello_world():\n   print('",
         max_tokens=15,
         cache=False,
         temperature=0,
-        patch_model_forward=True,
     )
     outb = lm.predict(prompt)
     logprobs_b = np.array(outb.full_logprobs)
@@ -90,12 +90,12 @@ def test_logprobs_stop_codegen2():
         }
     ]
 
+    lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH, patch_model_forward=True)
     prompt = LmPrompt(
         "place a newline here",
         max_tokens=5,
         cache=False,
         temperature=0,
-        patch_model_forward=True,
         stop=["(o(o"],
     )
     out_b = lm.predict(prompt)
@@ -274,7 +274,7 @@ def test_stop_token_removal():
             "logit": pytest.approx(-0.0013435394503176212, rel=0.001),
             "probability": pytest.approx(0.9986573457717896, rel=0.001),
         },
-        { # TODO: finish backtrack strategy to exclude stop token logprob
+        {
             "token": 8031,
             "repr": "' Italy'",
             "logit": pytest.approx(-2.757378101348877, rel=0.001),
