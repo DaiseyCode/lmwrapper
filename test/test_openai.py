@@ -91,10 +91,12 @@ def test_simple_chat_mode_multiturn():
     assert out.completion_text.strip() == "5"
 
 def test_ratelimit():
-    OpenAIPredictor.configure_global_ratelimit(1, per_seconds=2)
-    assert OpenAIPredictor._wait_ratelimit() == 0.0
-    assert OpenAIPredictor._wait_ratelimit() == pytest.approx(2, rel=0.1)
-    OpenAIPredictor.configure_global_ratelimit(1000000, per_seconds=1)  # teardown
+    try:
+        OpenAIPredictor.configure_global_ratelimit(1, per_seconds=2)
+        assert OpenAIPredictor._wait_ratelimit() == 0.0
+        assert OpenAIPredictor._wait_ratelimit() == pytest.approx(2, rel=0.1)
+    finally:
+        OpenAIPredictor.configure_global_ratelimit(None)  # teardown
 
 def main():
     play_with_probs()

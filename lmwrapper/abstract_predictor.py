@@ -84,7 +84,13 @@ class LmPredictor:
         If greedy is set to true, requests will be made without time inbetween,
         followed by a long wait. Otherwise, requests are evenly spaced.
         """
-        LmPredictor._rate_limit = RateLimit(max_count=max_count, per=per_seconds, greedy=greedy)
+        if max_count and per_seconds:
+            LmPredictor._rate_limit = RateLimit(max_count=max_count,
+                                                per=per_seconds,
+                                                greedy=greedy)
+        else:
+            LmPredictor._rate_limit = None
+
         return LmPredictor._rate_limit
 
     def _wait_ratelimit() -> float:
