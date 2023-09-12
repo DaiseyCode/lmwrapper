@@ -338,9 +338,9 @@ class HuggingfacePredictor(LmPredictor):
                     all_logits[0],
                     output_sequence[1:],
                 )
-                logprobs = logprobs[
-                    input_length - 1 :
-                ]  # TODO: patch_model_forward should include prompt logprobs too
+
+                if not prompt.echo:
+                    logprobs = logprobs[input_length - 1 :]
             else:
                 logprobs = self._model.compute_transition_scores(
                     generation_output.sequences,
