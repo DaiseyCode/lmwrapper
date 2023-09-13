@@ -1,8 +1,8 @@
 from abc import abstractmethod
-from typing import Union, Dict, List
+from typing import Optional, Union, Dict, List
 from lmwrapper.caching import get_disk_cache
 from lmwrapper.structs import LmPrompt, LmPrediction
-
+from ratemate import RateLimit
 
 disk_cache = get_disk_cache()
 
@@ -17,6 +17,8 @@ def _predict_definately_cached(
 
 
 class LmPredictor:
+    _rate_limit: Optional[RateLimit] = None
+
     def __init__(
         self,
         cache_default: bool = False,
@@ -75,3 +77,24 @@ class LmPredictor:
         This method is to try to remove those and get it in a form that could be joined
         and represent the original text."""
         raise NotImplementedError()
+
+    def configure_global_ratelimit(max_count=1, per_seconds=1, greedy=False) -> None:
+        """
+        Configure global ratelimiting, max tries per given seconds
+        If greedy is set to true, requests will be made without time inbetween,
+        followed by a long wait. Otherwise, requests are evenly spaced.
+        """
+        if max_count and per_seconds:
+            LmPredictor._rate_limit = RateLimit(max_count=max_count,
+                                                per=per_seconds,
+                                                greedy=greedy)
+        else:
+            LmPredictor._rate_limit = None
+
+        return LmPredictor._rate_limit
+
+    def _wait_ratelimit() -> float:
+        if LmPredictor._rate_limit:
+            return LmPredictor._rate_limit.wait()
+
+        return 0.

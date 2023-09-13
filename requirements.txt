@@ -4,3 +4,4 @@ termcolor~=1.0
 diskcache
 joblib~=1.1
 tiktoken~=0.4
+ratemate~=0.1
