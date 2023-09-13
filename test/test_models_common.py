@@ -187,6 +187,7 @@ capital_prompt = "The capital of Germany is the city Berlin. " \
                  "The capital of UK is the city London. " \
                  "The capital of France"
 
+
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_stopping_begin_tok(lm):
     val_normal = lm.predict(
@@ -289,7 +290,7 @@ def test_stopping_span_subtoks(lm):
             cache=False,
         )
     )
-    # Chopping off end of subtoken returns token but cut
+    # Chopping off between multiple subtokens
     val_no_ris = lm.predict(
         LmPrompt(
             capital_prompt,
@@ -305,3 +306,64 @@ def test_stopping_span_subtoks(lm):
     assert np.allclose(
         val_no_ris.completion_logprobs, val_normal.completion_logprobs[:-1], atol=0.001, rtol=0.001)
     assert lm.remove_special_chars_from_tokens(val_no_ris.completion_tokens)[-1] == " city"
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_stopping_span_subtoks2(lm):
+    val_normal = lm.predict(
+        LmPrompt(
+            capital_prompt,
+            max_tokens=4,
+            logprobs=1,
+            temperature=0,
+            cache=False,
+        )
+    )
+    # Chopping off between multiple subtokens in middle
+    val_no_ris = lm.predict(
+        LmPrompt(
+            capital_prompt,
+            max_tokens=10,
+            logprobs=1,
+            temperature=0,
+            cache=False,
+            stop=["ity Par"]
+        )
+    )
+    assert val_no_ris.completion_text == " is the c"
+    assert len(val_no_ris.completion_logprobs) == 3
+    assert np.allclose(
+        val_no_ris.completion_logprobs, val_normal.completion_logprobs[:-1], atol=0.001, rtol=0.001)
+    assert lm.remove_special_chars_from_tokens(val_no_ris.completion_tokens)[-1] == " city"
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_stopping_span_subtoks_multiple(lm):
+    val_normal = lm.predict(
+        LmPrompt(
+            capital_prompt,
+            max_tokens=4,
+            logprobs=1,
+            temperature=0,
+            cache=False,
+        )
+    )
+    for do_reverse in [True, False]:
+        stop = ["ity Par", "ty P"]
+        if do_reverse:
+            stop.reverse()
+        val_no_ris = lm.predict(
+            LmPrompt(
+                capital_prompt,
+                max_tokens=10,
+                logprobs=1,
+                temperature=0,
+                cache=False,
+                stop=stop,
+            )
+        )
+        assert val_no_ris.completion_text == " is the c"
+        assert len(val_no_ris.completion_logprobs) == 3
+        assert np.allclose(
+            val_no_ris.completion_logprobs, val_normal.completion_logprobs[:-1], atol=0.001, rtol=0.001)
+        assert lm.remove_special_chars_from_tokens(val_no_ris.completion_tokens)[-1] == " city"
