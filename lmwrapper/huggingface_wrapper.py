@@ -11,6 +11,7 @@ from lmwrapper.HuggingfacePrediction import HuggingfacePrediction
 from lmwrapper._TokenStoppingCriteria import _TokenStoppingCriteria
 
 from lmwrapper.abstract_predictor import LmPredictor
+from lmwrapper.prompt_trimming import PromptTrimmer
 from lmwrapper.structs import LmPrediction, LmPrompt
 
 import numpy as np
@@ -138,7 +139,8 @@ class HuggingfacePredictor(LmPredictor):
         model: PreTrainedModel,
         device: torch.device,
         runtime: Runtime,
-        patch_model_forward: bool = False,
+        patch_model_forward: bool,
+        prompt_trimmer: PromptTrimmer,
     ):
         super().__init__()
         self._tokenizer = tokenizer
@@ -147,6 +149,7 @@ class HuggingfacePredictor(LmPredictor):
         self.is_chat_model = False
         self.runtime = runtime
         self.patch_model_forward = patch_model_forward
+        self.prompt_trimmer = prompt_trimmer
 
     def _predict_maybe_cached(
         self,
@@ -203,6 +206,9 @@ class HuggingfacePredictor(LmPredictor):
             inspect.signature(self._model.forward).parameters.keys()
         )
 
+        if self.prompt_trimmer:
+            prompt_text = self.prompt_trimmer.trim_text(prompt_text)
+
         encoded_input = self._tokenizer(
             prompt_text,
             return_tensors="pt",
@@ -210,7 +216,14 @@ class HuggingfacePredictor(LmPredictor):
         )
 
         if len(encoded_input) > max_length:
-            raise ValueError("Prompt is too long for model. Please pass in a trimmer.")
+            if self.prompt_trimmer:
+                raise ValueError(
+                    "Prompt is too long for model. Please check that the provided trimmer is configured correctly."
+                )
+            else:
+                raise ValueError(
+                    "Prompt is too long for model. Please pass in a trimmer."
+                )
 
         if self.runtime != Runtime.ACCELERATE:
             encoded_input = encoded_input.to(
@@ -426,6 +439,7 @@ def get_huggingface_lm(
     precision: torch.dtype = torch.float32,
     trust_remote_code: bool = False,
     patch_model_forward: bool = False,
+    prompt_trimmer: PromptTrimmer = None,
 ) -> HuggingfacePredictor:
     if runtime != Runtime.PYTORCH:
         msg = (
@@ -495,6 +509,7 @@ def get_huggingface_lm(
         runtime=runtime,
         precision=precision,
         patch_model_forward=patch_model_forward,
+        prompt_trimmer=prompt_trimmer,
         _kwargs=_kwargs,
     )
 
@@ -512,6 +527,7 @@ def _initialize_hf_model(
     runtime: Runtime = Runtime.PYTORCH,
     precision: torch.dtype | str = "auto",
     patch_model_forward: bool = False,
+    prompt_trimmer: PromptTrimmer = None,
     _kwargs: dict = {},
 ) -> HuggingfacePredictor:
     torch_device = _get_accelerator()
@@ -649,6 +665,7 @@ def _initialize_hf_model(
         device=torch_device,
         runtime=runtime,
         patch_model_forward=patch_model_forward,
+        prompt_trimmer=prompt_trimmer,
     )
 
     if runtime == Runtime.ORT_TENSORRT:
