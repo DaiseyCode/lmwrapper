@@ -4,7 +4,8 @@ import warnings
 import pytest
 
 from lmwrapper.caching import clear_cache_dir
-from lmwrapper.openai_wrapper import OpenAIPredictor, get_open_ai_lm, OpenAiModelNames
+from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames, OpenAIPredictor, \
+    OpenAiInstantiationHook
 from lmwrapper.structs import LmPrompt, LmChatDialog
 
 
@@ -156,6 +157,29 @@ def test_tokenizer_chat():
     assert 5 < lm.estimate_tokens_in_prompt(LmPrompt(
         "Once upon a time", max_tokens=10
     )) < 4 + 12
+
+
+def test_instantiation_hook():
+    was_called = False
+
+    class SimpleHook(OpenAiInstantiationHook):
+        def before_init(
+            self,
+            new_predictor: OpenAIPredictor,
+            api,
+            engine_name: str,
+            chat_mode: bool,
+            cache_outputs_default: bool,
+            retry_on_rate_limit: bool,
+        ):
+            nonlocal was_called
+            was_called = True
+            assert engine_name == OpenAiModelNames.text_ada_001
+
+    OpenAIPredictor.add_instantiation_hook(SimpleHook())
+    assert not was_called
+    model = get_open_ai_lm()
+    assert was_called
 
 
 if __name__ == "__main__":
