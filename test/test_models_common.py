@@ -367,3 +367,19 @@ def test_stopping_span_subtoks_multiple(lm):
         assert np.allclose(
             val_no_ris.completion_logprobs, val_normal.completion_logprobs[:-1], atol=0.001, rtol=0.001)
         assert lm.remove_special_chars_from_tokens(val_no_ris.completion_tokens)[-1] == " city"
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_remove_prompt_from_cache(lm):
+    prompt = LmPrompt(
+        "Write a story about a dog:",
+        max_tokens=10,
+        temperature=1.0,
+        cache=True,
+    )
+    r1 = lm.predict(prompt)
+    r2 = lm.predict(prompt)
+    assert r1.completion_text == r2.completion_text
+    assert lm.remove_prompt_from_cache(prompt)
+    r3 = lm.predict(prompt)
+    assert r1.completion_text != r3.completion_text
