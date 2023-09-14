@@ -1,4 +1,5 @@
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
+import numpy as np
 from lmwrapper.openai_wrapper import get_open_ai_lm
 import pytest
 
@@ -28,7 +29,7 @@ def test_simple_pred_lp(lm):
         LmPrompt(
             "Here is a story. Once upon a",
             max_tokens=1,
-            logprobs=5,
+            logprobs=1,
             cache=False,
             num_completions=1,
             echo=False
@@ -50,7 +51,7 @@ def test_simple_pred_cache(lm):
             LmPrompt(
                 "Once upon a",
                 max_tokens=1,
-                logprobs=5,
+                logprobs=1,
                 cache=True,
                 num_completions=1,
                 echo=False
@@ -67,7 +68,7 @@ def test_echo(lm):
         LmPrompt(
             "Once upon a",
             max_tokens=1,
-            logprobs=5,
+            logprobs=1,
             cache=False,
             num_completions=1,
             echo=True
@@ -92,7 +93,7 @@ def test_low_prob_in_weird_sentence(lm):
         LmPrompt(
             "The Empire State Building is in New run and is my favorite",
             max_tokens=1,
-            logprobs=5,
+            logprobs=1,
             cache=False,
             num_completions=1,
             echo=True
@@ -102,7 +103,7 @@ def test_low_prob_in_weird_sentence(lm):
         LmPrompt(
             "The Empire State Building is in New York and is my favorite",
             max_tokens=1,
-            logprobs=5,
+            logprobs=1,
             cache=False,
             num_completions=1,
             echo=True
@@ -133,7 +134,7 @@ def test_no_gen(lm):
         LmPrompt(
             "I like pie",
             max_tokens=0,
-            logprobs=5,
+            logprobs=1,
             cache=False,
             num_completions=1,
             echo=True
@@ -179,3 +180,190 @@ def test_unconditional_gen(lm):
     assert len(val.completion_tokens) == 2
     assert len(val.completion_text) > 2
     assert len(val.completion_logprobs) == 2
+
+
+capital_prompt = "The capital of Germany is the city Berlin. " \
+                 "The capital of Spain is the city Madrid. " \
+                 "The capital of UK is the city London. " \
+                 "The capital of France"
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_stopping_begin_tok(lm):
+    val_normal = lm.predict(
+        LmPrompt(
+            capital_prompt,
+            max_tokens=4,
+            logprobs=1,
+            temperature=0,
+            cache=False,
+        )
+    )
+    print(val_normal.completion_text)
+    assert "is the city Paris" in val_normal.completion_text
+    assert len(val_normal.completion_tokens) == 4
+    assert lm.remove_special_chars_from_tokens(val_normal.completion_tokens[-1]) == " Paris"
+    # Chopping off first part of subtoken does not return token
+    val_no_pa = lm.predict(
+        LmPrompt(
+            capital_prompt,
+            max_tokens=4,
+            logprobs=1,
+            temperature=0,
+            cache=False,
+            stop=[" Pa"]
+        )
+    )
+    print(val_no_pa.completion_text)
+    assert val_no_pa.completion_text == " is the city"
+    assert len(val_no_pa.completion_tokens) == 3
+    assert np.allclose(
+        val_no_pa.completion_logprobs, val_normal.completion_logprobs[:-1], atol=0.001, rtol=0.001)
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_stopping_middle_tok(lm):
+    val_normal = lm.predict(
+        LmPrompt(
+            capital_prompt,
+            max_tokens=4,
+            logprobs=1,
+            temperature=0,
+            cache=False,
+        )
+    )
+    # Chopping off middle of subtoken returns token but cut
+    val_no_ari = lm.predict(
+        LmPrompt(
+            capital_prompt,
+            max_tokens=4,
+            logprobs=1,
+            temperature=0,
+            cache=False,
+            stop=["ari"]
+        )
+    )
+    assert val_no_ari.completion_text == " is the city P"
+    assert len(val_no_ari.completion_logprobs) == 4
+    assert np.allclose(
+        val_no_ari.completion_logprobs, val_normal.completion_logprobs, atol=0.001, rtol=0.001)
+    assert lm.remove_special_chars_from_tokens(val_no_ari.completion_tokens)[-1] == " Paris"
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_stopping_end_tok(lm):
+    val_normal = lm.predict(
+        LmPrompt(
+            capital_prompt,
+            max_tokens=4,
+            logprobs=1,
+            temperature=0,
+            cache=False,
+        )
+    )
+    # Chopping off end of subtoken returns token but cut
+    val_no_ris = lm.predict(
+        LmPrompt(
+            capital_prompt,
+            max_tokens=4,
+            logprobs=1,
+            temperature=0,
+            cache=False,
+            stop=["ris"]
+        )
+    )
+    assert val_no_ris.completion_text == " is the city Pa"
+    assert len(val_no_ris.completion_logprobs) == 4
+    assert np.allclose(
+        val_no_ris.completion_logprobs, val_normal.completion_logprobs, atol=0.001, rtol=0.001)
+    assert lm.remove_special_chars_from_tokens(val_no_ris.completion_tokens)[-1] == " Paris"
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_stopping_span_subtoks(lm):
+    val_normal = lm.predict(
+        LmPrompt(
+            capital_prompt,
+            max_tokens=4,
+            logprobs=1,
+            temperature=0,
+            cache=False,
+        )
+    )
+    # Chopping off between multiple subtokens
+    val_no_ris = lm.predict(
+        LmPrompt(
+            capital_prompt,
+            max_tokens=10,
+            logprobs=1,
+            temperature=0,
+            cache=False,
+            stop=["ity Paris"]
+        )
+    )
+    assert val_no_ris.completion_text == " is the c"
+    assert len(val_no_ris.completion_logprobs) == 3
+    assert np.allclose(
+        val_no_ris.completion_logprobs, val_normal.completion_logprobs[:-1], atol=0.001, rtol=0.001)
+    assert lm.remove_special_chars_from_tokens(val_no_ris.completion_tokens)[-1] == " city"
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_stopping_span_subtoks2(lm):
+    val_normal = lm.predict(
+        LmPrompt(
+            capital_prompt,
+            max_tokens=4,
+            logprobs=1,
+            temperature=0,
+            cache=False,
+        )
+    )
+    # Chopping off between multiple subtokens in middle
+    val_no_ris = lm.predict(
+        LmPrompt(
+            capital_prompt,
+            max_tokens=10,
+            logprobs=1,
+            temperature=0,
+            cache=False,
+            stop=["ity Par"]
+        )
+    )
+    assert val_no_ris.completion_text == " is the c"
+    assert len(val_no_ris.completion_logprobs) == 3
+    assert np.allclose(
+        val_no_ris.completion_logprobs, val_normal.completion_logprobs[:-1], atol=0.001, rtol=0.001)
+    assert lm.remove_special_chars_from_tokens(val_no_ris.completion_tokens)[-1] == " city"
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_stopping_span_subtoks_multiple(lm):
+    val_normal = lm.predict(
+        LmPrompt(
+            capital_prompt,
+            max_tokens=4,
+            logprobs=1,
+            temperature=0,
+            cache=False,
+        )
+    )
+    for do_reverse in [True, False]:
+        stop = ["ity Par", "ty P"]
+        if do_reverse:
+            stop.reverse()
+        val_no_ris = lm.predict(
+            LmPrompt(
+                capital_prompt,
+                max_tokens=10,
+                logprobs=1,
+                temperature=0,
+                cache=False,
+                stop=stop,
+            )
+        )
+        assert val_no_ris.completion_text == " is the c"
+        assert len(val_no_ris.completion_logprobs) == 3
+        assert np.allclose(
+            val_no_ris.completion_logprobs, val_normal.completion_logprobs[:-1], atol=0.001, rtol=0.001)
+        assert lm.remove_special_chars_from_tokens(val_no_ris.completion_tokens)[-1] == " city"

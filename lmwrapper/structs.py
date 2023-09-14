@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import statistics
 from typing import List, Any, Union, Tuple
+from enum import Enum
 
 from lmwrapper.util import StrEnum
 
@@ -10,24 +11,39 @@ LM_CHAT_DIALOG_COERCIBLE_TYPES = Union[
     "LmChatDialog",
 ]  # Defines a set of types that can be converted into a LmChatDialog
 
-
 @dataclass(frozen=True)
 class LmPrompt:
     text: Union[str, LM_CHAT_DIALOG_COERCIBLE_TYPES]
     max_tokens: int
+    """The maximum number of tokens to generate in the completion."""
     stop: List[str] = None
+    """Sequences where the model will stop generating further tokens.
+    The returned text will not contain the stop sequence."""
     logprobs: int = 1
-    """Include the log probabilities on the logprobs most likely tokens, as well the chosen tokens. 
-    For example, if logprobs is 5, the API will return a list of the 5 most likely tokens. 
-    The model will always return the logprob of the sampled token, 
+    """Include the log probabilities on the logprobs most likely tokens,
+    as well the chosen tokens. For example, if logprobs is 5, the
+    API will return a list of the 5 most likely tokens.
+    The model will always return the logprob of the sampled token,
     so there may be up to logprobs+1 elements in the response.
 
     In the case of openai the maximum value for logprobs is 5.
     """
     temperature: float = 1.0
-    top_p: float = 0.9
+    """What sampling temperature to use, between 0 and 2.
+    Higher values like 0.8 will make the output more random, while lower values
+    like 0.2 will make it more focused and deterministic."""
+    top_p: float = 1.0
+    """An alternative to sampling with temperature, called nucleus sampling, where the
+    model considers the results of the tokens with top_p probability mass. So 0.1 means
+    only the tokens comprising the top 10% probability mass are considered.
+    If set to float < 1, only the smallest set of most probable tokens with
+    probabilities that add up to top_p or higher are kept for generation."""
     presence_penalty: float = 0.0
+    """Number between -2.0 and 2.0. Positive values penalize new tokens based on whether
+    they appear in the text so far, increasing the model's likelihood
+    to talk about new topics."""
     num_completions: int = 1
+    """How many completions to generate for each prompt."""
     cache: bool = None  # Use the default of the predictor
     """Whether to attempt to cache the model output. This overrides any default
     settings of the model. This can be useful in saving computation but means
@@ -46,9 +62,13 @@ class LmPrompt:
             raise ValueError("The max_tokens parameter should be an int.")
         if self.stop is not None:
             if not isinstance(self.stop, list):
-                raise ValueError("The stop parameter should be a list of strings on where to stop.")
+                raise ValueError(
+                    "The stop parameter should be a list of strings on where to stop."
+                )
             if not all(isinstance(x, str) for x in self.stop):
-                raise ValueError("The stop parameter should be a list of strings on where to stop.")
+                raise ValueError(
+                    "The stop parameter should be a list of strings on where to stop."
+                )
         if isinstance(self.temperature, int):
             object.__setattr__(self, "temperature", float(self.temperature))
         if not isinstance(self.temperature, float):
@@ -64,10 +84,14 @@ class LmPrompt:
         if self.cache is not None and not isinstance(self.cache, bool):
             raise ValueError("The cache parameter should be a bool.")
         if self.logprobs is not None and not isinstance(self.logprobs, int):
-            raise ValueError("The logprob parameter should be int denoting number of probs return, or None.")
+            raise ValueError(
+                "The logprob parameter should be int denoting number of probs return, or None."
+            )
         if not self.add_bos_token:
-            raise NotImplementedError("Currently, the add_bos_token parameter must be True. "
-                                      "Please make a github issue if you need this feature.")
+            raise NotImplementedError(
+                "Currently, the add_bos_token parameter must be True. "
+                "Please make a github issue if you need this feature."
+            )
 
     def is_text_a_chat(self) -> bool:
         return isinstance(self.text, list)
@@ -77,7 +101,8 @@ class LmPrompt:
 
     def get_text_as_string_default_form(self) -> str:
         """Will always return a string, even if it was originally a chat. It will use
-        the default form of the chat specified in LmChatDialog.to_default_string_prompt()"""
+        the default form of the chat specified in LmChatDialog.to_default_string_prompt()
+        """
         if self.is_text_a_chat():
             return self.text.to_default_string_prompt()
         else:
@@ -122,23 +147,24 @@ class LmChatDialog(list[LmChatTurn]):
                     observe_role = role
                 case dict(turn):
                     out.append(LmChatTurn(**turn))
-                    observe_role = turn['role']
+                    observe_role = turn["role"]
                 case LmChatTurn(role=observe_role, content=content):
                     out.append(turn)
                 case _:
-                    raise ValueError(f"Invalid type for text: {type(turn)}. "
-                                     f"It should be a tuple of strings (role, content) or a LmChatTurn.")
-            current_role = (ChatGptRoles.user
-                            if observe_role == ChatGptRoles.assistant else ChatGptRoles.assistant)
+                    raise ValueError(
+                        f"Invalid type for text: {type(turn)}. "
+                        f"It should be a tuple of strings (role, content) or a LmChatTurn."
+                    )
+            current_role = (
+                ChatGptRoles.user
+                if observe_role == ChatGptRoles.assistant
+                else ChatGptRoles.assistant
+            )
         super().__init__(out)
 
     def as_dicts(self) -> List[dict]:
         return [
-            {
-                k: v
-                for k, v in chat_turn.__dict__.items()
-                if v is not None
-            }
+            {k: v for k, v in chat_turn.__dict__.items() if v is not None}
             for chat_turn in self
         ]
 
@@ -166,41 +192,59 @@ class LmPrediction:
 
     def _verify_logprobs(self):
         if self.prompt.logprobs is None or self.prompt.logprobs == 0:
-            raise ValueError("This property is not available unless the prompt logprobs is set")
+            raise ValueError(
+                "This property is not available unless the prompt logprobs is set"
+            )
 
     @property
     def completion_tokens(self) -> List[str]:
-        raise NotImplementedError("This version of prediction does not support completion tokens")
+        raise NotImplementedError(
+            "This version of prediction does not support completion tokens"
+        )
 
     @property
     def completion_token_offsets(self):
-        raise NotImplementedError("This version of prediction does not support completion token offsets")
+        raise NotImplementedError(
+            "This version of prediction does not support completion token offsets"
+        )
 
     @property
     def completion_logprobs(self) -> List[float]:
-        raise NotImplementedError("This version of prediction does not support completion logprobs")
+        raise NotImplementedError(
+            "This version of prediction does not support completion logprobs"
+        )
 
     @property
     def prompt_tokens(self):
-        raise NotImplementedError("This version of prediction does not support prompt tokens")
+        raise NotImplementedError(
+            "This version of prediction does not support prompt tokens"
+        )
 
     @property
     def prompt_token_offsets(self):
-        raise NotImplementedError("This version of prediction does not support prompt token offsets")
+        raise NotImplementedError(
+            "This version of prediction does not support prompt token offsets"
+        )
 
     @property
     def prompt_logprobs(self):
-        raise NotImplementedError("This version of prediction does not support prompt logprobs")
+        raise NotImplementedError(
+            "This version of prediction does not support prompt logprobs"
+        )
 
     def get_full_text(self):
         return self.prompt.text + self.completion_text
 
     def get_full_tokens(self):
-        raise NotImplementedError("This version of prediction does not support full tokens")
+        raise NotImplementedError(
+            "This version of prediction does not support full tokens"
+        )
 
     @property
     def full_logprobs(self):
-        raise NotImplementedError("This version of prediction does not support full logprobs")
+        raise NotImplementedError(
+            "This version of prediction does not support full logprobs"
+        )
 
     def completion_mean_logprob(self):
         return statistics.mean(self.completion_logprobs)
