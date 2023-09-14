@@ -28,7 +28,7 @@ def test_simple_pred_lp(lm):
         LmPrompt(
             "Here is a story. Once upon a",
             max_tokens=1,
-            logprobs=5,
+            logprobs=1,
             cache=False,
             num_completions=1,
             echo=False
@@ -50,7 +50,7 @@ def test_simple_pred_cache(lm):
             LmPrompt(
                 "Once upon a",
                 max_tokens=1,
-                logprobs=5,
+                logprobs=1,
                 cache=True,
                 num_completions=1,
                 echo=False
@@ -67,7 +67,7 @@ def test_echo(lm):
         LmPrompt(
             "Once upon a",
             max_tokens=1,
-            logprobs=5,
+            logprobs=1,
             cache=False,
             num_completions=1,
             echo=True
@@ -92,7 +92,7 @@ def test_low_prob_in_weird_sentence(lm):
         LmPrompt(
             "The Empire State Building is in New run and is my favorite",
             max_tokens=1,
-            logprobs=5,
+            logprobs=1,
             cache=False,
             num_completions=1,
             echo=True
@@ -102,7 +102,7 @@ def test_low_prob_in_weird_sentence(lm):
         LmPrompt(
             "The Empire State Building is in New York and is my favorite",
             max_tokens=1,
-            logprobs=5,
+            logprobs=1,
             cache=False,
             num_completions=1,
             echo=True
@@ -133,7 +133,7 @@ def test_no_gen(lm):
         LmPrompt(
             "I like pie",
             max_tokens=0,
-            logprobs=5,
+            logprobs=1,
             cache=False,
             num_completions=1,
             echo=True

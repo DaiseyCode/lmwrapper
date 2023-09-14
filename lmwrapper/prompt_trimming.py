@@ -102,13 +102,13 @@ class HfTokenTrimmer(PromptTrimmer):
         if isinstance(text, list):
             raise NotImplementedError
 
-        original_truncation = copy(self.tokenizer.truncation_side)
+        original_truncation = copy.copy(self.tokenizer.truncation_side)
         self.tokenizer.truncation_side = (
             "left" if self.start_from_left_side else "right"
         )
 
         trimmed = self.tokenizer.decode(
-            self.tokenizer(text, truncation=True, max_length=self.token_limit)
+            self.tokenizer(text, truncation=True, max_length=self.token_limit).input_ids
         )
 
         self.tokenizer.truncation_side = original_truncation

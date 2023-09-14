@@ -11,17 +11,6 @@ LM_CHAT_DIALOG_COERCIBLE_TYPES = Union[
     "LmChatDialog",
 ]  # Defines a set of types that can be converted into a LmChatDialog
 
-
-class TruncationStrategy(Enum):
-    NONE = 1
-    """Do not apply any truncation strategy.
-    Model will raise error if prompt too long"""
-    TRIM_END = 2
-    """Trim prompt from end."""
-    TRIM_START = 2
-    """Trim prompt from beginning."""
-
-
 @dataclass(frozen=True)
 class LmPrompt:
     text: Union[str, LM_CHAT_DIALOG_COERCIBLE_TYPES]

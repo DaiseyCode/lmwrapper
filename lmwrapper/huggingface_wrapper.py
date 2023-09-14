@@ -139,7 +139,7 @@ class HuggingfacePredictor(LmPredictor):
         model: PreTrainedModel,
         device: torch.device,
         runtime: Runtime,
-        patch_model_forward: bool,
+        allow_patch_model_forward: bool,
         prompt_trimmer: PromptTrimmer,
     ):
         super().__init__()
@@ -148,7 +148,7 @@ class HuggingfacePredictor(LmPredictor):
         self._device = device
         self.is_chat_model = False
         self.runtime = runtime
-        self.patch_model_forward = patch_model_forward
+        self.allow_patch_model_forward = allow_patch_model_forward
         self.prompt_trimmer = prompt_trimmer
 
     def _predict_maybe_cached(
@@ -160,10 +160,14 @@ class HuggingfacePredictor(LmPredictor):
                 "Prompt batches other than size 1 are not supported."
             )
 
-        if prompt.echo and not self.patch_model_forward:
+        if prompt.echo and not self.allow_patch_model_forward:
             raise NotImplementedError(
-                "Prompt echo is only supported with `patch_model_forward` = True."
+                "Prompt echo is only supported with `allow_patch_model_forward` = True."
             )
+
+        patch_model_forward = False
+        if self.allow_patch_model_forward:
+            patch_model_forward = prompt.echo
 
         if prompt.logprobs > 1:
             raise NotImplementedError(
@@ -202,9 +206,10 @@ class HuggingfacePredictor(LmPredictor):
             prompt_text = prompt.text
 
         max_length = self._model.config.max_length
-        model_requires_attention_mask = "attention_mask" in set(
+        model_parameters = set(
             inspect.signature(self._model.forward).parameters.keys()
         )
+        model_requires_attention_mask = "attention_mask" in model_parameters
 
         if self.prompt_trimmer:
             prompt_text = self.prompt_trimmer.trim_text(prompt_text)
@@ -215,7 +220,7 @@ class HuggingfacePredictor(LmPredictor):
             return_attention_mask=model_requires_attention_mask,
         )
 
-        if len(encoded_input) > max_length:
+        if len(encoded_input.input_ids) > max_length:
             if self.prompt_trimmer:
                 raise ValueError(
                     "Prompt is too long for model. Please check that the provided trimmer is configured correctly."
@@ -263,7 +268,7 @@ class HuggingfacePredictor(LmPredictor):
             bos_token_id=self._tokenizer.bos_token_id,
         )
 
-        if self.patch_model_forward:
+        if patch_model_forward:
             # We need a way of getting the raw logprobs of the whole sequence.
             #   The scores we get back are possibly already warped by the configuration
             #   https://github.com/huggingface/transformers/issues/17521#issue-1257881647
@@ -273,11 +278,18 @@ class HuggingfacePredictor(LmPredictor):
             old_forward = self._model.forward
             cached_logits = []
 
-            def new_call(*args, **kwargs):
-                nonlocal cached_logits
-                val = old_forward(*args, **kwargs)
-                cached_logits.append(val.logits)
-                return val
+            if model_requires_attention_mask:
+                def new_call(attention_mask, *args, **kwargs):
+                    nonlocal cached_logits
+                    val = old_forward(attention_mask=attention_mask, *args, **kwargs)
+                    cached_logits.append(val.logits)
+                    return val
+            else:
+                def new_call(*args, **kwargs):
+                    nonlocal cached_logits
+                    val = old_forward(*args, **kwargs)
+                    cached_logits.append(val.logits)
+                    return val
 
             self._model.forward = new_call
 
@@ -288,11 +300,10 @@ class HuggingfacePredictor(LmPredictor):
                 stopping_criteria=stopping_criteria,
             )
 
-        if self.patch_model_forward:
+        if patch_model_forward:
             self._model.forward = old_forward
 
         output_sequence = generation_output.sequences[0]
-        output_text = self._tokenizer.decode(output_sequence)
 
         # input_length is the length of the input prompt for decoder-only models,
         # like the GPT family, and 1 for encoder-decoder models, like BART or T5.
@@ -302,8 +313,21 @@ class HuggingfacePredictor(LmPredictor):
             else encoded_input.input_ids.shape[1]
         )
 
+        # if prompt.add_bos_token:
+        #     output_sequence = output_sequence[1:]
+        #     generated_sequence = output_sequence[input_length-1:]
+        # else:
         generated_sequence = output_sequence[input_length:]
-        generated_text = self._tokenizer.decode(generated_sequence)
+
+        output_text = self._tokenizer.decode(output_sequence)
+
+
+        stop_token_idx_output = None
+        stop_token_idx_generated = None
+        output_tokens = self._tokenizer.convert_ids_to_tokens(output_sequence)
+        if prompt.add_bos_token:
+            output_tokens = output_tokens[1:]
+
 
         token_offsets = []
         token_offsets_full = []
@@ -314,9 +338,8 @@ class HuggingfacePredictor(LmPredictor):
             token_offsets_full.extend([i] * token_len)
             j += token_len
 
-        stop_token_idx_output = None
-        stop_token_idx_generated = None
-        output_tokens = self._tokenizer.convert_ids_to_tokens(output_sequence)
+        generated_text = self._tokenizer.decode(generated_sequence)
+
         if prompt.stop:
             sorted_stop_sequences = sorted(prompt.stop, key=len, reverse=True)
 
@@ -343,28 +366,28 @@ class HuggingfacePredictor(LmPredictor):
 
         # Calculate the logprobs if needed
         if need_log_prob:
-            if self.patch_model_forward:
+            if patch_model_forward:
                 all_logits = torch.cat(cached_logits, dim=1)
                 assert all_logits.shape[0] == 1  # batch
-                assert all_logits.shape[1] == len(output_tokens[1:])
+                assert all_logits.shape[1] == len(output_tokens)
                 logprobs = _gather_logprobs_from_logits(
                     all_logits[0],
                     output_sequence[1:],
                 )
 
-                if not prompt.echo:
-                    logprobs = logprobs[input_length - 1 :]
+                assert len(output_sequence[1:]) == len(logprobs)
             else:
                 logprobs = self._model.compute_transition_scores(
                     generation_output.sequences,
                     generation_output.scores,
                     normalize_logits=True,
                 )[0, :stop_token_idx_generated]
-            assert len(generated_sequence) == len(logprobs)
+                assert len(generated_sequence) == len(logprobs)
 
+            token_sequence = output_sequence[1:] if prompt.echo else generated_sequence
             # Create logprobs dict
             logprobs_dicts = []
-            for tok, score in zip(generated_sequence, logprobs, strict=True):
+            for tok, score in zip(token_sequence, logprobs, strict=True):
                 logprobs_dicts.append(
                     {
                         "token": int(tok.detach().cpu()),
@@ -438,7 +461,7 @@ def get_huggingface_lm(
     runtime: Runtime = Runtime.PYTORCH,
     precision: torch.dtype = torch.float32,
     trust_remote_code: bool = False,
-    patch_model_forward: bool = False,
+    allow_patch_model_forward: bool = True,
     prompt_trimmer: PromptTrimmer = None,
 ) -> HuggingfacePredictor:
     if runtime != Runtime.PYTORCH:
@@ -508,7 +531,7 @@ def get_huggingface_lm(
         model_class,
         runtime=runtime,
         precision=precision,
-        patch_model_forward=patch_model_forward,
+        allow_patch_model_forward=allow_patch_model_forward,
         prompt_trimmer=prompt_trimmer,
         _kwargs=_kwargs,
     )
@@ -526,7 +549,7 @@ def _initialize_hf_model(
     model_class: PreTrainedModel,
     runtime: Runtime = Runtime.PYTORCH,
     precision: torch.dtype | str = "auto",
-    patch_model_forward: bool = False,
+    allow_patch_model_forward: bool = True,
     prompt_trimmer: PromptTrimmer = None,
     _kwargs: dict = {},
 ) -> HuggingfacePredictor:
@@ -664,7 +687,7 @@ def _initialize_hf_model(
         model,
         device=torch_device,
         runtime=runtime,
-        patch_model_forward=patch_model_forward,
+        allow_patch_model_forward=allow_patch_model_forward,
         prompt_trimmer=prompt_trimmer,
     )
 
