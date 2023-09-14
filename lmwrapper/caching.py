@@ -43,6 +43,7 @@ def _get_disk_cache_diskcache() -> diskcache.FanoutCache:
 
 
 def get_disk_cache():
+    # TODO: some kind of version number in the cache so can have migrations
     return _get_disk_cache_diskcache()
 
 

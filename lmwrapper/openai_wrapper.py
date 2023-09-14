@@ -16,9 +16,6 @@ import bisect
 import re
 from lmwrapper.util import StrEnum
 
-cur_file = Path(__file__).parent.absolute()
-diskcache = get_disk_cache()
-
 
 PRINT_ON_PREDICT = False
 

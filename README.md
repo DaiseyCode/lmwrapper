@@ -142,8 +142,9 @@ please make a Github Issue.
 - [X] Openai chat
 - [X] Huggingface interface
 - [X] Huggingface device checking on PyTorch
-- [ ] Improved caching (per-project cache and committable)
+- [X] Move cache to be per project
 - [ ] sort through usage of quantized models
+- [ ] Redesign cache to make it easier to manage
 - [ ] Additional Huggingface runtimes (TensorRT, BetterTransformers, etc)
 - [ ] Anthropic interface
 - [ ] Cost estimating (so can estimate cost of a prompt before running / track total cost)
