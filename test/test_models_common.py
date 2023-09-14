@@ -202,7 +202,7 @@ def test_stopping_begin_tok(lm):
     print(val_normal.completion_text)
     assert "is the city Paris" in val_normal.completion_text
     assert len(val_normal.completion_tokens) == 4
-    assert lm.remove_special_chars_from_tokens(val_normal.completion_tokens[-1]) == " Paris"
+    assert lm.remove_special_chars_from_tokens(val_normal.completion_tokens)[-1] == " Paris"
     # Chopping off first part of subtoken does not return token
     val_no_pa = lm.predict(
         LmPrompt(
