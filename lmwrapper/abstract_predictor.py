@@ -4,17 +4,6 @@ from lmwrapper.caching import get_disk_cache
 from lmwrapper.structs import LmPrompt, LmPrediction
 from ratemate import RateLimit
 
-disk_cache = get_disk_cache()
-
-
-@disk_cache.memoize(ignore=('func',))
-def _predict_definately_cached(
-    func,
-    prompt: LmPrompt,
-    extra_params: Dict,
-):
-    return func(prompt)
-
 
 class LmPredictor:
     _rate_limit: Optional[RateLimit] = None
@@ -24,6 +13,7 @@ class LmPredictor:
         cache_default: bool = False,
     ):
         self._cache_default = cache_default
+        self._disk_cache = get_disk_cache()
 
     def predict(
         self,
@@ -34,10 +24,10 @@ class LmPredictor:
         self._validate_prompt(prompt, raise_on_invalid=True)
         if should_cache:
             cache_key = (prompt, self._get_cache_key_metadata())
-            if cache_key in disk_cache:
-                return disk_cache.get(cache_key)
+            if cache_key in self._disk_cache:
+                return self._disk_cache.get(cache_key)
             val = self._predict_maybe_cached(prompt)
-            disk_cache.set(cache_key, val)
+            self._disk_cache.set(cache_key, val)
             return val
         else:
             return self._predict_maybe_cached(prompt)
@@ -49,7 +39,7 @@ class LmPredictor:
         self,
         prompt: Union[str, LmPrompt],
     ) -> bool:
-        return disk_cache.delete(self._cache_key_for_prompt(prompt))
+        return self._disk_cache.delete(self._cache_key_for_prompt(prompt))
 
     def _validate_prompt(self, prompt: LmPrompt, raise_on_invalid: bool = True) -> bool:
         """Called on prediction to make sure the prompt is valid for the model"""

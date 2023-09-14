@@ -4,9 +4,33 @@ import diskcache
 
 cur_file = Path(__file__).parent.absolute()
 
+_set_cache_dir = None
 
-def _cache_dir():
-    return cur_file / '../lm_model_cache'
+
+def set_cache_dir(path: Path):
+    """Sets the caching directory. Note it does not affect any already constructed
+    models"""
+    global _set_cache_dir
+    if path.exists():
+        _verify_looks_like_cache_dir(path)
+    path.mkdir(parents=True, exist_ok=True)
+    _set_cache_dir = path
+
+
+def _verify_looks_like_cache_dir(path: Path):
+    for file_or_directory in path.rglob("*"):
+        if file_or_directory.is_file():
+            if file_or_directory.suffix in (".py", ".txt", '.md'):
+                msg = ("Attempting to set cache directory to what appears to be a "
+                       "source directory. Instead set it to its own subdirectory inside"
+                       "the source repository.")
+                raise ValueError(msg)
+
+
+def _cache_dir() -> Path:
+    if _set_cache_dir is not None:
+        return _set_cache_dir
+    return Path.cwd() / '.lmwrapper_cache'
 
 
 def _get_disk_cache_joblib() -> Memory:
