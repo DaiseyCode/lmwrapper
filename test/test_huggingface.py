@@ -448,3 +448,9 @@ def test_codegen2_predict_bt():
 )
 def test_get_tensorrt(lm: str):
     get_huggingface_lm(lm, runtime=Runtime.ORT_TENSORRT)
+
+
+def test_tokenizer():
+    lm = get_huggingface_lm("gpt2")
+    tokens = lm.tokenize("I like pie")
+    assert tokens == ['I', 'Ġlike', 'Ġpie']

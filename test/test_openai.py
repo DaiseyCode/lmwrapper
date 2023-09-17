@@ -182,5 +182,11 @@ def test_instantiation_hook():
     assert was_called
 
 
+def test_tokenizer():
+    lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo)
+    tokens = lm.tokenize("I like pie")
+    assert tokens == ["I", " like", " pie"]
+
+
 if __name__ == "__main__":
     main()

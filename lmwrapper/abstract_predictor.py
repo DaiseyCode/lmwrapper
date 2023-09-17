@@ -77,6 +77,9 @@ class LmPredictor:
         and represent the original text."""
         raise NotImplementedError()
 
+    def tokenize(self, input_str: str) -> list[str]:
+        raise NotImplementedError("This predictor does not implement tokenization")
+
     def configure_global_ratelimit(max_count=1, per_seconds=1, greedy=False) -> None:
         """
         Configure global ratelimiting, max tries per given seconds

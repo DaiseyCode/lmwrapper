@@ -433,6 +433,9 @@ class HuggingfacePredictor(LmPredictor):
             return tokens
         return [tok.replace(self.space_char, " ") for tok in tokens]
 
+    def tokenize(self, text: str) -> list[str]:
+        return self._tokenizer.tokenize(text)
+
 
 def _gather_logprobs_from_logits(
     logits: torch.Tensor,

@@ -171,14 +171,30 @@ class OpenAIPredictor(LmPredictor):
     def token_limit(self):
         return self._token_limit
 
+    def _build_tokenizer(self):
+        if self._tokenizer is None:
+            self._tokenizer = tiktoken.encoding_for_model(self._engine_name)
+
+    def tokenize_ids(self, input_str: str) -> list[int]:
+        self._build_tokenizer()
+        return self._tokenizer.encode(input_str)
+
+    def tokenize(self, input_str: str) -> list[str]:
+        self._build_tokenizer()
+        token_bytes: list[bytes] = self._tokenizer.decode_tokens_bytes(
+            self.tokenize_ids(input_str))
+        return [
+            tok.decode("utf-8")
+            for tok in token_bytes
+        ]
+
     def estimate_tokens_in_prompt(self, prompt: LmPrompt) -> int:
         """Estimate the number of tokens in the prompt.
         This is not always an exact measure, as for the chat models there extra metadata provided.
         The documentation on ChatMl (https://github.com/openai/openai-python/blob/main/chatml.md)
         gives some details but is imprecise. We want to write this to ideally overestimate the
         number of tokens so that will conservatively not go over the limit."""
-        if self._tokenizer is None:
-            self._tokenizer = tiktoken.encoding_for_model(self._engine_name)
+        self._build_tokenizer()
         if self._chat_mode:
             val = len(self._tokenizer.encode(prompt.get_text_as_chat().to_default_string_prompt()))
             val += len(prompt.get_text_as_chat()) * 3  # Extra buffer for each turn transition
