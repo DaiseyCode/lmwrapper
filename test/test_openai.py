@@ -162,24 +162,27 @@ def test_tokenizer_chat():
 def test_instantiation_hook():
     was_called = False
 
-    class SimpleHook(OpenAiInstantiationHook):
-        def before_init(
-            self,
-            new_predictor: OpenAIPredictor,
-            api,
-            engine_name: str,
-            chat_mode: bool,
-            cache_outputs_default: bool,
-            retry_on_rate_limit: bool,
-        ):
-            nonlocal was_called
-            was_called = True
-            assert engine_name == OpenAiModelNames.text_ada_001
+    try:
+        class SimpleHook(OpenAiInstantiationHook):
+            def before_init(
+                self,
+                new_predictor: OpenAIPredictor,
+                api,
+                engine_name: str,
+                chat_mode: bool,
+                cache_outputs_default: bool,
+                retry_on_rate_limit: bool,
+            ):
+                nonlocal was_called
+                was_called = True
+                assert engine_name == OpenAiModelNames.text_ada_001
 
-    OpenAIPredictor.add_instantiation_hook(SimpleHook())
-    assert not was_called
-    model = get_open_ai_lm()
-    assert was_called
+        OpenAIPredictor.add_instantiation_hook(SimpleHook())
+        assert not was_called
+        model = get_open_ai_lm()
+        assert was_called
+    finally:
+        OpenAIPredictor._instantiation_hooks = []
 
 
 def test_tokenizer():

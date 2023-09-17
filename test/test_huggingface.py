@@ -31,6 +31,7 @@ BIG_MODELS = BIG_SEQ2SEQ_MODELS | BIG_CAUSAL_MODELS
 ALL_MODELS = SEQ2SEQ_MODELS | CAUSAL_MODELS | BIG_MODELS
 
 
+@pytest.mark.slow()
 def test_trim_start():
     lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH)
     ltrimmer = HfTokenTrimmer(2, lm._tokenizer, start_from_left_side=True)
@@ -48,6 +49,7 @@ def test_trim_start():
     assert out._tokens[1] == "ob"
 
 
+@pytest.mark.slow()
 def test_logprobs_codegen2():
     lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH)
     prompt = LmPrompt(
@@ -73,6 +75,7 @@ def test_logprobs_codegen2():
     assert np.allclose(logprobs_a, logprobs_b, atol=0.001, rtol=0.001)
 
 
+@pytest.mark.slow()
 def test_logprobs_stop_codegen2():
     lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH)
     prompt = LmPrompt(
