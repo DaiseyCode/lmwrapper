@@ -155,6 +155,7 @@ class OpenAIPredictor(LmPredictor):
     def model_name(self):
         return self._engine_name
 
+    @abstractmethod
     def _get_cache_key_metadata(self):
         return {
             "engine": self._engine_name,

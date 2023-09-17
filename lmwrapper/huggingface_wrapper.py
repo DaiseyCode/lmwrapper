@@ -151,6 +151,12 @@ class HuggingfacePredictor(LmPredictor):
         self.allow_patch_model_forward = allow_patch_model_forward
         self.prompt_trimmer = prompt_trimmer
 
+    def _get_cache_key_metadata(self):
+        return {
+            "model": "HuggingFacePredictor",
+            "name_or_path": self._model.name_or_path,
+        }
+
     def _predict_maybe_cached(
         self,
         prompt: LmPrompt,
