@@ -45,6 +45,7 @@ class LmPredictor:
         """Called on prediction to make sure the prompt is valid for the model"""
         return True
 
+    @abstractmethod
     def _get_cache_key_metadata(self):
         return {'name': type(self).__name__}
 
