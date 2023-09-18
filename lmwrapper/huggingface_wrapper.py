@@ -472,8 +472,14 @@ def get_huggingface_lm(
     trust_remote_code: bool = False,
     allow_patch_model_forward: bool = True,
     prompt_trimmer: PromptTrimmer = None,
-    device: torch.device = None,
+    device: torch.device | str = None,
 ) -> HuggingfacePredictor:
+    if isinstance(device, str):
+        if device.strip() == "":
+            raise Exception("Empty string provided for device.")
+        else:
+            device = torch.device(device)
+
     if runtime != Runtime.PYTORCH:
         msg = (
             "Accelerated inference model support is still under"
