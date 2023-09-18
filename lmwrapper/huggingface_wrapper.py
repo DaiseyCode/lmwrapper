@@ -472,6 +472,7 @@ def get_huggingface_lm(
     trust_remote_code: bool = False,
     allow_patch_model_forward: bool = True,
     prompt_trimmer: PromptTrimmer = None,
+    device: torch.device = None,
 ) -> HuggingfacePredictor:
     if runtime != Runtime.PYTORCH:
         msg = (
@@ -542,6 +543,7 @@ def get_huggingface_lm(
         precision=precision,
         allow_patch_model_forward=allow_patch_model_forward,
         prompt_trimmer=prompt_trimmer,
+        device=device,
         _kwargs=_kwargs,
     )
 
@@ -560,9 +562,11 @@ def _initialize_hf_model(
     precision: torch.dtype | str = "auto",
     allow_patch_model_forward: bool = True,
     prompt_trimmer: PromptTrimmer = None,
+    device: torch.device = None,
     _kwargs: dict = {},
 ) -> HuggingfacePredictor:
-    torch_device = _get_accelerator()
+    torch_device = _get_accelerator() if device is None else device
+
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     if not tokenizer.is_fast:
