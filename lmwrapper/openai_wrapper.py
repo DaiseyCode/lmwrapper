@@ -381,6 +381,8 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
     Will be updated with our latest model iteration 2 weeks after it is released."""
     gpt_3_5_turbo_16k = OpenAiModelInfo("gpt-3.5-turbo-16k", True, 16384)
     """Same capabilities as the standard gpt-3.5-turbo model but with 4 times the context."""
+    gpt_3_5_turbo_instruct = OpenAiModelInfo("gpt-3.5-turbo-instruct", False, 4096)
+    """A GPT-3.5 version but for completion"""
     gpt_4 = OpenAiModelInfo("gpt-4", True, 8192)
     """More capable than any GPT-3.5 model, able to do more complex tasks, and optimized for chat.
     Will be updated with our latest model iteration 2 weeks after it is released."""
