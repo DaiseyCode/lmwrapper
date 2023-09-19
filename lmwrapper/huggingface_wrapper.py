@@ -207,6 +207,9 @@ class HuggingfacePredictor(LmPredictor):
         else:
             prompt_text = prompt.text
 
+        if self._tokenizer.added_tokens_decoder:
+            logging.warning("Added tokens: " + self._tokenizer.added_tokens_decoder)
+
         max_length = self._model.config.max_length
         model_parameters = set(
             inspect.signature(self._model.forward).parameters.keys()
@@ -257,17 +260,28 @@ class HuggingfacePredictor(LmPredictor):
                 "Tokenizer does not have a pad_token_id. Setting pad_token_id to 0. May cause unexpected behavior."
             )
 
+        # UserWarning: `do_sample` is set to `False`.
+        # However, `temperature` is set to `0.0` -- this flag is only used in
+        # sample-based generation modes. You should set `do_sample=True` or unset
+        # `temperature`. This was detected when initializing the generation config
+        # instance, which means the corresponding file may hold incorrect
+        # parameterization and should be fixed.
+        generation_kwargs = {
+            "temperature": prompt.temperature,
+            # "top_p": prompt.top_p,
+            # "do_sample": prompt.temperature > 0,
+        }
+        if prompt.temperature == 0.0:
+            generation_kwargs.pop("temperature", None)
         # Ref https://gist.github.com/kinoc/8a042d8c5683725aa8c372274c02ea2f
         gen_config = GenerationConfig(
             max_new_tokens=prompt.max_tokens,
-            temperature=prompt.temperature,
-            top_p=prompt.top_p,
-            do_sample=prompt.temperature > 0,
             return_dict_in_generate=True,
             output_scores=need_log_prob,
             pad_token_id=pad_token_id,
             eos_token_id=self._tokenizer.eos_token_id,
             bos_token_id=self._tokenizer.bos_token_id,
+            **generation_kwargs
         )
 
         if patch_model_forward:
