@@ -208,7 +208,8 @@ class HuggingfacePredictor(LmPredictor):
             prompt_text = prompt.text
 
         if self._tokenizer.added_tokens_decoder:
-            logging.warning("Added tokens: " + self._tokenizer.added_tokens_decoder)
+            logging.warning("Added tokens:")
+            logging.warning(self._tokenizer.added_tokens_decoder)
 
         max_length = self._model.config.max_length
         model_parameters = set(
