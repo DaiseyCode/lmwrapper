@@ -196,10 +196,6 @@ class HuggingfacePredictor(LmPredictor):
                 )
             ]
 
-        temperature = prompt.temperature
-        if temperature == 0:
-            temperature = None
-
         if prompt.text == "" and not prompt.add_bos_token:
             raise Exception(
                 "Cannot do unconditional generation without `add_bos_token`."
@@ -264,7 +260,7 @@ class HuggingfacePredictor(LmPredictor):
         # Ref https://gist.github.com/kinoc/8a042d8c5683725aa8c372274c02ea2f
         gen_config = GenerationConfig(
             max_new_tokens=prompt.max_tokens,
-            temperature=temperature,
+            temperature=prompt.temperature,
             top_p=prompt.top_p,
             do_sample=prompt.temperature > 0,
             return_dict_in_generate=True,
