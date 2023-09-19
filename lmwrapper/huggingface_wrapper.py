@@ -62,7 +62,7 @@ except ImportError:
 try:
     import transformers
 
-    assert version.parse(transformers.__version__) >= version.parse("4.31.0")
+    # assert version.parse(transformers.__version__) >= version.parse("4.31.0")
 
     from transformers import (
         AutoModelForCausalLM,
@@ -180,13 +180,13 @@ class HuggingfacePredictor(LmPredictor):
                 "Retrieving more than 1 logprob is not yet supported for HuggingFace models."
             )
 
-        if prompt.logprobs and (prompt.temperature > 0 or prompt.top_p):
+        if prompt.logprobs and prompt.top_p != 1.0:
             logging.warning(
-                "Logprobs may not be correct if temperature > 0 or top_p != 1.0"
+                "Logprobs may not be correct if top_p != 1.0"
             )
 
-        if prompt.presence_penalty:
-            raise NotImplementedError
+        if prompt.presence_penalty != 0.0:
+            raise NotImplementedError("Presence penalty not implemented")
 
         stopping_criteria = None
         if prompt.stop:
