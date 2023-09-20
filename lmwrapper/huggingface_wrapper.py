@@ -273,7 +273,7 @@ class HuggingfacePredictor(LmPredictor):
         # `temperature`. This was detected when initializing the generation config
         # instance, which means the corresponding file may hold incorrect
         # parameterization and should be fixed.
-        do_sample = prompt.temperature != 1.0
+        do_sample = prompt.temperature > 0
         num_beams = 1
         penalty_alpha = 0.0
         top_k = 50
@@ -289,7 +289,7 @@ class HuggingfacePredictor(LmPredictor):
         }
         if prompt.temperature == 1.0 or prompt.temperature == 0.0:
             generation_kwargs.pop("temperature", None)
-            generation_kwargs.pop("do_sample", None)
+            # generation_kwargs.pop("do_sample", None)
             logging.warning("Do sample " + str(do_sample))
 
         # num_beams (int, optional, defaults to 1) — Number of beams for beam search. 1 means no beam search.
