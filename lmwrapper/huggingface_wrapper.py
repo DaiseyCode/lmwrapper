@@ -275,7 +275,7 @@ class HuggingfacePredictor(LmPredictor):
         # parameterization and should be fixed.
         do_sample = prompt.temperature != 1.0
         num_beams = 1
-        penalty_alpha = 0.
+        penalty_alpha = 0.0
         top_k = 50
         num_beam_groups = 1
         generation_kwargs = {
@@ -287,22 +287,23 @@ class HuggingfacePredictor(LmPredictor):
             # Note that diversity_penalty is only effective if group beam search is enabled.
             # "repetition_penalty": prompt.frequency_penalty # The parameter for repetition penalty. 1.0 means no penalty
         }
-        if prompt.temperature == 1.0:
+        if prompt.temperature == 1.0 or prompt.temperature == 0.0:
             generation_kwargs.pop("temperature", None)
             generation_kwargs.pop("do_sample", None)
+            logging.warning("Do sample " + str(do_sample))
 
         # num_beams (int, optional, defaults to 1) — Number of beams for beam search. 1 means no beam search.
-        if num_beams==1 and do_sample==False:
+        if num_beams == 1 and do_sample == False:
             logging.info("Decoding strategy: greedy decoding")
-        elif penalty_alpha>0. and top_k>1:
+        elif penalty_alpha > 0.0 and top_k > 1:
             logging.info("Decoding strategy: contrastive search")
-        elif num_beams==1 and do_sample==True:
+        elif num_beams == 1 and do_sample == True:
             logging.info("Decoding strategy: multinomial sampling")
-        elif num_beams>1 and do_sample==False:
+        elif num_beams > 1 and do_sample == False:
             logging.info("Decoding strategy: beam-search decoding")
-        elif num_beams>1 and do_sample==True:
+        elif num_beams > 1 and do_sample == True:
             logging.info("Decoding strategy: beam-search multinomial sampling")
-        elif num_beams>1 and num_beam_groups>1:
+        elif num_beams > 1 and num_beam_groups > 1:
             logging.info("Decoding strategy: diverse beam-search")
         else:
             logging.info("Unable to predict decoding strategy!")
@@ -352,6 +353,7 @@ class HuggingfacePredictor(LmPredictor):
 
         print("Pre generate")
         log_cuda_mem()
+        pre_gen_memory = torch.cuda.memory_allocated()
         with torch.no_grad():
             generation_output: GenerateOutput = self._model.generate(
                 **encoded_input,
@@ -480,7 +482,7 @@ class HuggingfacePredictor(LmPredictor):
             if isinstance(value, torch.Tensor):
                 return value.detach().cpu().numpy()
             if isinstance(value, tuple):
-                return tuple(numpy_tuple(v) for v in value)
+                return tuple([numpy_tuple(v) for v in value])
 
         for key, value in generation_output.items():
             updated_output[key] = numpy_tuple(value)
@@ -491,6 +493,10 @@ class HuggingfacePredictor(LmPredictor):
 
         print("Post del statements")
         log_cuda_mem()
+        post_del_memory = torch.cuda.memory_allocated()
+        if (post_del_memory - pre_gen_memory) > 31_457_280:  # 30mb delta
+            logging.warning("Possible memory leak detected.")
+
         return HuggingfacePrediction(
             completion_text=generated_text,
             prompt=prompt,
