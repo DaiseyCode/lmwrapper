@@ -447,6 +447,17 @@ class HuggingfacePredictor(LmPredictor):
         log_cuda_mem()
         np_logprobs = logprobs.detach().cpu().numpy()
         np_encoded_input = encoded_input.convert_to_tensors(TensorType.NUMPY)
+
+        # generation_output needs to be mapped to .detach().cpu().numpy() for all tensors
+        updated_output = {}
+
+        for key, value in generation_output.items():
+            if (
+                isinstance(value, torch.Tensor) and value.nelement() > 0
+            ):  # Check if tensor and not empty
+                updated_output[key] = value.detach().cpu().numpy()
+            else:
+                updated_output[key] = value
         del generation_output
         del logprobs
 
@@ -455,7 +466,7 @@ class HuggingfacePredictor(LmPredictor):
         return HuggingfacePrediction(
             completion_text=generated_text,
             prompt=prompt,
-            # metad=generation_output.detach().cpu(),
+            metad=updated_output,
             _prompt_encoding=np_encoded_input,
             _tokens=output_tokens,
             _log_probs=np_logprobs,
