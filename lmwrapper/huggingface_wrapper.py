@@ -75,9 +75,10 @@ try:
         PreTrainedTokenizerFast,
         T5ForConditionalGeneration,
         set_seed,
-        GenerateOutput,
-        TensorType
     )
+
+    from transformers.generation.utils import GenerateOutput
+    from transformers.utils.generic import TensorType
 
     set_seed(42)
 except ImportError:
