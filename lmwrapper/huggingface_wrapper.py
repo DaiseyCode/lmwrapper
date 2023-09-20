@@ -171,7 +171,7 @@ class HuggingfacePredictor(LmPredictor):
             "name_or_path": self._model.name_or_path,
         }
 
-    def _predict_maybe_cached(
+    def _predict_maybe_cached_internal(
         self,
         prompt: LmPrompt,
     ) -> LmPrediction | list[LmPrediction]:
@@ -353,7 +353,7 @@ class HuggingfacePredictor(LmPredictor):
 
         print("Pre generate")
         log_cuda_mem()
-        pre_gen_memory = torch.cuda.memory_allocated()
+
         with torch.no_grad():
             generation_output: GenerateOutput = self._model.generate(
                 **encoded_input,
@@ -387,7 +387,12 @@ class HuggingfacePredictor(LmPredictor):
 
         stop_token_idx_output = None
         stop_token_idx_generated = None
-        output_tokens = self._tokenizer.convert_ids_to_tokens(output_sequence)
+
+        # Use .decode as convert_ids_to_tokens leaves artifacts:
+        # e.g.: convert: 'Ġprocess'
+        # decode: ' process'
+        output_tokens = [ self._tokenizer.decode(t) for t in output_sequence ]
+        # Original: self._tokenizer.convert_ids_to_tokens(output_sequence)
         if prompt.add_bos_token:
             output_tokens = output_tokens[1:]
 
@@ -493,9 +498,7 @@ class HuggingfacePredictor(LmPredictor):
 
         print("Post del statements")
         log_cuda_mem()
-        post_del_memory = torch.cuda.memory_allocated()
-        if (post_del_memory - pre_gen_memory) > 31_457_280:  # 30mb delta
-            logging.warning("Possible memory leak detected.")
+
 
         return HuggingfacePrediction(
             completion_text=generated_text,
@@ -506,6 +509,18 @@ class HuggingfacePredictor(LmPredictor):
             _log_probs=np_logprobs,
             _logprobs_dict=logprobs_dicts,
         )
+
+    def _predict_maybe_cached(
+        self,
+        prompt: LmPrompt,
+    ) -> LmPrediction | list[LmPrediction]:
+        pre_memory = torch.cuda.memory_allocated()
+        prediction = self._predict_maybe_cached_internal(prompt)
+        post_memory = torch.cuda.memory_allocated()
+        if (post_memory - pre_memory) > 31_457_280:  # 30mb delta
+            logging.warning("Possible memory leak detected.")
+
+        return prediction
 
     def get_model_max_length(self) -> int:
         return int(self._model.config.max_length)
