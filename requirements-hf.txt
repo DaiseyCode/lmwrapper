@@ -1,3 +1,4 @@
 transformers @ git+https://github.com/huggingface/transformers
 torch>=2.0
 # accelerate @ git+https://github.com/huggingface/accelerate
+humanize>=4.8.0

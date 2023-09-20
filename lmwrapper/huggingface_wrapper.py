@@ -15,6 +15,7 @@ from lmwrapper.prompt_trimming import PromptTrimmer
 from lmwrapper.structs import LmPrediction, LmPrompt
 
 import numpy as np
+import humanize
 
 _QUANT_CONFIG = None
 # TODO: Several models do not work on Apple MPS.
@@ -74,6 +75,8 @@ try:
         PreTrainedTokenizerFast,
         T5ForConditionalGeneration,
         set_seed,
+        GenerateOutput,
+        TensorType
     )
 
     set_seed(42)
@@ -132,6 +135,15 @@ class Runtime(Enum):
     BETTER_TRANSFORMER = 6
 
 
+def log_cuda_mem():
+    if torch.cuda.is_available():
+        print(
+            "Allocated/Reserved: ",
+            humanize.naturalsize(torch.cuda.memory_allocated()),
+            humanize.naturalsize(torch.cuda.memory_reserved()),
+        )
+
+
 class HuggingfacePredictor(LmPredictor):
     def __init__(
         self,
@@ -181,9 +193,7 @@ class HuggingfacePredictor(LmPredictor):
             )
 
         if prompt.logprobs and prompt.top_p != 1.0:
-            logging.warning(
-                "Logprobs may not be correct if top_p != 1.0"
-            )
+            logging.warning("Logprobs may not be correct if top_p != 1.0")
 
         if prompt.presence_penalty != 0.0:
             raise NotImplementedError("Presence penalty not implemented")
@@ -208,13 +218,11 @@ class HuggingfacePredictor(LmPredictor):
             prompt_text = prompt.text
 
         if self._tokenizer.added_tokens_decoder:
-            logging.warning("Added tokens:")
-            logging.warning(self._tokenizer.added_tokens_decoder)
+            logging.debug("Added tokens:")
+            logging.debug(self._tokenizer.added_tokens_decoder)
 
         max_length = self._model.config.max_length
-        model_parameters = set(
-            inspect.signature(self._model.forward).parameters.keys()
-        )
+        model_parameters = set(inspect.signature(self._model.forward).parameters.keys())
         model_requires_attention_mask = "attention_mask" in model_parameters
 
         if self.prompt_trimmer:
@@ -236,19 +244,25 @@ class HuggingfacePredictor(LmPredictor):
                     "Prompt is too long for model. Please pass in a trimmer."
                 )
 
+        print("Pre moving encoded tokens")
+        log_cuda_mem()
         if self.runtime != Runtime.ACCELERATE:
             encoded_input = encoded_input.to(
                 self._device,
             )  # Move to device
-
+        print("Post moving encoded tokens")
+        log_cuda_mem()
         # ONNX models themselves cannot be moved to a device
         # but their input tensors must be moved to GPU
         # Similarly, Accelerate takes care of moving tensors
+        print("Pre model moving")
+        log_cuda_mem()
         if self.runtime != Runtime.ACCELERATE and (
             not _ONNX_RUNTIME or not isinstance(self._model, ORTModel)
         ):
             self._model.to(self._device)  # Ensure model is on device
-
+        print("Post model moving")
+        log_cuda_mem()
         need_log_prob = prompt.logprobs is not None and prompt.logprobs > 0
 
         # Some models do not have a pad token, default to 0
@@ -282,7 +296,7 @@ class HuggingfacePredictor(LmPredictor):
             pad_token_id=pad_token_id,
             eos_token_id=self._tokenizer.eos_token_id,
             bos_token_id=self._tokenizer.bos_token_id,
-            **generation_kwargs
+            **generation_kwargs,
         )
 
         if patch_model_forward:
@@ -296,12 +310,15 @@ class HuggingfacePredictor(LmPredictor):
             cached_logits = []
 
             if model_requires_attention_mask:
+
                 def new_call(attention_mask, *args, **kwargs):
                     nonlocal cached_logits
                     val = old_forward(attention_mask=attention_mask, *args, **kwargs)
                     cached_logits.append(val.logits)
                     return val
+
             else:
+
                 def new_call(*args, **kwargs):
                     nonlocal cached_logits
                     val = old_forward(*args, **kwargs)
@@ -310,12 +327,16 @@ class HuggingfacePredictor(LmPredictor):
 
             self._model.forward = new_call
 
+        print("Pre generate")
+        log_cuda_mem()
         with torch.no_grad():
-            generation_output = self._model.generate(
+            generation_output: GenerateOutput = self._model.generate(
                 **encoded_input,
                 generation_config=gen_config,
                 stopping_criteria=stopping_criteria,
             )
+        print("Post generate")
+        log_cuda_mem()
 
         if patch_model_forward:
             self._model.forward = old_forward
@@ -338,13 +359,11 @@ class HuggingfacePredictor(LmPredictor):
 
         output_text = self._tokenizer.decode(output_sequence)
 
-
         stop_token_idx_output = None
         stop_token_idx_generated = None
         output_tokens = self._tokenizer.convert_ids_to_tokens(output_sequence)
         if prompt.add_bos_token:
             output_tokens = output_tokens[1:]
-
 
         token_offsets = []
         token_offsets_full = []
@@ -423,13 +442,22 @@ class HuggingfacePredictor(LmPredictor):
             generated_text = ""
             generation_output.sequences = generation_output.sequences[:, :-1]
 
+        print("Pre del statements")
+        log_cuda_mem()
+        np_logprobs = logprobs.detach().cpu().numpy()
+        np_encoded_input = encoded_input.convert_to_tensors(TensorType.NUMPY)
+        del generation_output
+        del logprobs
+
+        print("Post del statements")
+        log_cuda_mem()
         return HuggingfacePrediction(
             completion_text=generated_text,
             prompt=prompt,
-            metad=generation_output,
-            _prompt_encoding=encoded_input.to("cpu"),
+            # metad=generation_output.detach().cpu(),
+            _prompt_encoding=np_encoded_input,
             _tokens=output_tokens,
-            _log_probs=logprobs.detach().cpu().numpy(),
+            _log_probs=np_logprobs,
             _logprobs_dict=logprobs_dicts,
         )
 
@@ -590,11 +618,15 @@ def _initialize_hf_model(
         tokenizer = PreTrainedTokenizerFast(tokenizer_object=tokenizer)
 
     if runtime == Runtime.PYTORCH:
+        print("Before model instantiation")
+        log_cuda_mem()
         model = model_class.from_pretrained(
             model_name,
             torch_dtype=precision,
             **_kwargs,
         )
+        print("Post model instantiation")
+        log_cuda_mem()
     elif runtime == Runtime.ACCELERATE:
         model = model_class.from_pretrained(
             model_name,
