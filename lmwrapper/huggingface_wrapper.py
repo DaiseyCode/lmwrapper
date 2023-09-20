@@ -446,7 +446,7 @@ class HuggingfacePredictor(LmPredictor):
         print("Pre del statements")
         log_cuda_mem()
         np_logprobs = logprobs.detach().cpu().numpy()
-        np_encoded_input = encoded_input.to("cpu").convert_to_tensors(TensorType.NUMPY)
+        np_encoded_input = encoded_input.to("cpu").convert_to_tensors(TensorType.NUMPY).copy()
 
         # generation_output needs to be mapped to .detach().cpu().numpy() for all tensors
         updated_output = {}
@@ -460,6 +460,7 @@ class HuggingfacePredictor(LmPredictor):
                 updated_output[key] = value
         del generation_output
         del logprobs
+        del encoded_input
 
         print("Post del statements")
         log_cuda_mem()
