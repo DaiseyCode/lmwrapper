@@ -212,6 +212,8 @@ class HuggingfacePredictor(LmPredictor):
         else:
             prompt_text = prompt.text
 
+        is_encoder_decoder = self._model.config.is_encoder_decoder
+
         max_length = self._model.config.max_length
         model_parameters = set(inspect.signature(self._model.forward).parameters.keys())
         model_requires_attention_mask = "attention_mask" in model_parameters
@@ -234,6 +236,8 @@ class HuggingfacePredictor(LmPredictor):
                 raise ValueError(
                     "Prompt is too long for model. Please pass in a trimmer."
                 )
+        if is_encoder_decoder:
+            encoded_input["decoder_input_ids"] = encoded_input["input_ids"].clone()
 
         logging.debug("Pre moving encoded tokens")
         log_cuda_mem()
@@ -374,11 +378,7 @@ class HuggingfacePredictor(LmPredictor):
 
         # input_length is the length of the input prompt for decoder-only models,
         # like the GPT family, and 1 for encoder-decoder models, like BART or T5.
-        input_length = (
-            1
-            if self._model.config.is_encoder_decoder
-            else encoded_input.input_ids.shape[1]
-        )
+        input_length = 1 if is_encoder_decoder else encoded_input.input_ids.shape[1]
 
         generated_sequence = model_output_sequence[input_length:]
 
