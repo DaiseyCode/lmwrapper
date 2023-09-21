@@ -139,10 +139,11 @@ class Runtime(Enum):
 
 def log_cuda_mem():
     if torch.cuda.is_available():
-        print(
-            "Allocated/Reserved: ",
-            humanize.naturalsize(torch.cuda.memory_allocated()),
-            humanize.naturalsize(torch.cuda.memory_reserved()),
+        logging.debug(
+            "Allocated/Reserved: "
+            + humanize.naturalsize(torch.cuda.memory_allocated())
+            + " / "
+            + humanize.naturalsize(torch.cuda.memory_reserved())
         )
 
 
@@ -171,7 +172,7 @@ class HuggingfacePredictor(LmPredictor):
             "name_or_path": self._model.name_or_path,
         }
 
-    def _predict_maybe_cached_internal(
+    def _predict_hf(
         self,
         prompt: LmPrompt,
     ) -> LmPrediction | list[LmPrediction]:
@@ -263,7 +264,6 @@ class HuggingfacePredictor(LmPredictor):
         log_cuda_mem()
         need_log_prob = prompt.logprobs is not None and prompt.logprobs > 0
 
-
         do_sample = prompt.temperature > 0
         num_beams = 1
         # num_beams (int, optional, defaults to 1) — Number of beams for beam search. 1 means no beam search.
@@ -290,7 +290,7 @@ class HuggingfacePredictor(LmPredictor):
         # `temperature`. This was detected when initializing the generation config
         # instance, which means the corresponding file may hold incorrect
         # parameterization and should be fixed.
-        if not do_sample: # i.e. prompt.temperature == 0.0:
+        if not do_sample:  # i.e. prompt.temperature == 0.0:
             generation_kwargs.pop("temperature", None)
 
         if num_beams == 1 and do_sample is False:
@@ -363,9 +363,11 @@ class HuggingfacePredictor(LmPredictor):
         if patch_model_forward:
             self._model.forward = old_forward
 
-        model_output_sequence = generation_output.sequences[0] # we will not mutate this one
+        model_output_sequence = generation_output.sequences[
+            0
+        ]  # we will not mutate this one
 
-        output_sequence = model_output_sequence # we will mutate this one
+        output_sequence = model_output_sequence  # we will mutate this one
 
         # input_length is the length of the input prompt for decoder-only models,
         # like the GPT family, and 1 for encoder-decoder models, like BART or T5.
@@ -442,7 +444,7 @@ class HuggingfacePredictor(LmPredictor):
 
                 assert len(model_output_sequence[1:]) == len(logprobs)
                 if stop_token_idx_output and stop_token_idx_output > 0:
-                    logprobs = logprobs[:stop_token_idx_output-1]
+                    logprobs = logprobs[: stop_token_idx_output - 1]
                 assert len(output_sequence) == len(logprobs)
             else:
                 logprobs = self._model.compute_transition_scores(
@@ -517,11 +519,15 @@ class HuggingfacePredictor(LmPredictor):
         self,
         prompt: LmPrompt,
     ) -> LmPrediction | list[LmPrediction]:
-        pre_memory = torch.cuda.memory_allocated()
-        prediction = self._predict_maybe_cached_internal(prompt)
-        post_memory = torch.cuda.memory_allocated()
-        if (post_memory - pre_memory) > 31_457_280:  # 30mb delta
-            logging.warning("Possible memory leak detected.")
+        if torch.cuda.is_available():
+            pre_memory = torch.cuda.memory_allocated()
+
+        prediction = self._predict_hf(prompt)
+
+        if torch.cuda.is_available():
+            post_memory = torch.cuda.memory_allocated()
+            if (post_memory - pre_memory) > 31_457_280:  # 30mb delta
+                logging.warning("Possible memory leak detected in model prediction.")
 
         return prediction
 

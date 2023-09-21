@@ -22,14 +22,18 @@ def get_readme() -> str:
 
 setup(
     name="lmwrapper",
-    version="0.5.2",
+    version="0.5.3",
     author="David Gros",
     description="Wrapper around language model APIs",
     license="MIT",
     packages=["lmwrapper"],
     install_requires=get_requirments("requirements.txt"),
     extras_require={
+        # TODO: add accelerate?
+        # accelerate @ git+https://github.com/huggingface/accelerate
         "huggingface": get_requirments("requirements-hf.txt"),
+        "hf-dev": get_requirments("requirements-hf.txt")
+        + ["transformers @ git+https://github.com/huggingface/transformers"],
         "ort": (
             get_requirments("requirements-hf.txt")
             + get_requirments("requirements-ort.txt")
@@ -43,5 +47,5 @@ setup(
     },
     python_requires=">=3.10",
     long_description=get_readme(),
-    long_description_content_type='text/markdown',
+    long_description_content_type="text/markdown",
 )
