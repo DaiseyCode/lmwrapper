@@ -243,24 +243,24 @@ class HuggingfacePredictor(LmPredictor):
                     "Prompt is too long for model. Please pass in a trimmer."
                 )
 
-        print("Pre moving encoded tokens")
+        logging.debug("Pre moving encoded tokens")
         log_cuda_mem()
         if self.runtime != Runtime.ACCELERATE:
             encoded_input = encoded_input.to(
                 self._device,
             )  # Move to device
-        print("Post moving encoded tokens")
+        logging.debug("Post moving encoded tokens")
         log_cuda_mem()
         # ONNX models themselves cannot be moved to a device
         # but their input tensors must be moved to GPU
         # Similarly, Accelerate takes care of moving tensors
-        print("Pre model moving")
+        logging.debug("Pre model moving")
         log_cuda_mem()
         if self.runtime != Runtime.ACCELERATE and (
             not _ONNX_RUNTIME or not isinstance(self._model, ORTModel)
         ):
             self._model.to(self._device)  # Ensure model is on device
-        print("Post model moving")
+        logging.debug("Post model moving")
         log_cuda_mem()
         need_log_prob = prompt.logprobs is not None and prompt.logprobs > 0
 
@@ -347,7 +347,7 @@ class HuggingfacePredictor(LmPredictor):
 
             self._model.forward = new_call
 
-        print("Pre generate")
+        logging.debug("Pre generate")
         log_cuda_mem()
 
         with torch.no_grad():
@@ -357,7 +357,7 @@ class HuggingfacePredictor(LmPredictor):
                 stopping_criteria=stopping_criteria,
             )
         logging.info("Generation output type:" + str(type(generation_output)))
-        print("Post generate")
+        logging.debug("Post generate")
         log_cuda_mem()
 
         if patch_model_forward:
@@ -479,7 +479,7 @@ class HuggingfacePredictor(LmPredictor):
             generated_text = ""
             generation_output.sequences = generation_output.sequences[:, :-1]
 
-        print("Pre del statements")
+        logging.debug("Pre del statements")
         log_cuda_mem()
         np_logprobs = logprobs.detach().cpu().numpy()
         np_encoded_input = (
@@ -502,7 +502,7 @@ class HuggingfacePredictor(LmPredictor):
         del logprobs
         del encoded_input
 
-        print("Post del statements")
+        logging.debug("Post del statements")
         log_cuda_mem()
 
         return HuggingfacePrediction(
@@ -688,14 +688,14 @@ def _initialize_hf_model(
         tokenizer = PreTrainedTokenizerFast(tokenizer_object=tokenizer)
 
     if runtime == Runtime.PYTORCH:
-        print("Before model instantiation")
+        logging.debug("Before model instantiation")
         log_cuda_mem()
         model = model_class.from_pretrained(
             model_name,
             torch_dtype=precision,
             **_kwargs,
         )
-        print("Post model instantiation")
+        logging.debug("Post model instantiation")
         log_cuda_mem()
     elif runtime == Runtime.ACCELERATE:
         model = model_class.from_pretrained(
