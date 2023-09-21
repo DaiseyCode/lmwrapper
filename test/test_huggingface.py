@@ -67,12 +67,50 @@ def test_logprobs_codegen2():
         max_tokens=15,
         cache=False,
         temperature=0,
-        echo=True
+        echo=True,
     )
     outb = lm.predict(prompt)
     logprobs_b = np.array(outb.completion_logprobs)
 
     assert np.allclose(logprobs_a, logprobs_b, atol=0.001, rtol=0.001)
+
+
+@pytest.mark.slow()
+def test_stop_n_codegen2():
+    lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH)
+    prompt = LmPrompt(
+        text='    def process_encoding(self, encoding: None | str = None) -> str:\n        """Process explicitly defined encoding or auto-detect it.\n\n        If encoding is explicitly defined, ensure it is a valid encoding the python\n        can deal with. If encoding is not specified, auto-detect it.\n\n        Raises unicodec.InvalidEncodingName if explicitly set encoding is invalid.\n        """',
+        max_tokens=500,
+        stop=["\n"],
+        logprobs=1,
+        temperature=0.0,
+        top_p=1.0,
+        presence_penalty=0.0,
+        frequency_penalty=0.0,
+        num_completions=1,
+        cache=False,
+        echo=False,
+        add_bos_token=True,
+    )
+    outa = lm.predict(prompt)
+
+    prompt_n = LmPrompt(
+        text='    def process_encoding(self, encoding: None | str = None) -> str:\n        """Process explicitly defined encoding or auto-detect it.\n\n        If encoding is explicitly defined, ensure it is a valid encoding the python\n        can deal with. If encoding is not specified, auto-detect it.\n\n        Raises unicodec.InvalidEncodingName if explicitly set encoding is invalid.\n        """\n',
+        max_tokens=500,
+        stop=["\n"],
+        logprobs=1,
+        temperature=0.0,
+        top_p=1.0,
+        presence_penalty=0.0,
+        frequency_penalty=0.0,
+        num_completions=1,
+        cache=False,
+        echo=False,
+        add_bos_token=True,
+    )
+    outb = lm.predict(prompt_n)
+
+    assert len(outa.completion_tokens) > 1
 
 
 @pytest.mark.slow()
@@ -129,11 +167,11 @@ def test_logprobs_echo_stop_codegen2():
     assert len(out_b.full_logprobs) == len(out_b.get_full_tokens())
 
     assert out_b.logprobs_dict[-1] == {
-            "token": 78,
-            "repr": "'o'",
-            "logit": pytest.approx(-2.742025852203369, rel=0.001),
-            "probability": pytest.approx(0.06443966925144196, rel=0.001),
-        }
+        "token": 78,
+        "repr": "'o'",
+        "logit": pytest.approx(-2.742025852203369, rel=0.001),
+        "probability": pytest.approx(0.06443966925144196, rel=0.001),
+    }
 
 
 def test_stop_token_removal():
@@ -471,4 +509,4 @@ def test_get_tensorrt(lm: str):
 def test_tokenizer():
     lm = get_huggingface_lm("gpt2")
     tokens = lm.tokenize("I like pie")
-    assert tokens == ['I', 'Ġlike', 'Ġpie']
+    assert tokens == ["I", "Ġlike", "Ġpie"]

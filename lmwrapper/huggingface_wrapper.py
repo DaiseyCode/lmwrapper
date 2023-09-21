@@ -201,14 +201,6 @@ class HuggingfacePredictor(LmPredictor):
         if prompt.presence_penalty != 0.0:
             raise NotImplementedError("Presence penalty not implemented")
 
-        stopping_criteria = None
-        if prompt.stop:
-            stopping_criteria = [
-                _TokenStoppingCriteria(
-                    prompt.stop, decode=True, tokenizer=self._tokenizer
-                )
-            ]
-
         if prompt.text == "" and not prompt.add_bos_token:
             raise Exception(
                 "Cannot do unconditional generation without `add_bos_token`."
@@ -349,6 +341,17 @@ class HuggingfacePredictor(LmPredictor):
 
         logging.debug("Pre generate")
         log_cuda_mem()
+
+        stopping_criteria = None
+        if prompt.stop:
+            stopping_criteria = [
+                _TokenStoppingCriteria(
+                    prompt.stop,
+                    decode=True,
+                    tokenizer=self._tokenizer,
+                    input_length=encoded_input.input_ids.shape[1],
+                )
+            ]
 
         with torch.no_grad():
             generation_output: GenerateOutput = self._model.generate(
