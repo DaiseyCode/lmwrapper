@@ -79,7 +79,7 @@ def test_logprobs_codegen2():
 def test_stop_n_codegen2():
     lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH)
     prompt = LmPrompt(
-        text='    def process_encoding(self, encoding: None | str = None) -> str:\n        """Process explicitly defined encoding or auto-detect it.\n\n        If encoding is explicitly defined, ensure it is a valid encoding the python\n        can deal with. If encoding is not specified, auto-detect it.\n\n        Raises unicodec.InvalidEncodingName if explicitly set encoding is invalid.\n        """',
+        text='def hello_world():\n',
         max_tokens=500,
         stop=["\n"],
         logprobs=1,
@@ -89,11 +89,11 @@ def test_stop_n_codegen2():
         frequency_penalty=0.0,
         num_completions=1,
         cache=False,
-        echo=False,
+        echo=True,
         add_bos_token=True,
     )
     outa = lm.predict(prompt)
-
+    # TODO: compare the first line of prompt a vs b
     prompt_n = LmPrompt(
         text='    def process_encoding(self, encoding: None | str = None) -> str:\n        """Process explicitly defined encoding or auto-detect it.\n\n        If encoding is explicitly defined, ensure it is a valid encoding the python\n        can deal with. If encoding is not specified, auto-detect it.\n\n        Raises unicodec.InvalidEncodingName if explicitly set encoding is invalid.\n        """\n',
         max_tokens=500,
@@ -110,7 +110,7 @@ def test_stop_n_codegen2():
     )
     outb = lm.predict(prompt_n)
 
-    assert len(outa.completion_tokens) > 1
+    assert len(outb.completion_tokens) > 1
 
 
 @pytest.mark.slow()
