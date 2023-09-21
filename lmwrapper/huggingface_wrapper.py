@@ -219,10 +219,6 @@ class HuggingfacePredictor(LmPredictor):
         else:
             prompt_text = prompt.text
 
-        if self._tokenizer.added_tokens_decoder:
-            logging.debug("Added tokens:")
-            logging.debug(self._tokenizer.added_tokens_decoder)
-
         max_length = self._model.config.max_length
         model_parameters = set(inspect.signature(self._model.forward).parameters.keys())
         model_requires_attention_mask = "attention_mask" in model_parameters
@@ -267,14 +263,11 @@ class HuggingfacePredictor(LmPredictor):
         log_cuda_mem()
         need_log_prob = prompt.logprobs is not None and prompt.logprobs > 0
 
-        # UserWarning: `do_sample` is set to `False`.
-        # However, `temperature` is set to `0.0` -- this flag is only used in
-        # sample-based generation modes. You should set `do_sample=True` or unset
-        # `temperature`. This was detected when initializing the generation config
-        # instance, which means the corresponding file may hold incorrect
-        # parameterization and should be fixed.
+
         do_sample = prompt.temperature > 0
         num_beams = 1
+        # num_beams (int, optional, defaults to 1) — Number of beams for beam search. 1 means no beam search.
+
         penalty_alpha = 0.0
         top_k = 50
         num_beam_groups = 1
@@ -287,30 +280,33 @@ class HuggingfacePredictor(LmPredictor):
             # Note that diversity_penalty is only effective if group beam search is enabled.
             # "repetition_penalty": prompt.frequency_penalty # The parameter for repetition penalty. 1.0 means no penalty
         }
-        if prompt.temperature == 1.0 or prompt.temperature == 0.0:
-            generation_kwargs.pop("temperature", None)
-            # generation_kwargs.pop("do_sample", None)
-            logging.warning("Do sample " + str(do_sample))
 
-        # num_beams (int, optional, defaults to 1) — Number of beams for beam search. 1 means no beam search.
-        if num_beams == 1 and do_sample == False:
+        # Temperature cannot be set if do_sample is False
+        # do_sample is False if prompt.temperature == 0
+        # Otherwise you get the following error from HuggingFace:
+        # UserWarning: `do_sample` is set to `False`.
+        # However, `temperature` is set to `0.0` -- this flag is only used in
+        # sample-based generation modes. You should set `do_sample=True` or unset
+        # `temperature`. This was detected when initializing the generation config
+        # instance, which means the corresponding file may hold incorrect
+        # parameterization and should be fixed.
+        if not do_sample: # i.e. prompt.temperature == 0.0:
+            generation_kwargs.pop("temperature", None)
+
+        if num_beams == 1 and do_sample is False:
             logging.info("Decoding strategy: greedy decoding")
         elif penalty_alpha > 0.0 and top_k > 1:
             logging.info("Decoding strategy: contrastive search")
-        elif num_beams == 1 and do_sample == True:
+        elif num_beams == 1 and do_sample is True:
             logging.info("Decoding strategy: multinomial sampling")
-        elif num_beams > 1 and do_sample == False:
+        elif num_beams > 1 and do_sample is False:
             logging.info("Decoding strategy: beam-search decoding")
-        elif num_beams > 1 and do_sample == True:
+        elif num_beams > 1 and do_sample is True:
             logging.info("Decoding strategy: beam-search multinomial sampling")
         elif num_beams > 1 and num_beam_groups > 1:
             logging.info("Decoding strategy: diverse beam-search")
         else:
             logging.info("Unable to predict decoding strategy!")
-        # elif constraints!=None or force_words_ids!=None:
-        #     logging.info("constrained beam-search")
-        # elif assistant_model is passed to .generate():
-        #     logging.info("assisted decoding")
 
         # Ref https://gist.github.com/kinoc/8a042d8c5683725aa8c372274c02ea2f
         gen_config = GenerationConfig(
@@ -367,7 +363,9 @@ class HuggingfacePredictor(LmPredictor):
         if patch_model_forward:
             self._model.forward = old_forward
 
-        output_sequence = generation_output.sequences[0]
+        model_output_sequence = generation_output.sequences[0] # we will not mutate this one
+
+        output_sequence = model_output_sequence # we will mutate this one
 
         # input_length is the length of the input prompt for decoder-only models,
         # like the GPT family, and 1 for encoder-decoder models, like BART or T5.
@@ -377,24 +375,10 @@ class HuggingfacePredictor(LmPredictor):
             else encoded_input.input_ids.shape[1]
         )
 
-        # if prompt.add_bos_token:
-        #     output_sequence = output_sequence[1:]
-        #     generated_sequence = output_sequence[input_length-1:]
-        # else:
-        generated_sequence = output_sequence[input_length:]
-
-        output_text = self._tokenizer.decode(output_sequence)
+        generated_sequence = model_output_sequence[input_length:]
 
         stop_token_idx_output = None
         stop_token_idx_generated = None
-
-        # Use .decode as convert_ids_to_tokens leaves artifacts:
-        # e.g.: convert: 'Ġprocess'
-        # decode: ' process'
-        output_tokens = [ self._tokenizer.decode(t) for t in output_sequence ]
-        # Original: self._tokenizer.convert_ids_to_tokens(output_sequence)
-        if prompt.add_bos_token:
-            output_tokens = output_tokens[1:]
 
         token_offsets = []
         token_offsets_full = []
@@ -427,22 +411,39 @@ class HuggingfacePredictor(LmPredictor):
                             1  # if they're equal, we include the current token
                         )
                     stop_token_idx_output = input_length + stop_token_idx_generated
-                    output_sequence = output_sequence[:stop_token_idx_output]
+                    output_sequence = model_output_sequence[:stop_token_idx_output]
                     generated_sequence = output_sequence[input_length:]
                     break
+
+        # Use .decode as convert_ids_to_tokens leaves artifacts:
+        # e.g.: convert: 'Ġprocess'
+        # decode: ' process'
+        # Original: self._tokenizer.convert_ids_to_tokens(output_sequence)
+        output_tokens = [self._tokenizer.decode(t) for t in output_sequence]
+        if len(output_tokens) != len(output_sequence):
+            raise Exception("Output token length did not match output sequence length!")
+
+        if prompt.add_bos_token:
+            output_tokens = output_tokens[1:]
+            output_sequence = output_sequence[1:]
 
         # Calculate the logprobs if needed
         if need_log_prob:
             if patch_model_forward:
+                assert prompt.echo
+
                 all_logits = torch.cat(cached_logits, dim=1)
                 assert all_logits.shape[0] == 1  # batch
-                assert all_logits.shape[1] == len(output_tokens)
+                assert all_logits.shape[1] == len(model_output_sequence[1:])
                 logprobs = _gather_logprobs_from_logits(
                     all_logits[0],
-                    output_sequence[1:],
+                    model_output_sequence[1:],
                 )
 
-                assert len(output_sequence[1:]) == len(logprobs)
+                assert len(model_output_sequence[1:]) == len(logprobs)
+                if stop_token_idx_output and stop_token_idx_output > 0:
+                    logprobs = logprobs[:stop_token_idx_output-1]
+                assert len(output_sequence) == len(logprobs)
             else:
                 logprobs = self._model.compute_transition_scores(
                     generation_output.sequences,
@@ -451,7 +452,10 @@ class HuggingfacePredictor(LmPredictor):
                 )[0, :stop_token_idx_generated]
                 assert len(generated_sequence) == len(logprobs)
 
-            token_sequence = output_sequence[1:] if prompt.echo else generated_sequence
+            token_sequence = output_sequence if prompt.echo else generated_sequence
+
+            assert len(token_sequence) == len(logprobs)
+
             # Create logprobs dict
             logprobs_dicts = []
             for tok, score in zip(token_sequence, logprobs, strict=True):
@@ -498,7 +502,6 @@ class HuggingfacePredictor(LmPredictor):
 
         print("Post del statements")
         log_cuda_mem()
-
 
         return HuggingfacePrediction(
             completion_text=generated_text,
