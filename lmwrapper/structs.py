@@ -41,7 +41,19 @@ class LmPrompt:
     presence_penalty: float = 0.0
     """Number between -2.0 and 2.0. Positive values penalize new tokens based on whether
     they appear in the text so far, increasing the model's likelihood
-    to talk about new topics."""
+    to talk about new topics. This parameter is used to encourage the model to include a
+    diverse range of tokens in the generated text. It is a value that is subtracted from
+    the log-probability of a token each time it is generated. A higher presence_penalty
+    value will result in the model being more likely to generate tokens that have not
+    yet been included in the generated text."""
+    frequency_penalty: float = 0.0
+    """Number between -2.0 and 2.0. Positive values penalize new tokens based on their
+    existing frequency in the text so far, decreasing the model's likelihood
+    to repeat the same line verbatim. This parameter is used to discourage the model from
+    repeating the same words or phrases too frequently within the generated text.
+    It is a value that is added to the log-probability of a token each time it occurs in
+    the generated text. A higher frequency_penalty value will result in the model being
+    more conservative in its use of repeated tokens."""
     num_completions: int = 1
     """How many completions to generate for each prompt."""
     cache: bool = None  # Use the default of the predictor

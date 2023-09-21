@@ -17,6 +17,10 @@ class HuggingfacePrediction(LmPrediction):
         self._num_prompt_tokens = len(self._prompt_encoding["input_ids"][0])
         if self.prompt.add_bos_token:
             self._num_prompt_tokens -= 1
+        if self.prompt.echo:
+            assert len(self._tokens) == len(self._log_probs)
+        else:
+            assert len(self._tokens[self._num_prompt_tokens :]) == len(self._log_probs)
 
     @property
     def completion_tokens(self) -> list[str]:

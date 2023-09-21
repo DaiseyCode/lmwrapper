@@ -76,7 +76,7 @@ def test_logprobs_codegen2():
 
 
 @pytest.mark.slow()
-def test_logprobs_stop_codegen2():
+def test_logprobs_equal_stop_codegen2():
     lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH)
     prompt = LmPrompt(
         "place a newline here", max_tokens=5, cache=False, temperature=0, stop=["(o(o"]
@@ -97,7 +97,6 @@ def test_logprobs_stop_codegen2():
         }
     ]
 
-    lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH)
     prompt = LmPrompt(
         "place a newline here",
         max_tokens=5,
@@ -109,16 +108,32 @@ def test_logprobs_stop_codegen2():
     out_b = lm.predict(prompt)
     logprobs_b = np.array(out_b.completion_logprobs)
     assert "(o(o" not in out_b.completion_text
-
-    #assert {
-    #        "token": 78,
-    #        "repr": "'o'",
-    #        "logit": pytest.approx(-2.742025852203369, rel=0.001),
-    #        "probability": pytest.approx(0.06443966925144196, rel=0.001),
-    #    } in out_b.logprobs_dict # TODO: assert that the prompt is correct
-
-
     assert np.allclose(logprobs_a, logprobs_b, atol=0.001, rtol=0.001)
+
+
+@pytest.mark.slow()
+def test_logprobs_echo_stop_codegen2():
+    lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH)
+    prompt = LmPrompt(
+        "place a newline here",
+        max_tokens=5,
+        cache=False,
+        temperature=0,
+        stop=["(o(o"],
+        echo=True,
+    )
+    out_b = lm.predict(prompt)
+    logprobs = np.array(out_b.completion_logprobs)
+    assert "(o(o" not in out_b.completion_text
+    assert len(logprobs) == len(out_b.completion_tokens)
+    assert len(out_b.full_logprobs) == len(out_b.get_full_tokens())
+
+    assert out_b.logprobs_dict[-1] == {
+            "token": 78,
+            "repr": "'o'",
+            "logit": pytest.approx(-2.742025852203369, rel=0.001),
+            "probability": pytest.approx(0.06443966925144196, rel=0.001),
+        }
 
 
 def test_stop_token_removal():
