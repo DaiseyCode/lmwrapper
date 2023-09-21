@@ -99,11 +99,6 @@ class LmPrompt:
             raise ValueError(
                 "The logprob parameter should be int denoting number of probs return, or None."
             )
-        if not self.add_bos_token:
-            raise NotImplementedError(
-                "Currently, the add_bos_token parameter must be True. "
-                "Please make a github issue if you need this feature."
-            )
 
     def is_text_a_chat(self) -> bool:
         return isinstance(self.text, list)

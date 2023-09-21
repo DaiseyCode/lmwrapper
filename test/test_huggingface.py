@@ -76,10 +76,96 @@ def test_logprobs_codegen2():
 
 
 @pytest.mark.slow()
+def test_stop_n_codet5():
+    lm = get_huggingface_lm(Models.CodeT5plus_220M, runtime=Runtime.PYTORCH)
+    no_logprobs_prompt = LmPrompt(
+        text="def hello_world():",
+        max_tokens=50,
+        logprobs=0,
+        temperature=0.0,
+        top_p=1.0,
+        presence_penalty=0.0,
+        frequency_penalty=0.0,
+        num_completions=1,
+        cache=False,
+        echo=False,
+        add_bos_token=False,
+    )
+    no_logprobs_pred = lm.predict(no_logprobs_prompt)
+    assert "\n" in no_logprobs_pred.completion_text
+    assert no_logprobs_pred.completion_tokens[0] not in ["<s>", "<\s>"]
+    assert len(no_logprobs_pred.completion_tokens) == 49
+
+    no_logprobs_n_prompt = LmPrompt(
+        text="def hello_world():\n",
+        max_tokens=50,
+        stop=["\n"],
+        logprobs=0,
+        temperature=0.0,
+        top_p=1.0,
+        presence_penalty=0.0,
+        frequency_penalty=0.0,
+        num_completions=1,
+        cache=False,
+        echo=False,
+        add_bos_token=False,
+    )
+    no_logprobs_n_pred = lm.predict(no_logprobs_n_prompt)
+    assert "\n" not in no_logprobs_n_pred.completion_text
+    assert no_logprobs_n_pred.completion_tokens[0] not in ["<s>", "<\s>"]
+    assert len(no_logprobs_n_pred.completion_tokens) == 5
+
+    logprobs_prompt = LmPrompt(
+        text="def hello_world():",
+        max_tokens=50,
+        logprobs=1,
+        temperature=0.0,
+        top_p=1.0,
+        presence_penalty=0.0,
+        frequency_penalty=0.0,
+        num_completions=1,
+        cache=False,
+        echo=False,
+        add_bos_token=False,
+    )
+    logprobs_pred = lm.predict(logprobs_prompt)
+    assert "\n" in logprobs_pred.completion_text
+    assert logprobs_pred.completion_tokens[0] not in ["<s>", "<\s>"]
+    assert len(logprobs_pred.completion_tokens) == 49
+    assert len(logprobs_pred.completion_logprobs) == len(
+        logprobs_pred.completion_tokens
+    )
+    assert logprobs_pred.completion_logprobs[0] < 0.95
+
+    logprobs_n_prompt = LmPrompt(
+        text="def hello_world():",
+        max_tokens=50,
+        stop=["\n"],
+        logprobs=1,
+        temperature=0.0,
+        top_p=1.0,
+        presence_penalty=0.0,
+        frequency_penalty=0.0,
+        num_completions=1,
+        cache=False,
+        echo=False,
+        add_bos_token=False,
+    )
+    logprobs_n_pred = lm.predict(logprobs_n_prompt)
+    assert "\n" not in logprobs_n_pred.completion_text
+    assert logprobs_n_pred.completion_tokens[0] not in ["<s>", "<\s>"]
+    assert len(logprobs_n_pred.completion_tokens) == 2
+    assert len(logprobs_n_pred.completion_logprobs) == len(
+        logprobs_n_pred.completion_tokens
+    )
+    assert logprobs_n_pred.completion_logprobs[0] < 0.95
+
+
+@pytest.mark.slow()
 def test_stop_n_codegen2():
     lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH)
     prompt = LmPrompt(
-        text='def hello_world():\n',
+        text="def hello_world():\n",
         max_tokens=500,
         stop=["\n"],
         logprobs=1,

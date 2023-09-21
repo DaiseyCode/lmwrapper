@@ -206,13 +206,16 @@ class HuggingfacePredictor(LmPredictor):
                 "Cannot do unconditional generation without `add_bos_token`."
             )
 
+        is_encoder_decoder = self._model.config.is_encoder_decoder
+
+        if is_encoder_decoder and prompt.add_bos_token:
+            raise Exception("Encoder/decoder models should not have bos tokens added manually.")
+
         if prompt.add_bos_token:
             assert self._tokenizer.bos_token
             prompt_text = self._tokenizer.bos_token + prompt.text
         else:
             prompt_text = prompt.text
-
-        is_encoder_decoder = self._model.config.is_encoder_decoder
 
         max_length = self._model.config.max_length
         model_parameters = set(inspect.signature(self._model.forward).parameters.keys())
@@ -236,6 +239,7 @@ class HuggingfacePredictor(LmPredictor):
                 raise ValueError(
                     "Prompt is too long for model. Please pass in a trimmer."
                 )
+
         if is_encoder_decoder:
             encoded_input["decoder_input_ids"] = encoded_input["input_ids"].clone()
 
@@ -347,13 +351,17 @@ class HuggingfacePredictor(LmPredictor):
         log_cuda_mem()
 
         stopping_criteria = None
+        # input_length is the length of the input prompt for decoder-only models,
+        # like the GPT family, and 1 ?? for encoder-decoder models, like BART or T5.
+        # we add 2 to consider the </s> at the end of the prompt and the first <s> as input
+        input_length = encoded_input.input_ids.shape[1]+2 if is_encoder_decoder else encoded_input.input_ids.shape[1]
         if prompt.stop:
             stopping_criteria = [
                 _TokenStoppingCriteria(
                     prompt.stop,
                     decode=True,
                     tokenizer=self._tokenizer,
-                    input_length=encoded_input.input_ids.shape[1],
+                    input_length=input_length,
                 )
             ]
 
@@ -375,10 +383,6 @@ class HuggingfacePredictor(LmPredictor):
         ]  # we will not mutate this one
 
         output_sequence = model_output_sequence  # we will mutate this one
-
-        # input_length is the length of the input prompt for decoder-only models,
-        # like the GPT family, and 1 for encoder-decoder models, like BART or T5.
-        input_length = 1 if is_encoder_decoder else encoded_input.input_ids.shape[1]
 
         generated_sequence = model_output_sequence[input_length:]
 
@@ -420,6 +424,13 @@ class HuggingfacePredictor(LmPredictor):
                     generated_sequence = output_sequence[input_length:]
                     break
 
+        # redecode without special tokens
+        generated_text = self._tokenizer.decode(
+                        generated_sequence,
+                        skip_special_tokens=True,
+                        clean_up_tokenization_spaces=True,
+                    )
+
         # Use .decode as convert_ids_to_tokens leaves artifacts:
         # e.g.: convert: 'Ġprocess'
         # decode: ' process'
@@ -432,44 +443,61 @@ class HuggingfacePredictor(LmPredictor):
             output_tokens = output_tokens[1:]
             output_sequence = output_sequence[1:]
 
+        logprobs_dicts = []
         # Calculate the logprobs if needed
         if need_log_prob:
             if patch_model_forward:
                 assert prompt.echo
+                assert not is_encoder_decoder
 
                 all_logits = torch.cat(cached_logits, dim=1)
                 assert all_logits.shape[0] == 1  # batch
                 assert all_logits.shape[1] == len(model_output_sequence[1:])
-                logprobs = _gather_logprobs_from_logits(
+                full_logprobs = _gather_logprobs_from_logits(
                     all_logits[0],
                     model_output_sequence[1:],
                 )
 
-                assert len(model_output_sequence[1:]) == len(logprobs)
+                assert len(model_output_sequence[1:]) == len(full_logprobs)
                 if stop_token_idx_output and stop_token_idx_output > 0:
-                    logprobs = logprobs[: stop_token_idx_output - 1]
+                    logprobs = full_logprobs[: stop_token_idx_output - 1]
+
                 assert len(output_sequence) == len(logprobs)
             else:
-                logprobs = self._model.compute_transition_scores(
+                full_logprobs = self._model.compute_transition_scores(
                     generation_output.sequences,
                     generation_output.scores,
                     normalize_logits=True,
-                )[0, :stop_token_idx_generated]
+                )[0]
+                if is_encoder_decoder:
+                    # we need to chop off the <s> first token
+                    # as its probability will throw off uncertainty estimates
+                    if stop_token_idx_generated:
+                        # if a stop token is defined, we need to step one further due to the <s>
+                        # TODO: we can clean this up with better input_length logic
+                        logprobs = full_logprobs[1:stop_token_idx_generated+1]
+                    else:
+                        logprobs = full_logprobs[1:]
+                else:
+                    logprobs = full_logprobs[:stop_token_idx_generated]
                 assert len(generated_sequence) == len(logprobs)
 
             token_sequence = output_sequence if prompt.echo else generated_sequence
+            token_sequence = token_sequence.detach().cpu()
+            logprobs = logprobs.detach().cpu()
+            probabilities = logprobs.exp()
 
             assert len(token_sequence) == len(logprobs)
+            assert len(probabilities) == len(token_sequence)
 
             # Create logprobs dict
-            logprobs_dicts = []
-            for tok, score in zip(token_sequence, logprobs, strict=True):
+            for token, score, probability in zip(token_sequence, logprobs, probabilities, strict=True):
                 logprobs_dicts.append(
                     {
-                        "token": int(tok.detach().cpu()),
-                        "repr": repr(self._tokenizer.decode(tok)),
-                        "logit": float(score.item()),
-                        "probability": float(np.exp(score.detach().cpu())),
+                        "token": int(token),
+                        "repr": repr(self._tokenizer.decode(token)),
+                        "logit": float(score),
+                        "probability": float(probability),
                     }
                 )
         else:
@@ -484,7 +512,8 @@ class HuggingfacePredictor(LmPredictor):
 
         logging.debug("Pre del statements")
         log_cuda_mem()
-        np_logprobs = logprobs.detach().cpu().numpy()
+
+        np_logprobs = logprobs.detach().cpu().numpy() if logprobs is not None else None
         np_encoded_input = (
             encoded_input.to("cpu").convert_to_tensors(TensorType.NUMPY).copy()
         )
@@ -512,6 +541,7 @@ class HuggingfacePredictor(LmPredictor):
             completion_text=generated_text,
             prompt=prompt,
             metad=updated_output,
+            _num_prompt_tokens=int(input_length),
             _prompt_encoding=np_encoded_input,
             _tokens=output_tokens,
             _log_probs=np_logprobs,
@@ -650,7 +680,7 @@ def get_huggingface_lm(
         }
     elif model == "Salesforce/instructcodet5p-16b":
         model_class = AutoModelForSeq2SeqLM
-        _kwargs = {
+        _kwargs |= {
             "low_cpu_mem_usage": True,
         }
 
