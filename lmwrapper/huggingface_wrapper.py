@@ -64,7 +64,7 @@ if _QUANTIZATION_ENABLED:
 try:
     import transformers
 
-    # assert version.parse(transformers.__version__) >= version.parse("4.31.0")
+    assert version.parse(transformers.__version__) >= version.parse("4.33.2")
 
     from transformers import (
         AutoModelForCausalLM,
