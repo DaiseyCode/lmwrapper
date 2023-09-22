@@ -393,7 +393,7 @@ def test_remove_prompt_from_cache(lm):
     prompt = LmPrompt(
         "Write a story about a dog:",
         max_tokens=10,
-        temperature=1.0,
+        temperature=2.0,
         cache=True,
     )
     r1 = lm.predict(prompt)

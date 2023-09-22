@@ -399,7 +399,11 @@ class HuggingfacePredictor(LmPredictor):
             j += token_len
 
         generated_text = self._tokenizer.decode(generated_sequence)
-
+        clean_generated_text = self._tokenizer.decode(
+                        generated_sequence,
+                        skip_special_tokens=True,
+                        clean_up_tokenization_spaces=True,
+                    )
         if prompt.stop:
             sorted_stop_sequences = sorted(prompt.stop, key=len, reverse=True)
 
@@ -408,6 +412,10 @@ class HuggingfacePredictor(LmPredictor):
                 if stop_sequence in generated_text:
                     stop_idx = generated_text.index(stop_sequence)
                     generated_text = generated_text[:stop_idx]
+
+                    clean_stop_idx = clean_generated_text.index(stop_sequence)
+                    clean_generated_text = clean_generated_text[:clean_stop_idx]
+
                     stop_token_idx_generated = token_offsets_full[stop_idx]
                     if (
                         stop_token_idx_generated > 0  # ensure not first token
@@ -423,13 +431,6 @@ class HuggingfacePredictor(LmPredictor):
                     output_sequence = model_output_sequence[:stop_token_idx_output]
                     generated_sequence = output_sequence[input_length:]
                     break
-
-        # redecode without special tokens
-        generated_text = self._tokenizer.decode(
-                        generated_sequence,
-                        skip_special_tokens=True,
-                        clean_up_tokenization_spaces=True,
-                    )
 
         # Use .decode as convert_ids_to_tokens leaves artifacts:
         # e.g.: convert: 'Ġprocess'
@@ -453,14 +454,14 @@ class HuggingfacePredictor(LmPredictor):
                 all_logits = torch.cat(cached_logits, dim=1)
                 assert all_logits.shape[0] == 1  # batch
                 assert all_logits.shape[1] == len(model_output_sequence[1:])
-                full_logprobs = _gather_logprobs_from_logits(
+                logprobs = _gather_logprobs_from_logits(
                     all_logits[0],
                     model_output_sequence[1:],
                 )
 
-                assert len(model_output_sequence[1:]) == len(full_logprobs)
+                assert len(model_output_sequence[1:]) == len(logprobs)
                 if stop_token_idx_output and stop_token_idx_output > 0:
-                    logprobs = full_logprobs[: stop_token_idx_output - 1]
+                    logprobs = logprobs[: stop_token_idx_output - 1]
 
                 assert len(output_sequence) == len(logprobs)
             else:
@@ -509,6 +510,7 @@ class HuggingfacePredictor(LmPredictor):
             logprobs = logprobs[:-1]
             generated_text = ""
             generation_output.sequences = generation_output.sequences[:, :-1]
+            clean_generated_text = ""
 
         logging.debug("Pre del statements")
         log_cuda_mem()
@@ -538,9 +540,10 @@ class HuggingfacePredictor(LmPredictor):
         log_cuda_mem()
 
         return HuggingfacePrediction(
-            completion_text=generated_text,
+            completion_text=clean_generated_text,
             prompt=prompt,
             metad=updated_output,
+            _completion_with_special_tok=generated_text,
             _num_prompt_tokens=int(input_length),
             _prompt_encoding=np_encoded_input,
             _tokens=output_tokens,

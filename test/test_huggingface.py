@@ -535,6 +535,7 @@ def test_all_pytorch_runtime(lm: str):
         max_tokens=15,
         cache=False,
         temperature=0,
+        add_bos_token=lm not in SEQ2SEQ_MODELS
     )
     lm = get_huggingface_lm(lm, runtime=Runtime.PYTORCH)
     out = lm.predict(prompt)

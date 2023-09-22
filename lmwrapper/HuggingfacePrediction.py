@@ -12,6 +12,7 @@ class HuggingfacePrediction(LmPrediction):
     _log_probs: Any
     _logprobs_dict: dict
     _num_prompt_tokens: int
+    _completion_with_special_tok: str
 
     def __post_init__(self):
         assert len(self._prompt_encoding["input_ids"]) == 1
