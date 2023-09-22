@@ -14,7 +14,6 @@ from lmwrapper.abstract_predictor import LmPredictor
 from lmwrapper.prompt_trimming import PromptTrimmer
 from lmwrapper.structs import LmPrediction, LmPrompt
 
-import numpy as np
 import humanize
 
 _QUANT_CONFIG = None
@@ -209,7 +208,9 @@ class HuggingfacePredictor(LmPredictor):
         is_encoder_decoder = self._model.config.is_encoder_decoder
 
         if is_encoder_decoder and prompt.add_bos_token:
-            raise Exception("Encoder/decoder models should not have bos tokens added manually.")
+            raise Exception(
+                "Encoder/decoder models should not have bos tokens added manually."
+            )
 
         if prompt.add_bos_token:
             assert self._tokenizer.bos_token
@@ -354,7 +355,11 @@ class HuggingfacePredictor(LmPredictor):
         # input_length is the length of the input prompt for decoder-only models,
         # like the GPT family, and 1 ?? for encoder-decoder models, like BART or T5.
         # we add 2 to consider the </s> at the end of the prompt and the first <s> as input
-        input_length = encoded_input.input_ids.shape[1]+2 if is_encoder_decoder else encoded_input.input_ids.shape[1]
+        input_length = (
+            encoded_input.input_ids.shape[1] + 2
+            if is_encoder_decoder
+            else encoded_input.input_ids.shape[1]
+        )
         if prompt.stop:
             stopping_criteria = [
                 _TokenStoppingCriteria(
@@ -400,10 +405,10 @@ class HuggingfacePredictor(LmPredictor):
 
         generated_text = self._tokenizer.decode(generated_sequence)
         clean_generated_text = self._tokenizer.decode(
-                        generated_sequence,
-                        skip_special_tokens=True,
-                        clean_up_tokenization_spaces=True,
-                    )
+            generated_sequence,
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=True,
+        )
         if prompt.stop:
             sorted_stop_sequences = sorted(prompt.stop, key=len, reverse=True)
 
@@ -476,7 +481,7 @@ class HuggingfacePredictor(LmPredictor):
                     if stop_token_idx_generated:
                         # if a stop token is defined, we need to step one further due to the <s>
                         # TODO: we can clean this up with better input_length logic
-                        logprobs = full_logprobs[1:stop_token_idx_generated+1]
+                        logprobs = full_logprobs[1 : stop_token_idx_generated + 1]
                     else:
                         logprobs = full_logprobs[1:]
                 else:
@@ -492,7 +497,9 @@ class HuggingfacePredictor(LmPredictor):
             assert len(probabilities) == len(token_sequence)
 
             # Create logprobs dict
-            for token, score, probability in zip(token_sequence, logprobs, probabilities, strict=True):
+            for token, score, probability in zip(
+                token_sequence, logprobs, probabilities, strict=True
+            ):
                 logprobs_dicts.append(
                     {
                         "token": int(token),
