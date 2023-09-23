@@ -8,10 +8,12 @@ class _TokenStoppingCriteria(StoppingCriteria):
         stop_sequences: list[list[str]] = [],
         decode=False,
         tokenizer: PreTrainedTokenizerFast = None,
+        input_length: int | None = None,
     ):
         super().__init__()
         self.tokenizer: PreTrainedTokenizerFast = tokenizer
         self.decode = decode
+        self.input_length = input_length
         assert all(isinstance(stop_sequence, str) for stop_sequence in stop_sequences)
 
         if decode:
@@ -37,10 +39,10 @@ class _TokenStoppingCriteria(StoppingCriteria):
         if input_ids.shape[0] != 1:
             raise NotImplementedError("Batches greater than size 1 are not supported.")
 
-        input_ids_list: list[int] = input_ids[0].tolist()
+        input_ids_list = input_ids[0]
         if self.decode:
             # We can decode the string and do string matching
-            decoded_output = self.tokenizer.decode(input_ids_list)
+            decoded_output = self.tokenizer.decode(input_ids_list[self.input_length:])
 
             return any(
                 stop_sequence in decoded_output for stop_sequence in self.stop_sequences
