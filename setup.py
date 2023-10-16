@@ -22,7 +22,7 @@ def get_readme() -> str:
 
 setup(
     name="lmwrapper",
-    version="0.5.1",
+    version="0.5.3",
     author="David Gros",
     description="Wrapper around language model APIs",
     license="MIT",

@@ -101,3 +101,8 @@ class LmPredictor:
             return LmPredictor._rate_limit.wait()
 
         return 0.
+
+    @property
+    @abstractmethod
+    def is_chat_model(self):
+        raise NotImplementedError

@@ -146,7 +146,7 @@ class HuggingfacePredictor(LmPredictor):
         self._tokenizer = tokenizer
         self._model = model
         self._device = device
-        self.is_chat_model = False
+        self._is_chat_model = False
         self.runtime = runtime
         self.allow_patch_model_forward = allow_patch_model_forward
         self.prompt_trimmer = prompt_trimmer
@@ -441,6 +441,10 @@ class HuggingfacePredictor(LmPredictor):
 
     def tokenize(self, text: str) -> list[str]:
         return self._tokenizer.tokenize(text)
+
+    @property
+    def is_chat_model(self):
+        return self._is_chat_model
 
 
 def _gather_logprobs_from_logits(
