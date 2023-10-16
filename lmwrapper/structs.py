@@ -14,11 +14,25 @@ LM_CHAT_DIALOG_COERCIBLE_TYPES = Union[
 @dataclass(frozen=True)
 class LmPrompt:
     text: Union[str, LM_CHAT_DIALOG_COERCIBLE_TYPES]
-    max_tokens: int
-    """The maximum number of tokens to generate in the completion."""
+    """The actual text of the prompt. If it is a LM_CHAT_DIALOG_COERCIBLE_TYPES
+    which can become a LmChatDialog (such as a list of strings) it will be converted
+    into a LmChatDialog."""
+    max_tokens: int | None = None
+    """The maximum number of tokens to generate in the completion. If `None`
+    then the model downstream model will choose some default value. This value
+    might be a function of the prompt input length, but this behaviour is not defined. 
+    This means it is possible that the default max might cause errors with long prompts.
+    It recommended that you specify a limit yourself to have more predictable
+    behaviour."""
     stop: List[str] = None
     """Sequences where the model will stop generating further tokens.
-    The returned text will not contain the stop sequence."""
+    The returned text will not contain the stop sequence. This sequence might span
+    accross tokens and does not have to be an actual token in the vocabulary.
+    For example could make a stop token of 'I like pie' even if that's not actually
+    a token. Even though the completion text will not include the stop sequence,
+    it is possible for the returned tokens to have it in cases where the stop sequence
+    is a prefix of the next token.
+    """
     logprobs: int = 1
     """Include the log probabilities on the logprobs most likely tokens,
     as well the chosen tokens. For example, if logprobs is 5, the
@@ -56,10 +70,11 @@ class LmPrompt:
     more conservative in its use of repeated tokens."""
     num_completions: int = 1
     """How many completions to generate for each prompt."""
-    cache: bool = None  # Use the default of the predictor
+    cache: bool = None
     """Whether to attempt to cache the model output. This overrides any default
     settings of the model. This can be useful in saving computation but means
-    sampling might not work as expected."""
+    sampling might not work as expected. When it set to `None` it will use the
+    default of the predictor."""
     echo: bool = False
     """Whether to echo back the original prompt. Also allows you to get the
     probability of the prompt under the model"""
@@ -67,10 +82,11 @@ class LmPrompt:
     """Whether to add a bos (beginning-of-sentence) token at the beginning of the prompt.
     This allows for unconditional generation and allows for the first token to have
     a probability. This always happens in the openai endpoints (presumably), but
-    could be controlled in other models (NOT IMPLEMENTED yet though)."""
+    could be controlled in other models."""
+    # TODO: make a auto_reduce_max_tokens to reduce when might go over.
 
     def __post_init__(self):
-        if not isinstance(self.max_tokens, int):
+        if self.max_tokens is not None and not isinstance(self.max_tokens, int):
             raise ValueError("The max_tokens parameter should be an int.")
         if self.stop is not None:
             if not isinstance(self.stop, list):

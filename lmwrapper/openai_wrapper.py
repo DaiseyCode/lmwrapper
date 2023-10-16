@@ -209,14 +209,19 @@ class OpenAIPredictor(LmPredictor):
 
         def run_func():
              # Wait for rate limit
-            LmPredictor._wait_ratelimit()
+            LmPredictor._wait_ratelimit(self)
+            max_toks = (
+                prompt.max_tokens
+                if prompt.max_tokens is not None
+                else self.default_tokens_generated
+            )
 
             try:
                 if not self._chat_mode:
                     return self._api.Completion.create(
                         engine=self._engine_name,
                         prompt=prompt.get_text_as_string_default_form(),
-                        max_tokens=prompt.max_tokens,
+                        max_tokens=max_toks,
                         stop=prompt.stop,
                         stream=False,
                         logprobs=prompt.logprobs,
@@ -231,7 +236,7 @@ class OpenAIPredictor(LmPredictor):
                         model=self._engine_name,
                         messages=prompt.get_text_as_chat().as_dicts(),
                         temperature=prompt.temperature,
-                        max_tokens=prompt.max_tokens,
+                        max_tokens=max_toks,
                         stop=prompt.stop,
                         top_p=prompt.top_p,
                         n=prompt.num_completions,
@@ -280,6 +285,11 @@ class OpenAIPredictor(LmPredictor):
 
     def remove_special_chars_from_tokens(self, tokens: list[str]) -> list[str]:
         return tokens
+
+    @property
+    def default_tokens_generated(self) -> int:
+        # https://platform.openai.com/docs/api-reference/completions/create#completions/create-max_tokens
+        return 16
 
 
 class OpenAiInstantiationHook(ABC):

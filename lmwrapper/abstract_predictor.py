@@ -67,7 +67,7 @@ class LmPredictor:
 
     def could_completion_go_over_token_limit(self, prompt: LmPrompt) -> bool:
         count = self.estimate_tokens_in_prompt(prompt)
-        return (count + prompt.max_tokens) > self.token_limit
+        return (count + (prompt.max_tokens or self.default_tokens_generated)) > self.token_limit
 
     def model_name(self):
         return self.__class__.__name__
@@ -81,7 +81,7 @@ class LmPredictor:
     def tokenize(self, input_str: str) -> list[str]:
         raise NotImplementedError("This predictor does not implement tokenization")
 
-    def configure_global_ratelimit(max_count=1, per_seconds=1, greedy=False) -> None:
+    def configure_global_ratelimit(self, max_count=1, per_seconds=1, greedy=False) -> None:
         """
         Configure global ratelimiting, max tries per given seconds
         If greedy is set to true, requests will be made without time inbetween,
@@ -96,7 +96,7 @@ class LmPredictor:
 
         return LmPredictor._rate_limit
 
-    def _wait_ratelimit() -> float:
+    def _wait_ratelimit(self) -> float:
         if LmPredictor._rate_limit:
             return LmPredictor._rate_limit.wait()
 
@@ -104,5 +104,9 @@ class LmPredictor:
 
     @property
     @abstractmethod
-    def is_chat_model(self):
+    def is_chat_model(self) -> bool:
         raise NotImplementedError
+
+    @property
+    def default_tokens_generated(self) -> int:
+        return self.token_limit // 8

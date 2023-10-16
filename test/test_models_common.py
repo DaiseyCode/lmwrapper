@@ -402,3 +402,15 @@ def test_remove_prompt_from_cache(lm):
     assert lm.remove_prompt_from_cache(prompt)
     r3 = lm.predict(prompt)
     assert r1.completion_text != r3.completion_text
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_none_max_tokens(lm):
+    prompt = LmPrompt(
+        "Write a long and detailed story about a dog:",
+        max_tokens=None,
+        temperature=1.0,
+        cache=False,
+    )
+    result = lm.predict(prompt)
+    assert len(result.completion_tokens) == lm.default_tokens_generated

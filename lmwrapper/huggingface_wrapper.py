@@ -14,7 +14,6 @@ from lmwrapper.abstract_predictor import LmPredictor
 from lmwrapper.prompt_trimming import PromptTrimmer
 from lmwrapper.structs import LmPrediction, LmPrompt
 
-import humanize
 
 _QUANT_CONFIG = None
 # TODO: Several models do not work on Apple MPS.
@@ -311,7 +310,11 @@ class HuggingfacePredictor(LmPredictor):
 
         # Ref https://gist.github.com/kinoc/8a042d8c5683725aa8c372274c02ea2f
         gen_config = GenerationConfig(
-            max_new_tokens=prompt.max_tokens,
+            max_new_tokens=(
+                prompt.max_tokens
+                if prompt.max_tokens is not None
+                else self.default_tokens_generated
+            ),
             return_dict_in_generate=True,
             output_scores=need_log_prob,
             pad_token_id=self._tokenizer.pad_token_id,
@@ -574,9 +577,6 @@ class HuggingfacePredictor(LmPredictor):
 
         return prediction
 
-    def get_model_max_length(self) -> int:
-        return int(self._model.config.max_length)
-
     @cached_property
     def space_char(self) -> str:
         # Try to discover the space char in the tokens
@@ -593,6 +593,15 @@ class HuggingfacePredictor(LmPredictor):
 
     def tokenize(self, text: str) -> list[str]:
         return self._tokenizer.tokenize(text)
+
+    @property
+    def token_limit(self):
+        return self._model.config.max_length
+
+    def estimate_tokens_in_prompt(self, prompt: LmPrompt) -> int:
+        if prompt.is_text_a_chat():
+            raise NotImplementedError
+        return len(self.tokenize(prompt.text))
 
     @property
     def is_chat_model(self):
@@ -888,9 +897,11 @@ def _initialize_hf_model(
 
 def _warmup_model(predictor: HuggingfacePredictor):
     raise NotImplementedError("Model warmup is not support yet.")
-    small_prompt = LmPrompt("!", cache=False, temperature=0)
+    small_prompt = LmPrompt("!", cache=False, temperature=0, max_tokens=1)
     predictor.predict(small_prompt)
 
-    long_prompt_str = "hello world" * predictor.get_model_max_length()
-    long_prompt = LmPrompt(long_prompt_str, cache=False, temperature=0)
+    single_token = predictor.tokenize("Hello")[0]
+    long_prompt_str = single_token * (predictor.token_limit - 1)
+    assert predictor.tokenize(long_prompt_str) == (predictor.token_limit - 1)
+    long_prompt = LmPrompt(long_prompt_str, cache=False, temperature=0, max_tokens=1)
     predictor.predict(long_prompt)
