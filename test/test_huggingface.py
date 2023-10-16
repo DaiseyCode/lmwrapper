@@ -67,7 +67,7 @@ def test_logprobs_codegen2():
         max_tokens=15,
         cache=False,
         temperature=0,
-        echo=True
+        echo=True,
     )
     outb = lm.predict(prompt)
     logprobs_b = np.array(outb.completion_logprobs)
@@ -76,7 +76,131 @@ def test_logprobs_codegen2():
 
 
 @pytest.mark.slow()
-def test_logprobs_stop_codegen2():
+def test_stop_n_codet5():
+    lm = get_huggingface_lm(Models.CodeT5plus_220M, runtime=Runtime.PYTORCH)
+    no_logprobs_prompt = LmPrompt(
+        text="def hello_world():",
+        max_tokens=50,
+        logprobs=0,
+        temperature=0.0,
+        top_p=1.0,
+        presence_penalty=0.0,
+        frequency_penalty=0.0,
+        num_completions=1,
+        cache=False,
+        echo=False,
+        add_bos_token=False,
+    )
+    no_logprobs_pred = lm.predict(no_logprobs_prompt)
+    assert "\n" in no_logprobs_pred.completion_text
+    assert no_logprobs_pred.completion_tokens[0] not in ["<s>", "<\s>"]
+    assert len(no_logprobs_pred.completion_tokens) == 49
+
+    no_logprobs_n_prompt = LmPrompt(
+        text="def hello_world():\n",
+        max_tokens=50,
+        stop=["\n"],
+        logprobs=0,
+        temperature=0.0,
+        top_p=1.0,
+        presence_penalty=0.0,
+        frequency_penalty=0.0,
+        num_completions=1,
+        cache=False,
+        echo=False,
+        add_bos_token=False,
+    )
+    no_logprobs_n_pred = lm.predict(no_logprobs_n_prompt)
+    assert "\n" not in no_logprobs_n_pred.completion_text
+    assert no_logprobs_n_pred.completion_tokens[0] not in ["<s>", "<\s>"]
+    assert len(no_logprobs_n_pred.completion_tokens) == 5
+
+    logprobs_prompt = LmPrompt(
+        text="def hello_world():",
+        max_tokens=50,
+        logprobs=1,
+        temperature=0.0,
+        top_p=1.0,
+        presence_penalty=0.0,
+        frequency_penalty=0.0,
+        num_completions=1,
+        cache=False,
+        echo=False,
+        add_bos_token=False,
+    )
+    logprobs_pred = lm.predict(logprobs_prompt)
+    assert "\n" in logprobs_pred.completion_text
+    assert logprobs_pred.completion_tokens[0] not in ["<s>", "<\s>"]
+    assert len(logprobs_pred.completion_tokens) == 49
+    assert len(logprobs_pred.completion_logprobs) == len(
+        logprobs_pred.completion_tokens
+    )
+    assert logprobs_pred.completion_logprobs[0] < 0.95
+
+    logprobs_n_prompt = LmPrompt(
+        text="def hello_world():",
+        max_tokens=50,
+        stop=["\n"],
+        logprobs=1,
+        temperature=0.0,
+        top_p=1.0,
+        presence_penalty=0.0,
+        frequency_penalty=0.0,
+        num_completions=1,
+        cache=False,
+        echo=False,
+        add_bos_token=False,
+    )
+    logprobs_n_pred = lm.predict(logprobs_n_prompt)
+    assert "\n" not in logprobs_n_pred.completion_text
+    assert logprobs_n_pred.completion_tokens[0] not in ["<s>", "<\s>"]
+    assert len(logprobs_n_pred.completion_tokens) == 2
+    assert len(logprobs_n_pred.completion_logprobs) == len(
+        logprobs_n_pred.completion_tokens
+    )
+    assert logprobs_n_pred.completion_logprobs[0] < 0.95
+
+
+@pytest.mark.slow()
+def test_stop_n_codegen2():
+    lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH)
+    prompt = LmPrompt(
+        text="def hello_world():\n",
+        max_tokens=500,
+        stop=["\n"],
+        logprobs=1,
+        temperature=0.0,
+        top_p=1.0,
+        presence_penalty=0.0,
+        frequency_penalty=0.0,
+        num_completions=1,
+        cache=False,
+        echo=True,
+        add_bos_token=True,
+    )
+    outa = lm.predict(prompt)
+    # TODO: compare the first line of prompt a vs b
+    prompt_n = LmPrompt(
+        text='    def process_encoding(self, encoding: None | str = None) -> str:\n        """Process explicitly defined encoding or auto-detect it.\n\n        If encoding is explicitly defined, ensure it is a valid encoding the python\n        can deal with. If encoding is not specified, auto-detect it.\n\n        Raises unicodec.InvalidEncodingName if explicitly set encoding is invalid.\n        """\n',
+        max_tokens=500,
+        stop=["\n"],
+        logprobs=1,
+        temperature=0.0,
+        top_p=1.0,
+        presence_penalty=0.0,
+        frequency_penalty=0.0,
+        num_completions=1,
+        cache=False,
+        echo=False,
+        add_bos_token=True,
+    )
+    outb = lm.predict(prompt_n)
+
+    assert len(outb.completion_tokens) > 1
+
+
+@pytest.mark.slow()
+def test_logprobs_equal_stop_codegen2():
     lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH)
     prompt = LmPrompt(
         "place a newline here", max_tokens=5, cache=False, temperature=0, stop=["(o(o"]
@@ -97,7 +221,6 @@ def test_logprobs_stop_codegen2():
         }
     ]
 
-    lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH)
     prompt = LmPrompt(
         "place a newline here",
         max_tokens=5,
@@ -109,16 +232,32 @@ def test_logprobs_stop_codegen2():
     out_b = lm.predict(prompt)
     logprobs_b = np.array(out_b.completion_logprobs)
     assert "(o(o" not in out_b.completion_text
-
-    #assert {
-    #        "token": 78,
-    #        "repr": "'o'",
-    #        "logit": pytest.approx(-2.742025852203369, rel=0.001),
-    #        "probability": pytest.approx(0.06443966925144196, rel=0.001),
-    #    } in out_b.logprobs_dict # TODO: assert that the prompt is correct
-
-
     assert np.allclose(logprobs_a, logprobs_b, atol=0.001, rtol=0.001)
+
+
+@pytest.mark.slow()
+def test_logprobs_echo_stop_codegen2():
+    lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH)
+    prompt = LmPrompt(
+        "place a newline here",
+        max_tokens=5,
+        cache=False,
+        temperature=0,
+        stop=["(o(o"],
+        echo=True,
+    )
+    out_b = lm.predict(prompt)
+    logprobs = np.array(out_b.completion_logprobs)
+    assert "(o(o" not in out_b.completion_text
+    assert len(logprobs) == len(out_b.completion_tokens)
+    assert len(out_b.full_logprobs) == len(out_b.get_full_tokens())
+
+    assert out_b.logprobs_dict[-1] == {
+        "token": 78,
+        "repr": "'o'",
+        "logit": pytest.approx(-2.742025852203369, rel=0.001),
+        "probability": pytest.approx(0.06443966925144196, rel=0.001),
+    }
 
 
 def test_stop_token_removal():
@@ -396,6 +535,7 @@ def test_all_pytorch_runtime(lm: str):
         max_tokens=15,
         cache=False,
         temperature=0,
+        add_bos_token=lm not in SEQ2SEQ_MODELS
     )
     lm = get_huggingface_lm(lm, runtime=Runtime.PYTORCH)
     out = lm.predict(prompt)
@@ -456,4 +596,4 @@ def test_get_tensorrt(lm: str):
 def test_tokenizer():
     lm = get_huggingface_lm("gpt2")
     tokens = lm.tokenize("I like pie")
-    assert tokens == ['I', 'Ġlike', 'Ġpie']
+    assert tokens == ["I", "Ġlike", "Ġpie"]

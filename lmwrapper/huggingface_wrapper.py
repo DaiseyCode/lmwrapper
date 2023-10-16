@@ -14,12 +14,13 @@ from lmwrapper.abstract_predictor import LmPredictor
 from lmwrapper.prompt_trimming import PromptTrimmer
 from lmwrapper.structs import LmPrediction, LmPrompt
 
-import numpy as np
+import humanize
 
 _QUANT_CONFIG = None
 # TODO: Several models do not work on Apple MPS.
 _MPS_ENABLED = os.getenv("MPS_ENABLED", "False").lower() in {"true", "1", "t"}
 _ONNX_RUNTIME = os.getenv("ONNX_RUNTIME", "False").lower() in {"true", "1", "t"}
+_QUANTIZATION_ENABLED = os.getenv("QUANTIZATION", "False").lower() in {"true", "1", "t"}
 
 try:
     import torch
@@ -31,38 +32,38 @@ except ImportError:
         msg,
     )
 
+if _QUANTIZATION_ENABLED:
+    try:
+        import bitsandbytes
 
-try:
-    import bitsandbytes
+        assert version.parse(import_version("bitsandbytes")) >= version.parse(
+            "0.41.1",
+        )
 
-    assert version.parse(import_version("bitsandbytes")) >= version.parse(
-        "0.41.1",
-    )
+        from transformers import BitsAndBytesConfig
 
-    from transformers import BitsAndBytesConfig
-
-    _QUANT_CONFIG = BitsAndBytesConfig(
-        # load_in_8bit (bool, optional, defaults to False) — This flag is used to enable 8-bit quantization with LLM.int8().
-        # load_in_4bit (bool, optional, defaults to False) — This flag is used to enable 4-bit quantization by replacing the Linear layers with FP4/NF4 layers from bitsandbytes.
-        # llm_int8_threshold (float, optional, defaults to 6) — This corresponds to the outlier threshold for outlier detection as described in LLM.int8() : 8-bit Matrix Multiplication for Transformers at Scale paper: https://arxiv.org/abs/2208.07339 Any hidden states value that is above this threshold will be considered an outlier and the operation on those values will be done in fp16. Values are usually normally distributed, that is, most values are in the range [-3.5, 3.5], but there are some exceptional systematic outliers that are very differently distributed for large models. These outliers are often in the interval [-60, -6] or [6, 60]. Int8 quantization works well for values of magnitude ~5, but beyond that, there is a significant performance penalty. A good default threshold is 6, but a lower threshold might be needed for more unstable models (small models, fine-tuning).
-        # llm_int8_skip_modules (List[str], optional) — An explicit list of the modules that we do not want to convert in 8-bit. This is useful for models such as Jukebox that has several heads in different places and not necessarily at the last position. For example for CausalLM models, the last lm_head is kept in its original dtype.
-        # llm_int8_enable_fp32_cpu_offload (bool, optional, defaults to False) — This flag is used for advanced use cases and users that are aware of this feature. If you want to split your model in different parts and run some parts in int8 on GPU and some parts in fp32 on CPU, you can use this flag. This is useful for offloading large models such as google/flan-t5-xxl. Note that the int8 operations will not be run on CPU.
-        # llm_int8_has_fp16_weight (bool, optional, defaults to False) — This flag runs LLM.int8() with 16-bit main weights. This is useful for fine-tuning as the weights do not have to be converted back and forth for the backward pass.
-        # bnb_4bit_compute_dtype (torch.dtype or str, optional, defaults to torch.float32) — This sets the computational type which might be different than the input time. For example, inputs might be fp32, but computation can be set to bf16 for speedups.
-        # bnb_4bit_quant_type (str, {fp4, nf4}, defaults to fp4) — This sets the quantization data type in the bnb.nn.Linear4Bit layers. Options are FP4 and NF4 data types which are specified by fp4 or nf4.
-        # bnb_4bit_use_double_quant (bool, optional, defaults to False) — This flag is used for nested quantization where the quantization constants from the first quantization are quantized again.
-        load_in_4bit=True,
-        bnb_4bit_use_double_quant=True,
-    )
-except ImportError:
-    logging.warning(
-        "8/4bit quantization is disabled as bitsandbytes could not be loaded.",
-    )
+        _QUANT_CONFIG = BitsAndBytesConfig(
+            # load_in_8bit (bool, optional, defaults to False) — This flag is used to enable 8-bit quantization with LLM.int8().
+            # load_in_4bit (bool, optional, defaults to False) — This flag is used to enable 4-bit quantization by replacing the Linear layers with FP4/NF4 layers from bitsandbytes.
+            # llm_int8_threshold (float, optional, defaults to 6) — This corresponds to the outlier threshold for outlier detection as described in LLM.int8() : 8-bit Matrix Multiplication for Transformers at Scale paper: https://arxiv.org/abs/2208.07339 Any hidden states value that is above this threshold will be considered an outlier and the operation on those values will be done in fp16. Values are usually normally distributed, that is, most values are in the range [-3.5, 3.5], but there are some exceptional systematic outliers that are very differently distributed for large models. These outliers are often in the interval [-60, -6] or [6, 60]. Int8 quantization works well for values of magnitude ~5, but beyond that, there is a significant performance penalty. A good default threshold is 6, but a lower threshold might be needed for more unstable models (small models, fine-tuning).
+            # llm_int8_skip_modules (List[str], optional) — An explicit list of the modules that we do not want to convert in 8-bit. This is useful for models such as Jukebox that has several heads in different places and not necessarily at the last position. For example for CausalLM models, the last lm_head is kept in its original dtype.
+            # llm_int8_enable_fp32_cpu_offload (bool, optional, defaults to False) — This flag is used for advanced use cases and users that are aware of this feature. If you want to split your model in different parts and run some parts in int8 on GPU and some parts in fp32 on CPU, you can use this flag. This is useful for offloading large models such as google/flan-t5-xxl. Note that the int8 operations will not be run on CPU.
+            # llm_int8_has_fp16_weight (bool, optional, defaults to False) — This flag runs LLM.int8() with 16-bit main weights. This is useful for fine-tuning as the weights do not have to be converted back and forth for the backward pass.
+            # bnb_4bit_compute_dtype (torch.dtype or str, optional, defaults to torch.float32) — This sets the computational type which might be different than the input time. For example, inputs might be fp32, but computation can be set to bf16 for speedups.
+            # bnb_4bit_quant_type (str, {fp4, nf4}, defaults to fp4) — This sets the quantization data type in the bnb.nn.Linear4Bit layers. Options are FP4 and NF4 data types which are specified by fp4 or nf4.
+            # bnb_4bit_use_double_quant (bool, optional, defaults to False) — This flag is used for nested quantization where the quantization constants from the first quantization are quantized again.
+            load_in_4bit=True,
+            bnb_4bit_use_double_quant=True,
+        )
+    except ImportError:
+        logging.warning(
+            "8/4bit quantization is disabled as bitsandbytes could not be loaded.",
+        )
 
 try:
     import transformers
 
-    assert version.parse(transformers.__version__) >= version.parse("4.31.0")
+    assert version.parse(transformers.__version__) >= version.parse("4.33.2")
 
     from transformers import (
         AutoModelForCausalLM,
@@ -75,6 +76,9 @@ try:
         T5ForConditionalGeneration,
         set_seed,
     )
+
+    from transformers.generation.utils import GenerateOutput
+    from transformers.utils.generic import TensorType
 
     set_seed(42)
 except ImportError:
@@ -132,6 +136,16 @@ class Runtime(Enum):
     BETTER_TRANSFORMER = 6
 
 
+def log_cuda_mem():
+    if torch.cuda.is_available():
+        logging.debug(
+            "Allocated/Reserved: "
+            + humanize.naturalsize(torch.cuda.memory_allocated())
+            + " / "
+            + humanize.naturalsize(torch.cuda.memory_reserved())
+        )
+
+
 class HuggingfacePredictor(LmPredictor):
     def __init__(
         self,
@@ -157,7 +171,7 @@ class HuggingfacePredictor(LmPredictor):
             "name_or_path": self._model.name_or_path,
         }
 
-    def _predict_maybe_cached(
+    def _predict_hf(
         self,
         prompt: LmPrompt,
     ) -> LmPrediction | list[LmPrediction]:
@@ -180,29 +194,22 @@ class HuggingfacePredictor(LmPredictor):
                 "Retrieving more than 1 logprob is not yet supported for HuggingFace models."
             )
 
-        if prompt.logprobs and (prompt.temperature > 0 or prompt.top_p):
-            logging.warning(
-                "Logprobs may not be correct if temperature > 0 or top_p != 1.0"
-            )
+        if prompt.logprobs and prompt.top_p != 1.0:
+            logging.warning("Logprobs may not be correct if top_p != 1.0")
 
-        if prompt.presence_penalty:
-            raise NotImplementedError
-
-        stopping_criteria = None
-        if prompt.stop:
-            stopping_criteria = [
-                _TokenStoppingCriteria(
-                    prompt.stop, decode=True, tokenizer=self._tokenizer
-                )
-            ]
-
-        temperature = prompt.temperature
-        if temperature == 0:
-            temperature = None
+        if prompt.presence_penalty != 0.0:
+            raise NotImplementedError("Presence penalty not implemented")
 
         if prompt.text == "" and not prompt.add_bos_token:
             raise Exception(
                 "Cannot do unconditional generation without `add_bos_token`."
+            )
+
+        is_encoder_decoder = self._model.config.is_encoder_decoder
+
+        if is_encoder_decoder and prompt.add_bos_token:
+            raise Exception(
+                "Encoder/decoder models should not have bos tokens added manually."
             )
 
         if prompt.add_bos_token:
@@ -212,9 +219,7 @@ class HuggingfacePredictor(LmPredictor):
             prompt_text = prompt.text
 
         max_length = self._model.config.max_length
-        model_parameters = set(
-            inspect.signature(self._model.forward).parameters.keys()
-        )
+        model_parameters = set(inspect.signature(self._model.forward).parameters.keys())
         model_requires_attention_mask = "attention_mask" in model_parameters
 
         if self.prompt_trimmer:
@@ -236,42 +241,83 @@ class HuggingfacePredictor(LmPredictor):
                     "Prompt is too long for model. Please pass in a trimmer."
                 )
 
+        if is_encoder_decoder:
+            encoded_input["decoder_input_ids"] = encoded_input["input_ids"].clone()
+
+        logging.debug("Pre moving encoded tokens")
+        log_cuda_mem()
         if self.runtime != Runtime.ACCELERATE:
             encoded_input = encoded_input.to(
                 self._device,
             )  # Move to device
-
+        logging.debug("Post moving encoded tokens")
+        log_cuda_mem()
         # ONNX models themselves cannot be moved to a device
         # but their input tensors must be moved to GPU
         # Similarly, Accelerate takes care of moving tensors
+        logging.debug("Pre model moving")
+        log_cuda_mem()
         if self.runtime != Runtime.ACCELERATE and (
             not _ONNX_RUNTIME or not isinstance(self._model, ORTModel)
         ):
             self._model.to(self._device)  # Ensure model is on device
-
+        logging.debug("Post model moving")
+        log_cuda_mem()
         need_log_prob = prompt.logprobs is not None and prompt.logprobs > 0
 
-        # Some models do not have a pad token, default to 0
-        if self._tokenizer.pad_token_id:
-            pad_token_id = self._tokenizer.pad_token_id
+        do_sample = prompt.temperature > 0
+        num_beams = 1
+        # num_beams (int, optional, defaults to 1) — Number of beams for beam search. 1 means no beam search.
 
+        penalty_alpha = 0.0
+        top_k = 50
+        num_beam_groups = 1
+        generation_kwargs = {
+            "temperature": prompt.temperature,
+            # "top_p": prompt.top_p,
+            "do_sample": do_sample,
+            # "diversity_penalty": prompt.presence_penalty, # This value is subtracted from a beam’s score
+            # if it generates a token same as any beam from other group at a particular time.
+            # Note that diversity_penalty is only effective if group beam search is enabled.
+            # "repetition_penalty": prompt.frequency_penalty # The parameter for repetition penalty. 1.0 means no penalty
+        }
+
+        # Temperature cannot be set if do_sample is False
+        # do_sample is False if prompt.temperature == 0
+        # Otherwise you get the following error from HuggingFace:
+        # UserWarning: `do_sample` is set to `False`.
+        # However, `temperature` is set to `0.0` -- this flag is only used in
+        # sample-based generation modes. You should set `do_sample=True` or unset
+        # `temperature`. This was detected when initializing the generation config
+        # instance, which means the corresponding file may hold incorrect
+        # parameterization and should be fixed.
+        if not do_sample:  # i.e. prompt.temperature == 0.0:
+            generation_kwargs.pop("temperature", None)
+
+        if num_beams == 1 and do_sample is False:
+            logging.info("Decoding strategy: greedy decoding")
+        elif penalty_alpha > 0.0 and top_k > 1:
+            logging.info("Decoding strategy: contrastive search")
+        elif num_beams == 1 and do_sample is True:
+            logging.info("Decoding strategy: multinomial sampling")
+        elif num_beams > 1 and do_sample is False:
+            logging.info("Decoding strategy: beam-search decoding")
+        elif num_beams > 1 and do_sample is True:
+            logging.info("Decoding strategy: beam-search multinomial sampling")
+        elif num_beams > 1 and num_beam_groups > 1:
+            logging.info("Decoding strategy: diverse beam-search")
         else:
-            pad_token_id = 0
-            logging.warning(
-                "Tokenizer does not have a pad_token_id. Setting pad_token_id to 0. May cause unexpected behavior."
-            )
+            logging.info("Unable to predict decoding strategy!")
 
         # Ref https://gist.github.com/kinoc/8a042d8c5683725aa8c372274c02ea2f
         gen_config = GenerationConfig(
             max_new_tokens=prompt.max_tokens,
-            temperature=temperature,
-            top_p=prompt.top_p,
-            do_sample=prompt.temperature > 0,
             return_dict_in_generate=True,
             output_scores=need_log_prob,
-            pad_token_id=pad_token_id,
+            pad_token_id=self._tokenizer.pad_token_id,
             eos_token_id=self._tokenizer.eos_token_id,
             bos_token_id=self._tokenizer.bos_token_id,
+            **generation_kwargs,
         )
 
         if patch_model_forward:
@@ -285,12 +331,15 @@ class HuggingfacePredictor(LmPredictor):
             cached_logits = []
 
             if model_requires_attention_mask:
+
                 def new_call(attention_mask, *args, **kwargs):
                     nonlocal cached_logits
                     val = old_forward(attention_mask=attention_mask, *args, **kwargs)
                     cached_logits.append(val.logits)
                     return val
+
             else:
+
                 def new_call(*args, **kwargs):
                     nonlocal cached_logits
                     val = old_forward(*args, **kwargs)
@@ -299,41 +348,51 @@ class HuggingfacePredictor(LmPredictor):
 
             self._model.forward = new_call
 
+        logging.debug("Pre generate")
+        log_cuda_mem()
+
+        stopping_criteria = None
+        # input_length is the length of the input prompt for decoder-only models,
+        # like the GPT family, and 1 ?? for encoder-decoder models, like BART or T5.
+        # we add 2 to consider the </s> at the end of the prompt and the first <s> as input
+        input_length = (
+            encoded_input.input_ids.shape[1] + 2
+            if is_encoder_decoder
+            else encoded_input.input_ids.shape[1]
+        )
+        if prompt.stop:
+            stopping_criteria = [
+                _TokenStoppingCriteria(
+                    prompt.stop,
+                    decode=True,
+                    tokenizer=self._tokenizer,
+                    input_length=input_length,
+                )
+            ]
+
         with torch.no_grad():
-            generation_output = self._model.generate(
+            generation_output: GenerateOutput = self._model.generate(
                 **encoded_input,
                 generation_config=gen_config,
                 stopping_criteria=stopping_criteria,
             )
+        logging.info("Generation output type:" + str(type(generation_output)))
+        logging.debug("Post generate")
+        log_cuda_mem()
 
         if patch_model_forward:
             self._model.forward = old_forward
 
-        output_sequence = generation_output.sequences[0]
+        model_output_sequence = generation_output.sequences[
+            0
+        ]  # we will not mutate this one
 
-        # input_length is the length of the input prompt for decoder-only models,
-        # like the GPT family, and 1 for encoder-decoder models, like BART or T5.
-        input_length = (
-            1
-            if self._model.config.is_encoder_decoder
-            else encoded_input.input_ids.shape[1]
-        )
+        output_sequence = model_output_sequence  # we will mutate this one
 
-        # if prompt.add_bos_token:
-        #     output_sequence = output_sequence[1:]
-        #     generated_sequence = output_sequence[input_length-1:]
-        # else:
-        generated_sequence = output_sequence[input_length:]
-
-        output_text = self._tokenizer.decode(output_sequence)
-
+        generated_sequence = model_output_sequence[input_length:]
 
         stop_token_idx_output = None
         stop_token_idx_generated = None
-        output_tokens = self._tokenizer.convert_ids_to_tokens(output_sequence)
-        if prompt.add_bos_token:
-            output_tokens = output_tokens[1:]
-
 
         token_offsets = []
         token_offsets_full = []
@@ -345,7 +404,11 @@ class HuggingfacePredictor(LmPredictor):
             j += token_len
 
         generated_text = self._tokenizer.decode(generated_sequence)
-
+        clean_generated_text = self._tokenizer.decode(
+            generated_sequence,
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=True,
+        )
         if prompt.stop:
             sorted_stop_sequences = sorted(prompt.stop, key=len, reverse=True)
 
@@ -354,6 +417,10 @@ class HuggingfacePredictor(LmPredictor):
                 if stop_sequence in generated_text:
                     stop_idx = generated_text.index(stop_sequence)
                     generated_text = generated_text[:stop_idx]
+
+                    clean_stop_idx = clean_generated_text.index(stop_sequence)
+                    clean_generated_text = clean_generated_text[:clean_stop_idx]
+
                     stop_token_idx_generated = token_offsets_full[stop_idx]
                     if (
                         stop_token_idx_generated > 0  # ensure not first token
@@ -366,40 +433,79 @@ class HuggingfacePredictor(LmPredictor):
                             1  # if they're equal, we include the current token
                         )
                     stop_token_idx_output = input_length + stop_token_idx_generated
-                    output_sequence = output_sequence[:stop_token_idx_output]
+                    output_sequence = model_output_sequence[:stop_token_idx_output]
                     generated_sequence = output_sequence[input_length:]
                     break
 
+        # Use .decode as convert_ids_to_tokens leaves artifacts:
+        # e.g.: convert: 'Ġprocess'
+        # decode: ' process'
+        # Original: self._tokenizer.convert_ids_to_tokens(output_sequence)
+        output_tokens = [self._tokenizer.decode(t) for t in output_sequence]
+        if len(output_tokens) != len(output_sequence):
+            raise Exception("Output token length did not match output sequence length!")
+
+        if prompt.add_bos_token:
+            output_tokens = output_tokens[1:]
+            output_sequence = output_sequence[1:]
+
+        logprobs_dicts = []
         # Calculate the logprobs if needed
         if need_log_prob:
             if patch_model_forward:
+                assert prompt.echo
+                assert not is_encoder_decoder
+
                 all_logits = torch.cat(cached_logits, dim=1)
                 assert all_logits.shape[0] == 1  # batch
-                assert all_logits.shape[1] == len(output_tokens)
+                assert all_logits.shape[1] == len(model_output_sequence[1:])
                 logprobs = _gather_logprobs_from_logits(
                     all_logits[0],
-                    output_sequence[1:],
+                    model_output_sequence[1:],
                 )
 
-                assert len(output_sequence[1:]) == len(logprobs)
+                assert len(model_output_sequence[1:]) == len(logprobs)
+                if stop_token_idx_output and stop_token_idx_output > 0:
+                    logprobs = logprobs[: stop_token_idx_output - 1]
+
+                assert len(output_sequence) == len(logprobs)
             else:
-                logprobs = self._model.compute_transition_scores(
+                full_logprobs = self._model.compute_transition_scores(
                     generation_output.sequences,
                     generation_output.scores,
                     normalize_logits=True,
-                )[0, :stop_token_idx_generated]
+                )[0]
+                if is_encoder_decoder:
+                    # we need to chop off the <s> first token
+                    # as its probability will throw off uncertainty estimates
+                    if stop_token_idx_generated:
+                        # if a stop token is defined, we need to step one further due to the <s>
+                        # TODO: we can clean this up with better input_length logic
+                        logprobs = full_logprobs[1 : stop_token_idx_generated + 1]
+                    else:
+                        logprobs = full_logprobs[1:]
+                else:
+                    logprobs = full_logprobs[:stop_token_idx_generated]
                 assert len(generated_sequence) == len(logprobs)
 
-            token_sequence = output_sequence[1:] if prompt.echo else generated_sequence
+            token_sequence = output_sequence if prompt.echo else generated_sequence
+            token_sequence = token_sequence.detach().cpu()
+            logprobs = logprobs.detach().cpu()
+            probabilities = logprobs.exp()
+
+            assert len(token_sequence) == len(logprobs)
+            assert len(probabilities) == len(token_sequence)
+
             # Create logprobs dict
-            logprobs_dicts = []
-            for tok, score in zip(token_sequence, logprobs, strict=True):
+            for token, score, probability in zip(
+                token_sequence, logprobs, probabilities, strict=True
+            ):
                 logprobs_dicts.append(
                     {
-                        "token": int(tok.detach().cpu()),
-                        "repr": repr(self._tokenizer.decode(tok)),
-                        "logit": float(score.item()),
-                        "probability": float(np.exp(score.detach().cpu())),
+                        "token": int(token),
+                        "repr": repr(self._tokenizer.decode(token)),
+                        "logit": float(score),
+                        "probability": float(probability),
                     }
                 )
         else:
@@ -411,16 +517,62 @@ class HuggingfacePredictor(LmPredictor):
             logprobs = logprobs[:-1]
             generated_text = ""
             generation_output.sequences = generation_output.sequences[:, :-1]
+            clean_generated_text = ""
+
+        logging.debug("Pre del statements")
+        log_cuda_mem()
+
+        np_logprobs = logprobs.detach().cpu().numpy() if logprobs is not None else None
+        np_encoded_input = (
+            encoded_input.to("cpu").convert_to_tensors(TensorType.NUMPY).copy()
+        )
+
+        # generation_output needs to be mapped to .detach().cpu().numpy() for all tensors
+        updated_output = {}
+
+        def numpy_tuple(value):
+            if isinstance(value, torch.Tensor):
+                return value.detach().cpu().numpy()
+            if isinstance(value, tuple):
+                return tuple([numpy_tuple(v) for v in value])
+
+        for key, value in generation_output.items():
+            updated_output[key] = numpy_tuple(value)
+
+        del generation_output
+        del logprobs
+        del encoded_input
+
+        logging.debug("Post del statements")
+        log_cuda_mem()
 
         return HuggingfacePrediction(
-            completion_text=generated_text,
+            completion_text=clean_generated_text,
             prompt=prompt,
-            metad=generation_output,
-            _prompt_encoding=encoded_input.to("cpu"),
+            metad=updated_output,
+            _completion_with_special_tok=generated_text,
+            _num_prompt_tokens=int(input_length),
+            _prompt_encoding=np_encoded_input,
             _tokens=output_tokens,
-            _log_probs=logprobs.detach().cpu().numpy(),
+            _log_probs=np_logprobs,
             _logprobs_dict=logprobs_dicts,
         )
+
+    def _predict_maybe_cached(
+        self,
+        prompt: LmPrompt,
+    ) -> LmPrediction | list[LmPrediction]:
+        if torch.cuda.is_available():
+            pre_memory = torch.cuda.memory_allocated()
+
+        prediction = self._predict_hf(prompt)
+
+        if torch.cuda.is_available():
+            post_memory = torch.cuda.memory_allocated()
+            if (post_memory - pre_memory) > 31_457_280:  # 30mb delta
+                logging.warning("Possible memory leak detected in model prediction.")
+
+        return prediction
 
     def get_model_max_length(self) -> int:
         return int(self._model.config.max_length)
@@ -542,7 +694,7 @@ def get_huggingface_lm(
         }
     elif model == "Salesforce/instructcodet5p-16b":
         model_class = AutoModelForSeq2SeqLM
-        _kwargs = {
+        _kwargs |= {
             "low_cpu_mem_usage": True,
         }
 
@@ -583,11 +735,15 @@ def _initialize_hf_model(
         tokenizer = PreTrainedTokenizerFast(tokenizer_object=tokenizer)
 
     if runtime == Runtime.PYTORCH:
+        logging.debug("Before model instantiation")
+        log_cuda_mem()
         model = model_class.from_pretrained(
             model_name,
             torch_dtype=precision,
             **_kwargs,
         )
+        logging.debug("Post model instantiation")
+        log_cuda_mem()
     elif runtime == Runtime.ACCELERATE:
         model = model_class.from_pretrained(
             model_name,
@@ -704,6 +860,13 @@ def _initialize_hf_model(
     else:
         msg = "Invalid Runtime provided."
         raise Exception(msg)
+
+    # Some models do not have a pad token, default to 0
+    if not tokenizer.pad_token_id:
+        tokenizer.pad_token_id = 0
+        logging.warning(
+            "Tokenizer does not have a pad_token_id. Setting pad_token_id to 0. May cause unexpected behavior."
+        )
 
     predictor = HuggingfacePredictor(
         tokenizer,

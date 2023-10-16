@@ -144,6 +144,7 @@ please make a Github Issue.
 - [X] Huggingface device checking on PyTorch
 - [X] Move cache to be per project
 - [ ] sort through usage of quantized models
+- [ ] async / streaming
 - [ ] Redesign cache to make it easier to manage
 - [ ] Additional Huggingface runtimes (TensorRT, BetterTransformers, etc)
 - [ ] Anthropic interface

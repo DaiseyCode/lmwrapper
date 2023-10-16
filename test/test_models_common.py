@@ -187,6 +187,25 @@ capital_prompt = "The capital of Germany is the city Berlin. " \
                  "The capital of UK is the city London. " \
                  "The capital of France"
 
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_no_stopping_in_prompt(lm):
+    capital_newlines = "The capitol of Germany\n is the city Berlin.\n" \
+                 "The capital of Spain\n is the city Madrid.\n" \
+                 "The capital of UK\n is the city London.\n" \
+                 "The capital of France\n"
+    # By having the last character of the prompt be a stop token
+    # we ensure that stopping logic does not include the prompt
+    new_line = lm.predict(
+        LmPrompt(
+            capital_newlines,
+            stop=["\n"],
+            max_tokens=4,
+            logprobs=1,
+            temperature=0,
+            cache=False,
+        )
+    )
+    assert len(new_line.completion_tokens) == 4
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_stopping_begin_tok(lm):
@@ -374,7 +393,7 @@ def test_remove_prompt_from_cache(lm):
     prompt = LmPrompt(
         "Write a story about a dog:",
         max_tokens=10,
-        temperature=1.0,
+        temperature=2.0,
         cache=True,
     )
     r1 = lm.predict(prompt)
