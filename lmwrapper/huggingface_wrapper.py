@@ -136,6 +136,7 @@ class Runtime(Enum):
 
 
 def log_cuda_mem():
+    import humanize
     if torch.cuda.is_available():
         logging.debug(
             "Allocated/Reserved: "
