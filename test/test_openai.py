@@ -58,14 +58,13 @@ def test_too_large_logprob():
         )
 
 
-
-
 def test_simple_chat_mode():
     lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo)
     out = lm.predict(LmPrompt(
         "What is 2+2? Answer with just one number.",
         max_tokens=1,
         num_completions=1,
+        temperature=0.0,
         cache=False,
     ))
     assert out.completion_text.strip() == "4"
