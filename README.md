@@ -27,7 +27,8 @@ from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
 from lmwrapper.structs import LmPrompt
 
 lm = get_open_ai_lm(
-    model_name=OpenAiModelNames.text_ada_001,
+    model_name=OpenAiModelNames.text_ada_001,  # Or use OpenAiModelNames.gpt_3_5_turbo_instruct
+                                               # for the most capable completion model.
     api_key_secret=None, # By default this will read from the OPENAI_API_KEY environment variable.
                          # If that isn't set, it will try the file ~/oai_key.txt
                          # You need to place the key in one of these places,
