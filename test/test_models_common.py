@@ -391,8 +391,8 @@ def test_stopping_span_subtoks_multiple(lm):
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_remove_prompt_from_cache(lm):
     prompt = LmPrompt(
-        "Write a story about a dog:",
-        max_tokens=10,
+        "Write a fun story about a dog:",
+        max_tokens=50,
         temperature=2.0,
         cache=True,
     )

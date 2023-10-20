@@ -209,7 +209,7 @@ class OpenAIPredictor(LmPredictor):
 
         def run_func():
              # Wait for rate limit
-            LmPredictor._wait_ratelimit(self)
+            LmPredictor._wait_ratelimit()
             max_toks = (
                 prompt.max_tokens
                 if prompt.max_tokens is not None

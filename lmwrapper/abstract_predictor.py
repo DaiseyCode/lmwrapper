@@ -96,7 +96,8 @@ class LmPredictor:
 
         return LmPredictor._rate_limit
 
-    def _wait_ratelimit(self) -> float:
+    @classmethod
+    def _wait_ratelimit(cls) -> float:
         if LmPredictor._rate_limit:
             return LmPredictor._rate_limit.wait()
 
