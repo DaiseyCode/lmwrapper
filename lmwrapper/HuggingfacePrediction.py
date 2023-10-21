@@ -1,8 +1,7 @@
-from lmwrapper.structs import LmPrediction
-
-
 from dataclasses import dataclass
 from typing import Any
+
+from lmwrapper.structs import LmPrediction
 
 
 @dataclass
@@ -47,7 +46,10 @@ class HuggingfacePrediction(LmPrediction):
     @property
     def prompt_logprobs(self):
         if not self.prompt.echo:
-            raise ValueError("This property is not available unless the prompt echo is set to True")
+            msg = "This property is not available unless the prompt echo is set to True"
+            raise ValueError(
+                msg,
+            )
         self._verify_logprobs()
         return self._log_probs[: self._num_prompt_tokens]
 

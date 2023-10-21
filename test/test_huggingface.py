@@ -1,13 +1,12 @@
-from lmwrapper.runtime import Runtime
-from lmwrapper.prompt_trimming import HfTokenTrimmer
-from lmwrapper.utils import StrEnum
-
+import numpy as np
 import pytest
 import torch
-import numpy as np
 
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
+from lmwrapper.prompt_trimming import HfTokenTrimmer
+from lmwrapper.runtime import Runtime
 from lmwrapper.structs import LmPrompt
+from lmwrapper.utils import StrEnum
 
 
 class Models(StrEnum):
@@ -53,7 +52,9 @@ def test_code_llama():
 @pytest.mark.slow()
 def test_trim_start():
     lm = get_huggingface_lm(
-        Models.CodeGen2_1B, runtime=Runtime.PYTORCH, trust_remote_code=True
+        Models.CodeGen2_1B,
+        runtime=Runtime.PYTORCH,
+        trust_remote_code=True,
     )
     ltrimmer = HfTokenTrimmer(2, lm._tokenizer, start_from_left_side=True)
 
@@ -124,7 +125,7 @@ def test_stop_n_codet5():
     )
     no_logprobs_pred = lm.predict(no_logprobs_prompt)
     assert "\n" in no_logprobs_pred.completion_text
-    assert no_logprobs_pred.completion_tokens[0] not in ["<s>", "<\s>"]
+    assert no_logprobs_pred.completion_tokens[0] not in ["<s>", r"<\s>"]
     assert len(no_logprobs_pred.completion_tokens) == 49
 
     no_logprobs_n_prompt = LmPrompt(
@@ -143,7 +144,7 @@ def test_stop_n_codet5():
     )
     no_logprobs_n_pred = lm.predict(no_logprobs_n_prompt)
     assert "\n" not in no_logprobs_n_pred.completion_text
-    assert no_logprobs_n_pred.completion_tokens[0] not in ["<s>", "<\s>"]
+    assert no_logprobs_n_pred.completion_tokens[0] not in ["<s>", r"<\s>"]
     assert len(no_logprobs_n_pred.completion_tokens) == 5
 
     logprobs_prompt = LmPrompt(
@@ -161,10 +162,10 @@ def test_stop_n_codet5():
     )
     logprobs_pred = lm.predict(logprobs_prompt)
     assert "\n" in logprobs_pred.completion_text
-    assert logprobs_pred.completion_tokens[0] not in ["<s>", "<\s>"]
+    assert logprobs_pred.completion_tokens[0] not in ["<s>", r"<\s>"]
     assert len(logprobs_pred.completion_tokens) == 49
     assert len(logprobs_pred.completion_logprobs) == len(
-        logprobs_pred.completion_tokens
+        logprobs_pred.completion_tokens,
     )
     assert logprobs_pred.completion_logprobs[0] < 0.95
 
@@ -184,10 +185,10 @@ def test_stop_n_codet5():
     )
     logprobs_n_pred = lm.predict(logprobs_n_prompt)
     assert "\n" not in logprobs_n_pred.completion_text
-    assert logprobs_n_pred.completion_tokens[0] not in ["<s>", "<\s>"]
+    assert logprobs_n_pred.completion_tokens[0] not in ["<s>", r"<\s>"]
     assert len(logprobs_n_pred.completion_tokens) == 2
     assert len(logprobs_n_pred.completion_logprobs) == len(
-        logprobs_n_pred.completion_tokens
+        logprobs_n_pred.completion_tokens,
     )
     assert logprobs_n_pred.completion_logprobs[0] < 0.95
 
@@ -195,7 +196,9 @@ def test_stop_n_codet5():
 @pytest.mark.slow()
 def test_stop_n_codegen2():
     lm = get_huggingface_lm(
-        Models.CodeGen2_1B, runtime=Runtime.PYTORCH, trust_remote_code=True
+        Models.CodeGen2_1B,
+        runtime=Runtime.PYTORCH,
+        trust_remote_code=True,
     )
     prompt = LmPrompt(
         text="def hello_world():\n",
@@ -214,7 +217,14 @@ def test_stop_n_codegen2():
     outa = lm.predict(prompt)
     # TODO: compare the first line of prompt a vs b
     prompt_n = LmPrompt(
-        text='    def process_encoding(self, encoding: None | str = None) -> str:\n        """Process explicitly defined encoding or auto-detect it.\n\n        If encoding is explicitly defined, ensure it is a valid encoding the python\n        can deal with. If encoding is not specified, auto-detect it.\n\n        Raises unicodec.InvalidEncodingName if explicitly set encoding is invalid.\n        """\n',
+        text=(
+            "    def process_encoding(self, encoding: None | str = None) -> str:\n     "
+            '   """Process explicitly defined encoding or auto-detect it.\n\n        If'
+            " encoding is explicitly defined, ensure it is a valid encoding the"
+            " python\n        can deal with. If encoding is not specified, auto-detect"
+            " it.\n\n        Raises unicodec.InvalidEncodingName if explicitly set"
+            ' encoding is invalid.\n        """\n'
+        ),
         max_tokens=500,
         stop=["\n"],
         logprobs=1,
@@ -229,17 +239,24 @@ def test_stop_n_codegen2():
     )
     outb = lm.predict(prompt_n)
 
+    assert len(outa.completion_tokens) > 1
     assert len(outb.completion_tokens) > 1
 
 
 @pytest.mark.slow()
 def test_logprobs_equal_stop_codegen2():
     lm = get_huggingface_lm(
-        Models.CodeGen2_1B, runtime=Runtime.PYTORCH, trust_remote_code=True
+        Models.CodeGen2_1B,
+        runtime=Runtime.PYTORCH,
+        trust_remote_code=True,
     )
     stop = "    "
     prompt = LmPrompt(
-        "place a newline here", max_tokens=5, cache=False, temperature=0, stop=[stop]
+        "place a newline here",
+        max_tokens=5,
+        cache=False,
+        temperature=0,
+        stop=[stop],
     )
 
     out_a = lm.predict(prompt)
@@ -254,7 +271,7 @@ def test_logprobs_equal_stop_codegen2():
             "repr": "'\\n'",
             "logit": pytest.approx(-1.363785982131958, rel=0.001),
             "probability": pytest.approx(0.25569090247154236, rel=0.001),
-        }
+        },
     ]
 
     prompt = LmPrompt(
@@ -274,7 +291,9 @@ def test_logprobs_equal_stop_codegen2():
 @pytest.mark.slow()
 def test_logprobs_echo_stop_codegen2():
     lm = get_huggingface_lm(
-        Models.CodeGen2_1B, runtime=Runtime.PYTORCH, trust_remote_code=True
+        Models.CodeGen2_1B,
+        runtime=Runtime.PYTORCH,
+        trust_remote_code=True,
     )
     stop = "    "
     prompt = LmPrompt(
@@ -292,11 +311,11 @@ def test_logprobs_echo_stop_codegen2():
     assert len(out_b.full_logprobs) == len(out_b.get_full_tokens())
 
     assert out_b.logprobs_dict[-1] == {
-            "token": 198,
-            "repr": "'\\n'",
-            "logit": pytest.approx(-1.363785982131958, rel=0.001),
-            "probability": pytest.approx(0.25569090247154236, rel=0.001),
-        }
+        "token": 198,
+        "repr": "'\\n'",
+        "logit": pytest.approx(-1.363785982131958, rel=0.001),
+        "probability": pytest.approx(0.25569090247154236, rel=0.001),
+    }
 
 
 def test_stop_token_removal():
@@ -412,7 +431,11 @@ def test_stop_token_removal():
     ]
 
     prompt = LmPrompt(
-        prompt_str, max_tokens=15, cache=False, temperature=0, stop=["Italy"]
+        prompt_str,
+        max_tokens=15,
+        cache=False,
+        temperature=0,
+        stop=["Italy"],
     )
     out = lm.predict(prompt)
     assert "Italy" not in out.completion_text
@@ -567,7 +590,7 @@ def test_distilgpt2_pytorch_runtime():
 def test_all_pytorch_runtime(lm: str):
     if SMALL_GPU and lm in BIG_MODELS:
         pytest.skip(
-            f"Skipped model '{lm}' as model too large for available GPU memory."
+            f"Skipped model '{lm}' as model too large for available GPU memory.",
         )
     prompt = LmPrompt(
         "print('Hello world",

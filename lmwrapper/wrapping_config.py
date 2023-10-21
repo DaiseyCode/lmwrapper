@@ -1,5 +1,6 @@
 from abc import ABC
-from transformers import PreTrainedModel, AutoModelForSeq2SeqLM
+
+from transformers import AutoModelForSeq2SeqLM, PreTrainedModel
 from transformers.models.auto.modeling_auto import _BaseAutoModelClass
 
 
@@ -16,8 +17,7 @@ class _BigModelMixin(HuggingFaceModelWrappingConfig):
         self.model_kwargs |= {"low_cpu_mem_usage": True}
 
 
-class _AutoModel(HuggingFaceModelWrappingConfig):
-    ...
+class _AutoModel(HuggingFaceModelWrappingConfig): ...
 
 
 class _PreTrainedModel(HuggingFaceModelWrappingConfig):
@@ -35,6 +35,7 @@ class _CodegenFamily(_AutoModel):
         "revision": "main",
         "use_cache": False,
     }
+
 
 class InstructCodeT5P_16B(_CodegenFamily, _BigModelMixin):
     model_name = "Salesforce/instructcodet5p-16b"

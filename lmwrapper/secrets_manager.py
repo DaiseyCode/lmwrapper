@@ -1,13 +1,14 @@
-from abc import abstractmethod
 import os
+from abc import abstractmethod
 from pathlib import Path
 
 
-def assert_is_a_secret(secret, name: str = None):
+def assert_is_a_secret(secret, name: str | None = None):
     if name is None:
         name = "secret"
     if isinstance(secret, str):
-        raise ValueError(f"Don't hardcode the {name}! Use a SecretInterface instead.")
+        msg = f"Don't hardcode the {name}! Use a SecretInterface instead."
+        raise ValueError(msg)
     assert hasattr(secret, "get_secret"), f"{name} must be a SecretInterface"
 
 
@@ -23,7 +24,8 @@ class SecretInterface:
 class SecretFile(SecretInterface):
     def __init__(self, path: Path):
         if not path.exists():
-            raise FileNotFoundError(f"Secret file {path} not found")
+            msg = f"Secret file {path} not found"
+            raise FileNotFoundError(msg)
         self.path = path
 
     def is_readable(self) -> bool:

@@ -21,7 +21,9 @@ class _TokenStoppingCriteria(StoppingCriteria):
             self.stop_sequences = stop_sequences
         else:
             stop_tokens = self._tokenizer(
-                stop_sequences, add_special_tokens=False, return_attention_mask=False
+                stop_sequences,
+                add_special_tokens=False,
+                return_attention_mask=False,
             ).input_ids
             assert len(stop_tokens) == len(stop_sequences)
 
@@ -34,15 +36,19 @@ class _TokenStoppingCriteria(StoppingCriteria):
             self.max_stop_sequence_length = max(map(len, stop_sequences))
 
     def __call__(
-        self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs
+        self,
+        input_ids: torch.LongTensor,
+        scores: torch.FloatTensor,
+        **kwargs,
     ) -> bool:
         if input_ids.shape[0] != 1:
-            raise NotImplementedError("Batches greater than size 1 are not supported.")
+            msg = "Batches greater than size 1 are not supported."
+            raise NotImplementedError(msg)
 
         input_ids_list = input_ids[0]
         if self.decode:
             # We can decode the string and do string matching
-            decoded_output = self.tokenizer.decode(input_ids_list[self.input_length:])
+            decoded_output = self.tokenizer.decode(input_ids_list[self.input_length :])
 
             return any(
                 stop_sequence in decoded_output for stop_sequence in self.stop_sequences

@@ -2,9 +2,7 @@ from enum import Enum
 
 
 class Runtime(Enum):
-    """
-    Enum to specify the runtime backend for model execution.
-    """
+    """Enum to specify the runtime backend for model execution."""
 
     PYTORCH = 1
     """Use PyTorch as the backend runtime."""

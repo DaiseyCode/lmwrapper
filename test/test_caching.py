@@ -33,9 +33,3 @@ def test_set_cache_dir():
         lm2 = get_huggingface_lm("gpt2")
         r4 = lm2.predict(prompt)
         assert r3.completion_text != r4.completion_text
-
-
-
-
-
-

@@ -1,21 +1,22 @@
+import bisect
 import random
-from abc import ABC, abstractmethod
-
-import tiktoken
+import re
 import time
 import warnings
+from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Union, List, Optional, Iterable, Callable
 
 import openai.error
-from lmwrapper.abstract_predictor import LmPredictor
-from lmwrapper.caching import get_disk_cache
-from lmwrapper.secrets_manager import SecretInterface, SecretFile, assert_is_a_secret, SecretEnvVar
-from lmwrapper.structs import LmPrompt, LmPrediction
-import bisect
-import re
-from lmwrapper.utils import StrEnum
+import tiktoken
 
+from lmwrapper.abstract_predictor import LmPredictor
+from lmwrapper.secrets_manager import (
+    SecretEnvVar,
+    SecretFile,
+    SecretInterface,
+    assert_is_a_secret,
+)
+from lmwrapper.structs import LmPrediction, LmPrompt
 
 PRINT_ON_PREDICT = False
 
@@ -24,64 +25,73 @@ MAX_LOG_PROB_PARM = 5
 
 class OpenAiLmPrediction(LmPrediction):
     def _get_completion_token_index(self):
-        """If echoing the completion text might not start at the begining. Returns the
-        index of the actually new tokens"""
+        """
+        If echoing the completion text might not start at the begining. Returns the
+        index of the actually new tokens
+        """
         if not self.prompt.echo:
             return 0
         # binary search for the first token after the prompt length
         prompt_len = len(self.prompt.text) - 1
-        all_offsets: List[int] = self._all_toks_offsets()
+        all_offsets: list[int] = self._all_toks_offsets()
         return bisect.bisect_right(all_offsets, prompt_len)
 
     def _all_toks(self):
         if not self.prompt.logprobs:
-            raise ValueError("This property is only available when the prompt "
-                             "`logprobs` flag is set (openai endpoint only will "
-                             "return tokens when logprobs is set)")
-        return self.metad['logprobs']['tokens']
+            msg = (
+                "This property is only available when the prompt `logprobs` flag is set"
+                " (openai endpoint only will return tokens when logprobs is set)"
+            )
+            raise ValueError(
+                msg,
+            )
+        return self.metad["logprobs"]["tokens"]
 
     def _all_toks_offsets(self):
-        return self.metad['logprobs']['text_offset']
+        return self.metad["logprobs"]["text_offset"]
 
     def _all_logprobs(self):
-        if self.metad['logprobs'] is None:
+        if self.metad["logprobs"] is None:
             assert self.prompt.logprobs is None or self.prompt.logprobs == 0
             return None
-        return self.metad['logprobs']['token_logprobs']
+        return self.metad["logprobs"]["token_logprobs"]
 
     @property
     def completion_tokens(self):
-        return self._all_toks()[self._get_completion_token_index():]
+        return self._all_toks()[self._get_completion_token_index() :]
 
     @property
     def completion_token_offsets(self):
-        return self._all_toks_offsets()[self._get_completion_token_index():]
+        return self._all_toks_offsets()[self._get_completion_token_index() :]
 
     @property
     def completion_logprobs(self):
         """Note that this will only be valid if set a logprob value in the prompt"""
         self._verify_logprobs()
-        return self._all_logprobs()[self._get_completion_token_index():]
+        return self._all_logprobs()[self._get_completion_token_index() :]
 
     def _verify_echo(self):
         if not self.prompt.echo:
-            raise ValueError("This property is only available when the prompt `echo` flag is set")
+            msg = "This property is only available when the prompt `echo` flag is set"
+            raise ValueError(
+                msg,
+            )
 
     @property
     def prompt_tokens(self):
         self._verify_echo()
-        return self._all_toks()[:self._get_completion_token_index()]
+        return self._all_toks()[: self._get_completion_token_index()]
 
     @property
     def prompt_token_offsets(self):
         self._verify_echo()
-        return self._all_toks_offsets()[:self._get_completion_token_index()]
+        return self._all_toks_offsets()[: self._get_completion_token_index()]
 
     @property
     def prompt_logprobs(self):
         self._verify_echo()
         self._verify_logprobs()
-        return self._all_logprobs()[:self._get_completion_token_index()]
+        return self._all_logprobs()[: self._get_completion_token_index()]
 
     @property
     def full_logprobs(self):
@@ -99,58 +109,75 @@ class OpenAiLmPrediction(LmPrediction):
             {
                 "repr": repr(token),
                 "probability": logprob,
-            } for token, logprob in zip(self.completion_tokens,
-                                        self.completion_logprobs,
-                                        strict=True)
+            }
+            for token, logprob in zip(
+                self.completion_tokens,
+                self.completion_logprobs,
+                strict=True,
+            )
         ]
+
 
 class OpenAiLmChatPrediction(LmPrediction):
     pass
 
 
 class OpenAIPredictor(LmPredictor):
-    _instantiation_hooks: List['OpenAiInstantiationHook'] = []
+    _instantiation_hooks: list["OpenAiInstantiationHook"] = []
 
     def __init__(
         self,
         api: openai,
         engine_name: str,
-        chat_mode: bool = None,
+        chat_mode: bool | None = None,
         cache_outputs_default: bool = False,
         retry_on_rate_limit: bool = False,
     ):
         for hook in self._instantiation_hooks:
-            hook.before_init(self, api, engine_name, chat_mode, cache_outputs_default, retry_on_rate_limit)
+            hook.before_init(
+                self,
+                api,
+                engine_name,
+                chat_mode,
+                cache_outputs_default,
+                retry_on_rate_limit,
+            )
         super().__init__(cache_outputs_default)
         self._api = api
         self._engine_name = engine_name
         self._cache_outputs_default = cache_outputs_default
         self._retry_on_rate_limit = retry_on_rate_limit
         info = OpenAiModelNames.name_to_info(engine_name)
-        self._chat_mode = (
-            info.is_chat_model
-            if chat_mode is None else chat_mode
-        )
+        self._chat_mode = info.is_chat_model if chat_mode is None else chat_mode
         if self._chat_mode is None:
-            raise ValueError("`chat_mode` is not provided as a parameter and "
-                             "cannot be inferred from engine name")
+            msg = (
+                "`chat_mode` is not provided as a parameter and cannot be inferred from"
+                " engine name"
+            )
+            raise ValueError(
+                msg,
+            )
         self._token_limit = info.token_limit if info is not None else None
         self._tokenizer = None
 
     @classmethod
-    def add_instantiation_hook(cls, hook: 'OpenAiInstantiationHook'):
-        """This method should likely not be used normally.
+    def add_instantiation_hook(cls, hook: "OpenAiInstantiationHook"):
+        """
+        This method should likely not be used normally.
         It is intended add constraints on kinds of models that are
         instantiation to better control usage. An example usage checking
         keys are used correctly like that certain keys are used with particular
-        models"""
+        models
+        """
         cls._instantiation_hooks.append(hook)
 
     def _validate_prompt(self, prompt: LmPrompt, raise_on_invalid: bool = True) -> bool:
         if prompt.logprobs is not None and prompt.logprobs > MAX_LOG_PROB_PARM:
-            warnings.warn(f"Openai limits logprobs to be <= {MAX_LOG_PROB_PARM}. "
-                          f"Larger values might cause unexpected behavior if you later are depending"
-                          f"on more returns")
+            warnings.warn(
+                f"Openai limits logprobs to be <= {MAX_LOG_PROB_PARM}. Larger values"
+                " might cause unexpected behavior if you later are dependingon more"
+                " returns",
+            )
 
     def model_name(self):
         return self._engine_name
@@ -182,33 +209,42 @@ class OpenAIPredictor(LmPredictor):
     def tokenize(self, input_str: str) -> list[str]:
         self._build_tokenizer()
         token_bytes: list[bytes] = self._tokenizer.decode_tokens_bytes(
-            self.tokenize_ids(input_str))
-        return [
-            tok.decode("utf-8")
-            for tok in token_bytes
-        ]
+            self.tokenize_ids(input_str),
+        )
+        return [tok.decode("utf-8") for tok in token_bytes]
 
     def estimate_tokens_in_prompt(self, prompt: LmPrompt) -> int:
-        """Estimate the number of tokens in the prompt.
+        """
+        Estimate the number of tokens in the prompt.
         This is not always an exact measure, as for the chat models there extra metadata provided.
         The documentation on ChatMl (https://github.com/openai/openai-python/blob/main/chatml.md)
         gives some details but is imprecise. We want to write this to ideally overestimate the
-        number of tokens so that will conservatively not go over the limit."""
+        number of tokens so that will conservatively not go over the limit.
+        """
         self._build_tokenizer()
         if self._chat_mode:
-            val = len(self._tokenizer.encode(prompt.get_text_as_chat().to_default_string_prompt()))
-            val += len(prompt.get_text_as_chat()) * 3  # Extra buffer for each turn transition
+            val = len(
+                self._tokenizer.encode(
+                    prompt.get_text_as_chat().to_default_string_prompt(),
+                ),
+            )
+            val += (
+                len(prompt.get_text_as_chat()) * 3
+            )  # Extra buffer for each turn transition
             val += 2  # Extra setup tokens
         else:
             val = len(self._tokenizer.encode(prompt.get_text_as_string_default_form()))
         return val
 
-    def _predict_maybe_cached(self, prompt: LmPrompt) -> Union[LmPrediction, List[LmPrediction]]:
+    def _predict_maybe_cached(
+        self,
+        prompt: LmPrompt,
+    ) -> LmPrediction | list[LmPrediction]:
         if PRINT_ON_PREDICT:
-            print("RUN PREDICT ", prompt.text[:min(10, len(prompt.text))])
+            print("RUN PREDICT ", prompt.text[: min(10, len(prompt.text))])
 
         def run_func():
-             # Wait for rate limit
+            # Wait for rate limit
             LmPredictor._wait_ratelimit()
             max_toks = (
                 prompt.max_tokens
@@ -258,25 +294,35 @@ class OpenAIPredictor(LmPredictor):
             return None
 
         if self._retry_on_rate_limit:
-            completion = attempt_with_exponential_backoff(run_func, is_success_func, backoff_time=backoff_time)
+            completion = attempt_with_exponential_backoff(
+                run_func,
+                is_success_func,
+                backoff_time=backoff_time,
+            )
         else:
             completion = run_func()
 
         if not is_success_func(completion):
             raise completion
 
-        choices = completion['choices']
+        choices = completion["choices"]
 
         def get_completion_text(text):
             if not prompt.echo:
                 return text
-            return text[len(prompt.text):]
+            return text[len(prompt.text) :]
 
         def get_text_from_choice(choice):
-            return choice['text'] if not self._chat_mode else choice['message']['content']
+            return (
+                choice["text"] if not self._chat_mode else choice["message"]["content"]
+            )
 
         out = [
-            OpenAiLmPrediction(get_completion_text(get_text_from_choice(choice)), prompt, choice)
+            OpenAiLmPrediction(
+                get_completion_text(get_text_from_choice(choice)),
+                prompt,
+                choice,
+            )
             for choice in choices
         ]
         if len(choices) == 1:
@@ -293,9 +339,12 @@ class OpenAIPredictor(LmPredictor):
 
 
 class OpenAiInstantiationHook(ABC):
-    """Potentially used to add API controls on predictor instantiation.
+    """
+    Potentially used to add API controls on predictor instantiation.
     An example usecase is to make sure certain keys are only used with
-    certain models.."""
+    certain models..
+    """
+
     def __init__(self):
         pass
 
@@ -309,19 +358,20 @@ class OpenAiInstantiationHook(ABC):
         cache_outputs_default: bool,
         retry_on_rate_limit: bool,
     ):
-        raise NotImplementedError()
-
+        raise NotImplementedError
 
 
 def attempt_with_exponential_backoff(
     call_func,
     is_success_func,
-    backoff_time = None,
+    backoff_time=None,
     backoff_cap=60,
 ):
-    """Attempts to get a result from call_func. Uses is_success_func
+    """
+    Attempts to get a result from call_func. Uses is_success_func
     to determine if the result was a success or not. If not a success
-    then will sleep for a random amount of time between 1 and 2^attempts"""
+    then will sleep for a random amount of time between 1 and 2^attempts
+    """
     result = call_func()
     attempts = 1
     sleep_time = False
@@ -330,7 +380,7 @@ def attempt_with_exponential_backoff(
             sleep_time = backoff_time(result)
         if not backoff_time or not sleep_time:
             sleep_time = random.randint(1, min(2**attempts, backoff_cap))
-        print("Rate limit error. Sleeping for {} seconds".format(sleep_time))
+        print(f"Rate limit error. Sleeping for {sleep_time} seconds")
         time.sleep(sleep_time)
         result = call_func()
         attempts += 1
@@ -346,6 +396,7 @@ def get_goose_lm(
         api_key_secret = SecretFile(Path("~/goose_key.txt").expanduser())
     assert_is_a_secret(api_key_secret)
     import openai
+
     openai.api_key = api_key_secret.get_secret().strip()
     openai.api_base = "https://api.goose.ai/v1"
     return OpenAIPredictor(
@@ -401,7 +452,7 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
     Will be updated with our latest model iteration."""
 
     @classmethod
-    def name_to_info(cls, name: str) -> Optional[OpenAiModelInfo]:
+    def name_to_info(cls, name: str) -> OpenAiModelInfo | None:
         if isinstance(name, OpenAiModelInfo):
             return name
         for info in cls:
@@ -410,11 +461,10 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
         return None
 
 
-
 def get_open_ai_lm(
     model_name: str = OpenAiModelNames.text_ada_001,
     api_key_secret: SecretInterface = None,
-    organization: str = None,
+    organization: str | None = None,
     cache_outputs_default: bool = False,
     retry_on_rate_limit: bool = False,
 ) -> OpenAIPredictor:
@@ -423,19 +473,23 @@ def get_open_ai_lm(
         if not api_key_secret.is_readable():
             api_key_secret = SecretFile(Path("~/oai_key.txt").expanduser())
         if not api_key_secret.is_readable():
-            raise ValueError((
-                "Cannot find an API key. "
-                "By default the OPENAI_API_KEY environment variable is used if it is available. "
-                "Otherwise it will read from a file at ~/oai_key.txt. "
-                "Please place the key at one of the locations or pass in a SecretInterface "
-                "(like SecretEnvVar or SecretFile object) to the api_key_secret argument."
-                "\n"
-                "You can get an API key from https://platform.openai.com/account/api-keys"
-            ))
+            msg = (
+                "Cannot find an API key. By default the OPENAI_API_KEY environment"
+                " variable is used if it is available. Otherwise it will read from a"
+                " file at ~/oai_key.txt. Please place the key at one of the locations"
+                " or pass in a SecretInterface (like SecretEnvVar or SecretFile object)"
+                " to the api_key_secret argument.\nYou can get an API key from"
+                " https://platform.openai.com/account/api-keys"
+            )
+            raise ValueError(
+                msg,
+            )
     assert_is_a_secret(api_key_secret)
     import openai
+
     if not api_key_secret.is_readable():
-        raise ValueError("API key is not defined")
+        msg = "API key is not defined"
+        raise ValueError(msg)
     openai.api_key = api_key_secret.get_secret().strip()
     if organization:
         openai.organization = organization

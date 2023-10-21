@@ -1,7 +1,9 @@
-from abc import abstractmethod
 import copy
-from transformers import PreTrainedTokenizer
+from abc import abstractmethod
+
 import tiktoken
+from transformers import PreTrainedTokenizer
+
 
 class PromptTrimmer:
     @abstractmethod
@@ -11,7 +13,6 @@ class PromptTrimmer:
         By default trims from the left (i.e. from the beginning of the text).
         If a list is supplied then will trim never splitting within the list elements.
         """
-        pass
 
 
 class CharPromptTrimmer(PromptTrimmer):
@@ -37,10 +38,11 @@ class CharPromptTrimmer(PromptTrimmer):
             i -= 1
         return "".join(text[i + 1 :])
 
+
 class TrimmingTokenizer:
     @abstractmethod
-    def tokenize(self, text: str) -> list[str]:
-        ...
+    def tokenize(self, text: str) -> list[str]: ...
+
 
 class HfTrimmingTokenizer(TrimmingTokenizer):
     def __init__(self, tokenizer: PreTrainedTokenizer):
@@ -48,15 +50,20 @@ class HfTrimmingTokenizer(TrimmingTokenizer):
 
     def tokenize(self, text: str) -> list[str]:
         return self._tokenizer.convert_ids_to_tokens(
-            self._tokenizer(text)
+            self._tokenizer(text),
         )
+
 
 class TikTokenTrimmingTokenizer(TrimmingTokenizer):
     def __init__(self, encoding: tiktoken.Encoding):
         self._encoding = encoding
 
     def tokenize(self, text: str) -> list[str]:
-        return [ self._encoding.decode(token) for token in self._encoding.encode(text, allowed_special="all") ]
+        return [
+            self._encoding.decode(token)
+            for token in self._encoding.encode(text, allowed_special="all")
+        ]
+
 
 class GenericTokenTrimmer(PromptTrimmer):
     def __init__(
@@ -87,6 +94,7 @@ class GenericTokenTrimmer(PromptTrimmer):
 
         return "".join(tokenized)
 
+
 class HfTokenTrimmer(PromptTrimmer):
     def __init__(
         self,
@@ -108,7 +116,11 @@ class HfTokenTrimmer(PromptTrimmer):
         )
 
         trimmed = self.tokenizer.decode(
-            self.tokenizer(text, truncation=True, max_length=self.token_limit).input_ids
+            self.tokenizer(
+                text,
+                truncation=True,
+                max_length=self.token_limit,
+            ).input_ids,
         )
 
         self.tokenizer.truncation_side = original_truncation
