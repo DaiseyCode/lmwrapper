@@ -3,7 +3,7 @@ import statistics
 from typing import List, Any, Union, Tuple
 from enum import Enum
 
-from lmwrapper.util import StrEnum
+from lmwrapper.utils import StrEnum
 
 LM_CHAT_DIALOG_COERCIBLE_TYPES = Union[
     str,
@@ -20,7 +20,7 @@ class LmPrompt:
     max_tokens: int | None = None
     """The maximum number of tokens to generate in the completion. If `None`
     then the model downstream model will choose some default value. This value
-    might be a function of the prompt input length, but this behaviour is not defined. 
+    might be a function of the prompt input length, but this behaviour is not defined.
     This means it is possible that the default max might cause errors with long prompts.
     It recommended that you specify a limit yourself to have more predictable
     behaviour."""

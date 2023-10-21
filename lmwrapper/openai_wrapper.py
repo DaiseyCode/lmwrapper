@@ -10,11 +10,11 @@ from typing import Union, List, Optional, Iterable, Callable
 import openai.error
 from lmwrapper.abstract_predictor import LmPredictor
 from lmwrapper.caching import get_disk_cache
-from lmwrapper.secret_manage import SecretInterface, SecretFile, assert_is_a_secret, SecretEnvVar
+from lmwrapper.secrets_manager import SecretInterface, SecretFile, assert_is_a_secret, SecretEnvVar
 from lmwrapper.structs import LmPrompt, LmPrediction
 import bisect
 import re
-from lmwrapper.util import StrEnum
+from lmwrapper.utils import StrEnum
 
 
 PRINT_ON_PREDICT = False

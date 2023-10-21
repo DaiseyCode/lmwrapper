@@ -1,6 +1,6 @@
 {
     "python.testing.pytestArgs": [
-        "-s", "-vv", "."
+        "-s", "-vv", "--runslow", "."
     ],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true

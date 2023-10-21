@@ -1,26 +1,49 @@
-This provides a wrapper around OpenAI API and Huggingface Language models focusing
+# LmWrapper
+
+Provides a wrapper around OpenAI API and Hugging Face Language models, focusing
 on being a clean and user-friendly interface. Because every input
 and output is object-oriented (rather than just JSON dictionaries with string
 keys and values), your IDE can help you with things like argument and
 property names and catch certain bugs statically. Additionally, it allows
-you to switch inbetween openai endpoints and local models with minimal changes.
+you to switch inbetween OpenAI endpoints and local models with minimal changes.
 
-
-# Installation
+## Installation
 
 For usage with just OpenAI models:
+
 ```bash
 pip install "lmwrapper @ git+https://github.com/DNGros/lmwrapper.git"
 ```
 
 For usage with HuggingFace models as well:
+
 ```bash
-pip install "lmwrapper[huggingface] @ git+https://github.com/DNGros/lmwrapper.git"
+pip install "lmwrapper[hf] @ git+https://github.com/DNGros/lmwrapper.git"
 ```
 
-# Example usage
+For development dependencies:
 
-## Completion models
+```bash
+pip install "lmwrapper[dev] @ git+https://github.com/DNGros/lmwrapper.git"
+```
+
+Additionally, if you wish to use the latest version of `transformers` from GitHub:
+
+```bash
+pip install "lmwrapper[hf-dev] @ git+https://github.com/DNGros/lmwrapper.git"
+```
+
+If you prefer using `conda`/`mamba` to manage your environments, you may edit the `environment.yml` file to your liking & setup and create a new environment based on it:
+
+```bash
+mamba env create -f environment.yml
+```
+
+Please note that this method is for development and not supported.
+
+## Example usage
+
+### Completion models
 
 ```python
 from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
@@ -46,7 +69,7 @@ print(prediction.completion_text)
 # " time, there were three of us." - Example. This will change with each sample.
 ```
 
-## Chat models
+### Chat models
 
 ```python
 from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
@@ -86,10 +109,9 @@ print(pred.completion_text)
 # "Arr, me matey! Bitcoin be a digital currency that be workin' on a technology called blockchain..."
 ```
 
+### Hugging Face models
 
-## Huggingface models
-
-Causal LM models on huggingface models can be used interchangeably with the
+Causal LM models on Hugging Face models can be used interchangeably with the
 OpenAI models.
 
 ```python
@@ -106,19 +128,22 @@ print(prediction.completion_text)
 assert prediction.completion_text == " Paris"
 ```
 
-# Features
+## Features
 
 `lmwrapper` provides several features missing from the OpenAI API.
 
-## Caching
+### Caching
+
 Add `caching = True` in the prompt to cache the output to disk. Any
 subsequent calls with this prompt will return the same value. Note that
 this might be unexpected behavior if your temperature is non-zero. (You
 will always sample the same output on reruns.)
 
-## Retries on rate limit
+### Retries on rate limit
+
 An OpenAIPredictor can be configured to read rate limit errors and wait the appropriate
 amount of seconds in the error before retrying.
+
 ```python
 from lmwrapper.openai_wrapper import *
 lm = get_open_ai_lm(OpenAiModelNames.text_ada_001, retry_on_rate_limit=True)
@@ -127,6 +152,7 @@ lm = get_open_ai_lm(OpenAiModelNames.text_ada_001, retry_on_rate_limit=True)
 ## Other features
 
 ### Built-in token counting
+
 ```python
 from lmwrapper.openai_wrapper import *
 lm = get_open_ai_lm(OpenAiModelNames.text_ada_001)
@@ -137,8 +163,10 @@ assert not lm.could_completion_go_over_token_limit(LmPrompt(
 ```
 
 ## TODOs
+
 If you are interested in one of these particular features or something else
 please make a Github Issue.
+
 - [X] Openai completion
 - [X] Openai chat
 - [X] Huggingface interface

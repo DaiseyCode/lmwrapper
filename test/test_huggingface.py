@@ -1,11 +1,12 @@
+from lmwrapper.runtime import Runtime
 from lmwrapper.prompt_trimming import HfTokenTrimmer
-from lmwrapper.util import StrEnum
+from lmwrapper.utils import StrEnum
 
 import pytest
 import torch
 import numpy as np
 
-from lmwrapper.huggingface_wrapper import Runtime, get_huggingface_lm
+from lmwrapper.huggingface_wrapper import get_huggingface_lm
 from lmwrapper.structs import LmPrompt
 
 
@@ -15,7 +16,7 @@ class Models(StrEnum):
     CodeGen2_1B = "Salesforce/codegen2-1B"
     CodeGen2_3_7B = "Salesforce/codegen2-3_7B"
     InstructCodeT5plus_16B = "Salesforce/instructcodet5p-16b"
-
+    CodeLLama_7B = "codellama/CodeLlama-7b-hf"
     DistilGPT2 = "distilgpt2"
     GPT2 = "gpt2"
 
@@ -31,9 +32,29 @@ BIG_MODELS = BIG_SEQ2SEQ_MODELS | BIG_CAUSAL_MODELS
 ALL_MODELS = SEQ2SEQ_MODELS | CAUSAL_MODELS | BIG_MODELS
 
 
+@pytest.mark.skip()
+def test_code_llama():
+    prompt = LmPrompt(
+        "print('Hello world",
+        max_tokens=15,
+        cache=False,
+        temperature=0,
+    )
+    lm = get_huggingface_lm(
+        Models.CodeLLama_7B,
+        runtime=Runtime.PYTORCH,
+        trust_remote_code=True,
+        precision=torch.float16,
+    )
+    out = lm.predict(prompt)
+    assert out.completion_text
+
+
 @pytest.mark.slow()
 def test_trim_start():
-    lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH)
+    lm = get_huggingface_lm(
+        Models.CodeGen2_1B, runtime=Runtime.PYTORCH, trust_remote_code=True
+    )
     ltrimmer = HfTokenTrimmer(2, lm._tokenizer, start_from_left_side=True)
 
     lm.prompt_trimmer = ltrimmer
@@ -46,12 +67,17 @@ def test_trim_start():
     lm._model.config.max_length = 3
     out = lm.predict(prompt)
     assert out._tokens[0] == "('"
-    assert out._tokens[1] == "ob"
+    assert out._tokens[1] == "\\"
 
 
 @pytest.mark.slow()
 def test_logprobs_codegen2():
-    lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH)
+    lm = get_huggingface_lm(
+        Models.CodeGen2_1B,
+        allow_patch_model_forward=False,
+        runtime=Runtime.PYTORCH,
+        trust_remote_code=True,
+    )
     prompt = LmPrompt(
         "def hello_world():\n   print('",
         max_tokens=15,
@@ -61,7 +87,12 @@ def test_logprobs_codegen2():
     outa = lm.predict(prompt)
     logprobs_a = np.array(outa.completion_logprobs)
 
-    lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH)
+    lm = get_huggingface_lm(
+        Models.CodeGen2_1B,
+        allow_patch_model_forward=True,
+        runtime=Runtime.PYTORCH,
+        trust_remote_code=True,
+    )
     prompt = LmPrompt(
         "def hello_world():\n   print('",
         max_tokens=15,
@@ -163,7 +194,9 @@ def test_stop_n_codet5():
 
 @pytest.mark.slow()
 def test_stop_n_codegen2():
-    lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH)
+    lm = get_huggingface_lm(
+        Models.CodeGen2_1B, runtime=Runtime.PYTORCH, trust_remote_code=True
+    )
     prompt = LmPrompt(
         text="def hello_world():\n",
         max_tokens=500,
@@ -201,23 +234,26 @@ def test_stop_n_codegen2():
 
 @pytest.mark.slow()
 def test_logprobs_equal_stop_codegen2():
-    lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH)
+    lm = get_huggingface_lm(
+        Models.CodeGen2_1B, runtime=Runtime.PYTORCH, trust_remote_code=True
+    )
+    stop = "    "
     prompt = LmPrompt(
-        "place a newline here", max_tokens=5, cache=False, temperature=0, stop=["(o(o"]
+        "place a newline here", max_tokens=5, cache=False, temperature=0, stop=[stop]
     )
 
     out_a = lm.predict(prompt)
     logprobs_a = np.array(out_a.completion_logprobs)
     assert len(logprobs_a) == 1
     assert len(out_a.logprobs_dict) == 1
-    assert "(o(o" not in out_a.completion_text
+    assert stop not in out_a.completion_text
 
     assert out_a.logprobs_dict == [
         {
-            "token": 78,
-            "repr": "'o'",
-            "logit": pytest.approx(-2.742025852203369, rel=0.001),
-            "probability": pytest.approx(0.06443966925144196, rel=0.001),
+            "token": 198,
+            "repr": "'\\n'",
+            "logit": pytest.approx(-1.363785982131958, rel=0.001),
+            "probability": pytest.approx(0.25569090247154236, rel=0.001),
         }
     ]
 
@@ -226,38 +262,41 @@ def test_logprobs_equal_stop_codegen2():
         max_tokens=5,
         cache=False,
         temperature=0,
-        stop=["(o(o"],
+        stop=[stop],
         echo=True,
     )
     out_b = lm.predict(prompt)
     logprobs_b = np.array(out_b.completion_logprobs)
-    assert "(o(o" not in out_b.completion_text
+    assert stop not in out_b.completion_text
     assert np.allclose(logprobs_a, logprobs_b, atol=0.001, rtol=0.001)
 
 
 @pytest.mark.slow()
 def test_logprobs_echo_stop_codegen2():
-    lm = get_huggingface_lm(Models.CodeGen2_1B, runtime=Runtime.PYTORCH)
+    lm = get_huggingface_lm(
+        Models.CodeGen2_1B, runtime=Runtime.PYTORCH, trust_remote_code=True
+    )
+    stop = "    "
     prompt = LmPrompt(
         "place a newline here",
         max_tokens=5,
         cache=False,
         temperature=0,
-        stop=["(o(o"],
+        stop=[stop],
         echo=True,
     )
     out_b = lm.predict(prompt)
     logprobs = np.array(out_b.completion_logprobs)
-    assert "(o(o" not in out_b.completion_text
+    assert stop not in out_b.completion_text
     assert len(logprobs) == len(out_b.completion_tokens)
     assert len(out_b.full_logprobs) == len(out_b.get_full_tokens())
 
     assert out_b.logprobs_dict[-1] == {
-        "token": 78,
-        "repr": "'o'",
-        "logit": pytest.approx(-2.742025852203369, rel=0.001),
-        "probability": pytest.approx(0.06443966925144196, rel=0.001),
-    }
+            "token": 198,
+            "repr": "'\\n'",
+            "logit": pytest.approx(-1.363785982131958, rel=0.001),
+            "probability": pytest.approx(0.25569090247154236, rel=0.001),
+        }
 
 
 def test_stop_token_removal():
@@ -535,9 +574,9 @@ def test_all_pytorch_runtime(lm: str):
         max_tokens=15,
         cache=False,
         temperature=0,
-        add_bos_token=lm not in SEQ2SEQ_MODELS
+        add_bos_token=lm not in SEQ2SEQ_MODELS,
     )
-    lm = get_huggingface_lm(lm, runtime=Runtime.PYTORCH)
+    lm = get_huggingface_lm(lm, runtime=Runtime.PYTORCH, trust_remote_code=True)
     out = lm.predict(prompt)
     assert out.completion_text
 

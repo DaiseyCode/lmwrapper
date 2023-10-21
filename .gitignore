@@ -187,3 +187,4 @@ fabric.properties
 lm_model_cache
 *.swp
 /test/.lmwrapper_cache/
+.lmwrapper_cache
