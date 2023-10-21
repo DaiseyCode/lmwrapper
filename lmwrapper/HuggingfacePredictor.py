@@ -121,6 +121,7 @@ class HuggingfacePredictor(LmPredictor):
             prompt_text,
             return_tensors="pt",
             return_attention_mask=model_requires_attention_mask,
+            add_special_tokens=prompt.add_special_tokens,
         )
 
         if len(encoded_input.input_ids) > max_length:

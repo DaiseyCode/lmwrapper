@@ -8,7 +8,7 @@ packages = ["lmwrapper"]
 
 [project]
 name = "lmwrapper"
-version = "0.6.4"
+version = "0.6.5"
 authors = [
     { name = "David Gros", email = "DNGros@users.noreply.github.com" },
     { name = "Claudio Spiess", email = "claudiosv@users.noreply.github.com" },
@@ -40,6 +40,7 @@ hf-dev = [
 ]
 accelerate = ["accelerate~=0.23.0"]
 xformers = ["xformers~=0.0.22"]
+flash-attn = [ "flash_attn~=2.3.2"]
 ort = ["optimum[onnxruntime]~=1.13.2"]
 # This will also install accelerate:
 ort-gpu = ["optimum[onnxruntime-gpu]~=1.13.2"]
