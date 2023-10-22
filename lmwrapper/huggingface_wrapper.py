@@ -553,7 +553,6 @@ def _initialize_hf_model(
             pretrained_model_name_or_path=model_name,
             config=model_config,
             torch_dtype=precision,
-            device_map=torch_device,  # Initialize on device
             **_kwargs,
         )
         logging.debug("Post model instantiation")
