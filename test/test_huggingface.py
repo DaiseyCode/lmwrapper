@@ -659,3 +659,23 @@ def test_tokenizer():
     lm = get_huggingface_lm("gpt2")
     tokens = lm.tokenize("I like pie")
     assert tokens == ["I", "Ġlike", "Ġpie"]
+
+
+@pytest.mark.skip()
+def test_code_llama_stop():
+    prompt = LmPrompt(
+        'def double(x) -> int:\n    """Double the given number"""',
+        max_tokens=40,
+        stop=["\ndef", "\nclass", "\nprint", "\n#"],
+        cache=False,
+        temperature=0,
+    )
+    lm = get_huggingface_lm(
+        Models.CodeLLama_7B,
+        runtime=Runtime.PYTORCH,
+        trust_remote_code=True,
+        #precision=torch.float16,
+        #device="cuda",
+    )
+    out = lm.predict(prompt)
+    assert out.completion_text
