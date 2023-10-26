@@ -752,7 +752,7 @@ def test_tokenizer():
     assert tokens == ["I", "Ġlike", "Ġpie"]
 
 
-@pytest.mark.skip()
+#@pytest.mark.skip()
 def test_code_llama_stop():
     prompt = LmPrompt(
         'def double(x) -> int:\n    """Double the given number"""',
@@ -763,9 +763,9 @@ def test_code_llama_stop():
     )
     lm = get_huggingface_lm(
         Models.CodeLLama_7B,
-        runtime=Runtime.PYTORCH,
+        #runtime=Runtime.PYTORCH,
         trust_remote_code=True,
-        #precision=torch.float16,
+        precision=torch.float16,
         #device="cuda",
     )
     out = lm.predict(prompt)
