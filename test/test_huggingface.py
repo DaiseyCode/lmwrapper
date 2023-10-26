@@ -16,6 +16,7 @@ class Models(StrEnum):
     CodeGen2_3_7B = "Salesforce/codegen2-3_7B"
     InstructCodeT5plus_16B = "Salesforce/instructcodet5p-16b"
     CodeLLama_7B = "codellama/CodeLlama-7b-hf"
+    CodeLLama_7B_Instruct = "codellama/CodeLlama-7b-Instruct-hf"
     DistilGPT2 = "distilgpt2"
     GPT2 = "gpt2"
 
@@ -31,22 +32,112 @@ BIG_MODELS = BIG_SEQ2SEQ_MODELS | BIG_CAUSAL_MODELS
 ALL_MODELS = SEQ2SEQ_MODELS | CAUSAL_MODELS | BIG_MODELS
 
 
-@pytest.mark.skip()
-def test_code_llama():
-    prompt = LmPrompt(
-        "print('Hello world",
-        max_tokens=15,
-        cache=False,
-        temperature=0,
-    )
+@pytest.mark.slow()
+@pytest.mark.parametrize("model", [Models.CodeLLama_7B])
+def test_code_llama_autoregressive(model):
+    """7B and 13B *base* models can be used for text/code completion"""
     lm = get_huggingface_lm(
-        Models.CodeLLama_7B,
+        model,
         runtime=Runtime.PYTORCH,
         trust_remote_code=True,
         precision=torch.float16,
     )
+
+    prompt = LmPrompt(
+        "def fibonacci(",
+        max_tokens=3,
+        cache=False,
+        temperature=0,
+        add_special_tokens=False,
+        add_bos_token=False,
+        logprobs=1,
+    )
+
     out = lm.predict(prompt)
-    assert out.completion_text
+    assert out.completion_text == "n):\n"
+
+
+@pytest.mark.slow()
+@pytest.mark.parametrize("model", [Models.CodeLLama_7B, Models.CodeLLama_7B_Instruct])
+def test_code_llama_infill(model):
+    """7B and 13B base *and* instruct variants support infilling based on surrounding content"""
+    lm = get_huggingface_lm(
+        model,
+        runtime=Runtime.PYTORCH,
+        trust_remote_code=True,
+        precision=torch.float16,
+    )
+
+    infill_prompt = '''def remove_non_ascii(s: str) -> str:
+    """ <FILL_ME>
+    return result
+'''
+
+    prompt = LmPrompt(
+        infill_prompt,
+        max_tokens=3,
+        cache=False,
+        temperature=0,
+        add_special_tokens=False,
+        add_bos_token=False,
+        logprobs=1,
+    )
+
+    out = lm.predict(prompt)
+    assert out.completion_text == "Remove non-"
+
+
+@pytest.mark.slow()
+@pytest.mark.parametrize("model", [Models.CodeLLama_7B_Instruct])
+def test_code_llama_conversation(model):
+    """Instruction fine-tuned models can be used in conversational interfaces"""
+    lm = get_huggingface_lm(
+        model,
+        runtime=Runtime.PYTORCH,
+        trust_remote_code=True,
+        precision=torch.float16,
+    )
+
+    user = (
+        "In Bash, how do I list all text files in the current directory (excluding"
+        " subdirectories) that have been modified in the last month?"
+    )
+
+    instr_prompt1 = f"<s>[INST] {user.strip()} [/INST]"
+
+    prompt = LmPrompt(
+        instr_prompt1,
+        max_tokens=3,
+        cache=False,
+        temperature=0,
+        add_special_tokens=False,
+        add_bos_token=False,
+        logprobs=1,
+    )
+
+    out = lm.predict(prompt)
+    assert out.completion_text == " You can"
+
+    system = "Provide answers in JavaScript"
+    user = (
+        "Write a function that computes the set of sums of all contiguous sublists of a"
+        " given list."
+    )
+
+    instr_prompt2 = f"<s>[INST] <<SYS>>\\n{system}\\n<</SYS>>\\n\\n{user}[/INST]"
+
+    prompt = LmPrompt(
+        instr_prompt2,
+        max_tokens=3,
+        cache=False,
+        temperature=0,
+        add_special_tokens=False,
+        add_bos_token=False,
+        logprobs=1,
+    )
+
+    out = lm.predict(prompt)
+    assert out.completion_text == " ```\n"
 
 
 @pytest.mark.slow()
@@ -269,8 +360,8 @@ def test_logprobs_equal_stop_codegen2():
         {
             "token": 198,
             "repr": "'\\n'",
-            "logit": pytest.approx(-1.363785982131958, rel=0.001),
-            "probability": pytest.approx(0.25569090247154236, rel=0.001),
+            "logit": pytest.approx(-1.363785982131958, abs=0.001),
+            "probability": pytest.approx(0.25569090247154236, abs=0.001),
         },
     ]
 
@@ -313,8 +404,8 @@ def test_logprobs_echo_stop_codegen2():
     assert out_b.logprobs_dict[-1] == {
         "token": 198,
         "repr": "'\\n'",
-        "logit": pytest.approx(-1.363785982131958, rel=0.001),
-        "probability": pytest.approx(0.25569090247154236, rel=0.001),
+        "logit": pytest.approx(-1.363785982131958, abs=0.001),
+        "probability": pytest.approx(0.25569090247154236, abs=0.001),
     }
 
 
@@ -341,92 +432,92 @@ def test_stop_token_removal():
         {
             "token": 198,
             "repr": "'\\n'",
-            "logit": pytest.approx(-0.059126678854227066, rel=0.001),
-            "probability": pytest.approx(0.9425873756408691, rel=0.001),
+            "logit": pytest.approx(-0.059126678854227066, abs=0.001),
+            "probability": pytest.approx(0.9425873756408691, abs=0.001),
         },
         {
             "token": 20,
             "repr": "'5'",
-            "logit": pytest.approx(-0.011661103926599026, rel=0.001),
-            "probability": pytest.approx(0.9884065985679626, rel=0.001),
+            "logit": pytest.approx(-0.011661103926599026, abs=0.001),
+            "probability": pytest.approx(0.9884065985679626, abs=0.001),
         },
         {
             "token": 13,
             "repr": "'.'",
-            "logit": pytest.approx(-0.0012642494402825832, rel=0.001),
-            "probability": pytest.approx(0.998736560344696, rel=0.001),
+            "logit": pytest.approx(-0.0012642494402825832, abs=0.001),
+            "probability": pytest.approx(0.998736560344696, abs=0.001),
         },
         {
             "token": 4486,
             "repr": "' Germany'",
-            "logit": pytest.approx(-2.1969234943389893, rel=0.001),
-            "probability": pytest.approx(0.11114457249641418, rel=0.001),
+            "logit": pytest.approx(-2.1969234943389893, abs=0.001),
+            "probability": pytest.approx(0.11114457249641418, abs=0.001),
         },
         {
             "token": 198,
             "repr": "'\\n'",
-            "logit": pytest.approx(-0.054811663925647736, rel=0.001),
-            "probability": pytest.approx(0.9466634392738342, rel=0.001),
+            "logit": pytest.approx(-0.054811663925647736, abs=0.001),
+            "probability": pytest.approx(0.9466634392738342, abs=0.001),
         },
         {
             "token": 21,
             "repr": "'6'",
-            "logit": pytest.approx(-0.025344248861074448, rel=0.001),
-            "probability": pytest.approx(0.9749742150306702, rel=0.001),
+            "logit": pytest.approx(-0.025344248861074448, abs=0.001),
+            "probability": pytest.approx(0.9749742150306702, abs=0.001),
         },
         {
             "token": 13,
             "repr": "'.'",
-            "logit": pytest.approx(-0.0013435394503176212, rel=0.001),
-            "probability": pytest.approx(0.9986573457717896, rel=0.001),
+            "logit": pytest.approx(-0.0013435394503176212, abs=0.001),
+            "probability": pytest.approx(0.9986573457717896, abs=0.001),
         },
         {
             "token": 8031,
             "repr": "' Italy'",
-            "logit": pytest.approx(-2.757378101348877, rel=0.001),
-            "probability": pytest.approx(0.0634579285979271, rel=0.001),
+            "logit": pytest.approx(-2.757378101348877, abs=0.001),
+            "probability": pytest.approx(0.0634579285979271, abs=0.001),
         },
         {
             "token": 198,
             "repr": "'\\n'",
-            "logit": pytest.approx(-0.0332401879131794, rel=0.001),
-            "probability": pytest.approx(0.9673061966896057, rel=0.001),
+            "logit": pytest.approx(-0.0332401879131794, abs=0.001),
+            "probability": pytest.approx(0.9673061966896057, abs=0.001),
         },
         {
             "token": 22,
             "repr": "'7'",
-            "logit": pytest.approx(-0.017078006640076637, rel=0.001),
-            "probability": pytest.approx(0.983066976070404, rel=0.001),
+            "logit": pytest.approx(-0.017078006640076637, abs=0.001),
+            "probability": pytest.approx(0.983066976070404, abs=0.001),
         },
         {
             "token": 13,
             "repr": "'.'",
-            "logit": pytest.approx(-0.001742750871926546, rel=0.001),
-            "probability": pytest.approx(0.9982587695121765, rel=0.001),
+            "logit": pytest.approx(-0.001742750871926546, abs=0.001),
+            "probability": pytest.approx(0.9982587695121765, abs=0.001),
         },
         {
             "token": 2869,
             "repr": "' Japan'",
-            "logit": pytest.approx(-2.284379005432129, rel=0.001),
-            "probability": pytest.approx(0.10183728486299515, rel=0.001),
+            "logit": pytest.approx(-2.284379005432129, abs=0.001),
+            "probability": pytest.approx(0.10183728486299515, abs=0.001),
         },
         {
             "token": 198,
             "repr": "'\\n'",
-            "logit": pytest.approx(-0.040456708520650864, rel=0.001),
-            "probability": pytest.approx(0.960350751876831, rel=0.001),
+            "logit": pytest.approx(-0.040456708520650864, abs=0.001),
+            "probability": pytest.approx(0.960350751876831, abs=0.001),
         },
         {
             "token": 23,
             "repr": "'8'",
-            "logit": pytest.approx(-0.02017313987016678, rel=0.001),
-            "probability": pytest.approx(0.9800289869308472, rel=0.001),
+            "logit": pytest.approx(-0.02017313987016678, abs=0.001),
+            "probability": pytest.approx(0.9800289869308472, abs=0.001),
         },
         {
             "token": 13,
             "repr": "'.'",
-            "logit": pytest.approx(-0.0018331881146878004, rel=0.001),
-            "probability": pytest.approx(0.9981684684753418, rel=0.001),
+            "logit": pytest.approx(-0.0018331881146878004, abs=0.001),
+            "probability": pytest.approx(0.9981684684753418, abs=0.001),
         },
     ]
 
@@ -443,50 +534,50 @@ def test_stop_token_removal():
         {
             "token": 198,
             "repr": "'\\n'",
-            "logit": pytest.approx(-0.059126678854227066, rel=0.001),
-            "probability": pytest.approx(0.9425873756408691, rel=0.001),
+            "logit": pytest.approx(-0.059126678854227066, abs=0.001),
+            "probability": pytest.approx(0.9425873756408691, abs=0.001),
         },
         {
             "token": 20,
             "repr": "'5'",
-            "logit": pytest.approx(-0.011661103926599026, rel=0.001),
-            "probability": pytest.approx(0.9884065985679626, rel=0.001),
+            "logit": pytest.approx(-0.011661103926599026, abs=0.001),
+            "probability": pytest.approx(0.9884065985679626, abs=0.001),
         },
         {
             "token": 13,
             "repr": "'.'",
-            "logit": pytest.approx(-0.0012642494402825832, rel=0.001),
-            "probability": pytest.approx(0.998736560344696, rel=0.001),
+            "logit": pytest.approx(-0.0012642494402825832, abs=0.001),
+            "probability": pytest.approx(0.998736560344696, abs=0.001),
         },
         {
             "token": 4486,
             "repr": "' Germany'",
-            "logit": pytest.approx(-2.1969234943389893, rel=0.001),
-            "probability": pytest.approx(0.11114457249641418, rel=0.001),
+            "logit": pytest.approx(-2.1969234943389893, abs=0.001),
+            "probability": pytest.approx(0.11114457249641418, abs=0.001),
         },
         {
             "token": 198,
             "repr": "'\\n'",
-            "logit": pytest.approx(-0.054811663925647736, rel=0.001),
-            "probability": pytest.approx(0.9466634392738342, rel=0.001),
+            "logit": pytest.approx(-0.054811663925647736, abs=0.001),
+            "probability": pytest.approx(0.9466634392738342, abs=0.001),
         },
         {
             "token": 21,
             "repr": "'6'",
-            "logit": pytest.approx(-0.025344248861074448, rel=0.001),
-            "probability": pytest.approx(0.9749742150306702, rel=0.001),
+            "logit": pytest.approx(-0.025344248861074448, abs=0.001),
+            "probability": pytest.approx(0.9749742150306702, abs=0.001),
         },
         {
             "token": 13,
             "repr": "'.'",
-            "logit": pytest.approx(-0.0013435394503176212, rel=0.001),
-            "probability": pytest.approx(0.9986573457717896, rel=0.001),
+            "logit": pytest.approx(-0.0013435394503176212, abs=0.001),
+            "probability": pytest.approx(0.9986573457717896, abs=0.001),
         },
         {
             "token": 8031,
             "repr": "' Italy'",
-            "logit": pytest.approx(-2.757378101348877, rel=0.001),
-            "probability": pytest.approx(0.0634579285979271, rel=0.001),
+            "logit": pytest.approx(-2.757378101348877, abs=0.001),
+            "probability": pytest.approx(0.0634579285979271, abs=0.001),
         },
     ]
 
@@ -597,7 +688,7 @@ def test_all_pytorch_runtime(lm: str):
         max_tokens=15,
         cache=False,
         temperature=0,
-        add_bos_token=lm not in SEQ2SEQ_MODELS,
+        add_bos_token=lm not in SEQ2SEQ_MODELS | BIG_SEQ2SEQ_MODELS,
     )
     lm = get_huggingface_lm(lm, runtime=Runtime.PYTORCH, trust_remote_code=True)
     out = lm.predict(prompt)
@@ -605,7 +696,7 @@ def test_all_pytorch_runtime(lm: str):
 
 
 @pytest.mark.slow()
-@pytest.mark.skip()  # ORT is not ready yet
+@pytest.mark.skip(reason="ORT is not ready yet")
 @pytest.mark.parametrize("runtime", [Runtime.ORT_CPU, Runtime.ORT_CUDA])
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_get_ort(runtime: Runtime, lm: str):
@@ -621,7 +712,7 @@ def test_get_ort(runtime: Runtime, lm: str):
 
 
 @pytest.mark.slow()
-@pytest.mark.skip()  # Better Transformer is not ready yet
+@pytest.mark.skip(reason="Better Transformer is not ready yet")
 @pytest.mark.parametrize("lm", [Models.DistilGPT2, Models.GPT2])
 def test_get_better_transformer(lm):
     prompt = LmPrompt(
@@ -636,7 +727,7 @@ def test_get_better_transformer(lm):
 
 
 @pytest.mark.slow()
-@pytest.mark.skip()  # Better Transformer is not ready yet
+@pytest.mark.skip(reason="Better Transformer is not ready yet")
 def test_codegen2_predict_bt():
     lm = Models.CodeGen2_1B
     with pytest.raises(Exception) as e_info:
@@ -645,7 +736,7 @@ def test_codegen2_predict_bt():
 
 
 @pytest.mark.slow()
-@pytest.mark.skip()  # TensorRT is not ready yet
+@pytest.mark.skip(reason="TensorRT is not ready yet")
 @pytest.mark.parametrize("lm", CAUSAL_MODELS)
 @pytest.mark.skipif(
     CUDA_UNAVAILABLE,

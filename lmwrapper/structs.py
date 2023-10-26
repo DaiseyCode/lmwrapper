@@ -83,6 +83,8 @@ class LmPrompt:
     This allows for unconditional generation and allows for the first token to have
     a probability. This always happens in the openai endpoints (presumably), but
     could be controlled in other models."""
+    add_special_tokens: bool = True
+    """Whether or not to add special tokens when encoding the prompt."""
     # TODO: make a auto_reduce_max_tokens to reduce when might go over.
 
     def __post_init__(self):
