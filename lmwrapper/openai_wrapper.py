@@ -117,6 +117,20 @@ class OpenAiLmPrediction(LmPrediction):
             )
         ]
 
+    @property
+    def top_token_logprobs(self) -> list[dict[str, float]]:
+        """
+        List of dictionaries of token:logprob for each completion.
+        The API will always return the logprob of the sampled token,
+        so there may be up to logprobs+1 elements in the response.
+        """
+        if self.metad.get("logprobs", {}).get("top_logprobs", None) is None:
+            raise ValueError(
+                "Response does not contain top_logprobs. Are you sure logprobs was set"
+                f" > 0? Currently: {self.prompt.logprobs}",
+            )
+        return [dict(p) for p in self.metad["logprobs"]["top_logprobs"]]
+
 
 class OpenAiLmChatPrediction(LmPrediction):
     pass

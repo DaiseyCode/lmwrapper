@@ -300,3 +300,10 @@ class LmPrediction:
 
     def completion_mean_logprob(self):
         return statistics.mean(self.completion_logprobs)
+
+    @property
+    def top_token_logprobs(self) -> list[dict[str, float]]:
+        msg = "This version of prediction does not support top token logprobs"
+        raise NotImplementedError(
+            msg,
+        )

@@ -165,29 +165,23 @@ class HuggingfacePredictor(LmPredictor):
 
         do_sample = prompt.temperature > 0
         num_beams = 1
-        # num_beams (int, optional, defaults to 1) — Number of beams for beam search. 1 means no beam search.
 
         penalty_alpha = 0.0
         top_k = 50
         num_beam_groups = 1
-        generation_kwargs = {
+        optional_generation_kwargs = {
             "temperature": prompt.temperature,
-            # "top_p": prompt.top_p,
             "do_sample": do_sample,
-            # "diversity_penalty": prompt.presence_penalty, # This value is subtracted from a beam’s score
-            # if it generates a token same as any beam from other group at a particular time.
-            # Note that diversity_penalty is only effective if group beam search is enabled.
-            # "repetition_penalty": prompt.frequency_penalty # The parameter for repetition penalty. 1.0 means no penalty
         }
 
         if self._tokenizer.pad_token_id is not None:
-            generation_kwargs["pad_token_id"] = self._tokenizer.pad_token_id
+            optional_generation_kwargs["pad_token_id"] = self._tokenizer.pad_token_id
 
         if self._tokenizer.eos_token_id is not None:
-            generation_kwargs["eos_token_id"] = self._tokenizer.eos_token_id
+            optional_generation_kwargs["eos_token_id"] = self._tokenizer.eos_token_id
 
         if self._tokenizer.bos_token_id is not None:
-            generation_kwargs["bos_token_id"] = self._tokenizer.bos_token_id
+            optional_generation_kwargs["bos_token_id"] = self._tokenizer.bos_token_id
 
         # Temperature cannot be set if do_sample is False
         # do_sample is False if prompt.temperature == 0
@@ -199,7 +193,7 @@ class HuggingfacePredictor(LmPredictor):
         # instance, which means the corresponding file may hold incorrect
         # parameterization and should be fixed.
         if not do_sample:  # i.e. prompt.temperature == 0.0:
-            generation_kwargs.pop("temperature", None)
+            optional_generation_kwargs.pop("temperature", None)
 
         if num_beams == 1 and do_sample is False:
             logging.info("Decoding strategy: greedy decoding")
@@ -219,13 +213,13 @@ class HuggingfacePredictor(LmPredictor):
         # Ref https://gist.github.com/kinoc/8a042d8c5683725aa8c372274c02ea2f
         gen_config = GenerationConfig(
             max_new_tokens=(
-                prompt.max_tokens
-                if prompt.max_tokens is not None
-                else self.default_tokens_generated
+                self.default_tokens_generated
+                if prompt.max_tokens is None
+                else prompt.max_tokens
             ),
             return_dict_in_generate=True,
             output_scores=need_log_prob,
-            **generation_kwargs,
+            **optional_generation_kwargs,
         )
 
         if patch_model_forward:

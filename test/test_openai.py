@@ -33,6 +33,28 @@ def play_with_probs():
     print(out.prompt_tokens)
 
 
+def test_with_probs_gpt35():
+    lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct)
+    out = lm.predict(
+        LmPrompt(
+            "Respond with true or false:",
+            max_tokens=2,
+            logprobs=5,
+            cache=False,
+            num_completions=1,
+            echo=False,
+            temperature=1,
+        ),
+    )
+    print(out)
+    print(out.top_token_logprobs)
+    # print(out._get_completion_token_index())
+    # print(out.completion_tokens)
+    # print(out.completion_token_offsets)
+    # print(out.completion_logprobs)
+    # print(out.prompt_tokens)
+
+
 def test_too_large_logprob():
     """
     Expect a warning to be thrown when logprobs is greater than 5 (which
