@@ -293,23 +293,15 @@ class HuggingfacePredictor(LmPredictor):
 
         model_output_sequence = generation_output.sequences[
             0
-        ]  # we will not mutate this one
+        ].cpu()  # we will not mutate this one
 
-        output_sequence = model_output_sequence  # we will mutate this one
+        output_sequence = model_output_sequence.clone()  # we will mutate this one
 
         generated_sequence = model_output_sequence[input_length:]
 
         stop_token_idx_output = None
         stop_token_idx_generated = None
 
-        token_offsets = []
-        token_offsets_full = []
-        j = 0
-        for i, token in enumerate(generated_sequence):
-            token_len = len(self._tokenizer.decode(token))
-            token_offsets.append(j)
-            token_offsets_full.extend([i] * token_len)
-            j += token_len
 
         generated_text = self._tokenizer.decode(generated_sequence)
         clean_generated_text = self._tokenizer.decode(
@@ -317,10 +309,20 @@ class HuggingfacePredictor(LmPredictor):
             skip_special_tokens=True,
             clean_up_tokenization_spaces=True,
         )
+        token_offsets = _get_hf_token_offsets(self._tokenizer, generated_sequence)
+        token_offsets_full = []
+        for i in range(1, len(token_offsets)):
+            token_offsets_full.extend([i - 1] * (token_offsets[i] - token_offsets[i - 1]))
+
         if prompt.stop:
+            #if not "".join(generated_tokens) != generated_text:
+            #    msg = "Tokens do not appear to be concatenatable. This likely means the tokenizer is " \
+            #          "doing some extra processing or we need to better handle special tokens. For now " \
+            #          "stop sequences are unsupported."
+            #    raise NotImplementedError(msg)
             sorted_stop_sequences = sorted(prompt.stop, key=len, reverse=True)
 
-            stop_idx = len(generated_sequence)
+            #stop_idx = len(generated_sequence)
             for stop_sequence in sorted_stop_sequences:
                 if stop_sequence in generated_text:
                     stop_idx = generated_text.index(stop_sequence)
@@ -525,3 +527,42 @@ class HuggingfacePredictor(LmPredictor):
     @property
     def is_chat_model(self):
         return self._is_chat_model
+
+
+def _get_hf_token_offsets(tokenizer, token_ids) -> list[int]:
+    if isinstance(token_ids, torch.Tensor):
+        token_ids = token_ids.tolist()
+    if not isinstance(token_ids, list):
+        raise TypeError("token_ids must be a list or tensor")
+    if not tokenizer.is_fast:
+        raise ValueError("This requires a fast tokenizer so that way we can "
+                         "use the return_offsets_mapping option")
+    new_tokenize = tokenizer(
+        tokenizer.decode(token_ids),
+        return_offsets_mapping=True,
+        add_special_tokens=False,
+    )
+    new_token_ids = new_tokenize["input_ids"]
+    offset_mapping = new_tokenize["offset_mapping"]
+    if new_token_ids != token_ids:
+        # Do a bit hacky things to at least try to align them
+        if len(new_token_ids) - 1 == len(token_ids) and new_token_ids[1:] == token_ids:
+            # for some reason seems to be an extra start of token or something
+            new_token_ids = new_token_ids[1:]
+            offset_mapping = offset_mapping[1:]
+        else:
+            msg = (
+                "Token IDs do not match without an easy fix\n"
+                f"Original: {token_ids}\n"
+                f"New: {new_token_ids}"
+            )
+            raise AssertionError(msg)
+    starts, ends = list(zip(*offset_mapping))
+    if new_token_ids != token_ids:
+        msg = (
+            "Token IDs do not match\n"
+            f"Original: {token_ids}\n"
+            f"New: {new_token_ids}"
+        )
+        raise AssertionError(msg)
+    return list(starts)
