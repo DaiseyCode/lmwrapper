@@ -238,9 +238,7 @@ def test_no_stopping_in_prompt(lm):
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_no_stopping_program(lm):
-    capital_newlines = (
-        'def double(x) -> int:\n    """Returns double"""\n'
-    )
+    capital_newlines = 'def double(x) -> int:\n    """Returns double"""\n'
     resp = lm.predict(
         LmPrompt(
             capital_newlines,

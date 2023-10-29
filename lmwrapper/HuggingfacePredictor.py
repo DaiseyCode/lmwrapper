@@ -302,7 +302,7 @@ class HuggingfacePredictor(LmPredictor):
             for i in range(1, len(token_offsets)):
                 token_offsets_full.extend(
                     [i - 1] * (token_offsets[i] - token_offsets[i - 1]),
-                    )
+                )
             sorted_stop_sequences = sorted(prompt.stop, key=len, reverse=True)
 
             for stop_sequence in sorted_stop_sequences:
@@ -523,8 +523,9 @@ def _verify_concatenable(generated_tokens: list[str], generated_text: str):
     raise_exception = False
     if "".join(generated_tokens) == generated_text:
         msg = (
-            "Tokens do not appear to be concatenatable. This likely means the tokenizer is "
-            "doing some extra processing or we need to better handle special tokens."
+            "Tokens do not appear to be concatenatable. This likely means the tokenizer"
+            " is doing some extra processing or we need to better handle special"
+            " tokens."
         )
         if raise_exception:
             raise NotImplementedError(msg)
@@ -532,7 +533,10 @@ def _verify_concatenable(generated_tokens: list[str], generated_text: str):
             logging.warning(msg)
 
 
-def _get_token_offsets(tokenizer: PreTrainedTokenizerFast, token_ids: torch.Tensor | list[int]) -> list[int]:
+def _get_token_offsets(
+    tokenizer: PreTrainedTokenizerFast,
+    token_ids: torch.Tensor | list[int],
+) -> list[int]:
     if isinstance(token_ids, torch.Tensor):
         token_ids = token_ids.tolist()
 
@@ -571,11 +575,7 @@ def _get_token_offsets(tokenizer: PreTrainedTokenizerFast, token_ids: torch.Tens
     starts, _ = list(zip(*offset_mapping))
 
     if new_token_ids != token_ids:
-        msg = (
-            "Token IDs do not match\n"
-            f"Original: {token_ids}\n"
-            f"New: {new_token_ids}"
-        )
+        msg = f"Token IDs do not match\nOriginal: {token_ids}\nNew: {new_token_ids}"
         raise AssertionError(msg)
 
     return list(starts)
