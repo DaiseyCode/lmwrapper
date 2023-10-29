@@ -19,14 +19,6 @@ if TYPE_CHECKING:
     from transformers.generation.utils import GenerateOutput
 
 
-def _gather_logprobs_from_logits(
-    logits: torch.Tensor,
-    selected_toks: torch.LongTensor,
-):
-    logprobs = torch.log_softmax(logits, dim=-1).detach()
-    return torch.gather(logprobs, -1, selected_toks.unsqueeze(-1)).squeeze(-1)
-
-
 class HuggingfacePredictor(LmPredictor):
     def __init__(
         self,
@@ -164,20 +156,15 @@ class HuggingfacePredictor(LmPredictor):
         need_log_prob = prompt.logprobs is not None and prompt.logprobs > 0
 
         do_sample = prompt.temperature > 0
-        num_beams = 1
-        # num_beams (int, optional, defaults to 1) — Number of beams for beam search. 1 means no beam search.
 
+        num_beams = 1
         penalty_alpha = 0.0
         top_k = 50
         num_beam_groups = 1
+
         generation_kwargs = {
             "temperature": prompt.temperature,
-            # "top_p": prompt.top_p,
             "do_sample": do_sample,
-            # "diversity_penalty": prompt.presence_penalty, # This value is subtracted from a beam’s score
-            # if it generates a token same as any beam from other group at a particular time.
-            # Note that diversity_penalty is only effective if group beam search is enabled.
-            # "repetition_penalty": prompt.frequency_penalty # The parameter for repetition penalty. 1.0 means no penalty
         }
 
         if self._tokenizer.pad_token_id is not None:
@@ -291,9 +278,9 @@ class HuggingfacePredictor(LmPredictor):
         if patch_model_forward:
             self._model.forward = old_forward
 
-        model_output_sequence = generation_output.sequences[
-            0
-        ].cpu()  # we will not mutate this one
+        model_output_sequence = (
+            generation_output.sequences[0].detach().cpu()
+        )  # we will not mutate this one
 
         output_sequence = model_output_sequence.clone()  # we will mutate this one
 
@@ -302,27 +289,23 @@ class HuggingfacePredictor(LmPredictor):
         stop_token_idx_output = None
         stop_token_idx_generated = None
 
-
         generated_text = self._tokenizer.decode(generated_sequence)
         clean_generated_text = self._tokenizer.decode(
             generated_sequence,
             skip_special_tokens=True,
             clean_up_tokenization_spaces=True,
         )
-        token_offsets = _get_hf_token_offsets(self._tokenizer, generated_sequence)
+        token_offsets = _get_token_offsets(self._tokenizer, generated_sequence)
         token_offsets_full = []
         for i in range(1, len(token_offsets)):
-            token_offsets_full.extend([i - 1] * (token_offsets[i] - token_offsets[i - 1]))
+            token_offsets_full.extend(
+                [i - 1] * (token_offsets[i] - token_offsets[i - 1]),
+            )
 
         if prompt.stop:
-            #if not "".join(generated_tokens) != generated_text:
-            #    msg = "Tokens do not appear to be concatenatable. This likely means the tokenizer is " \
-            #          "doing some extra processing or we need to better handle special tokens. For now " \
-            #          "stop sequences are unsupported."
-            #    raise NotImplementedError(msg)
+            _verify_concatenable()
             sorted_stop_sequences = sorted(prompt.stop, key=len, reverse=True)
 
-            #stop_idx = len(generated_sequence)
             for stop_sequence in sorted_stop_sequences:
                 if stop_sequence in generated_text:
                     stop_idx = generated_text.index(stop_sequence)
@@ -529,21 +512,49 @@ class HuggingfacePredictor(LmPredictor):
         return self._is_chat_model
 
 
-def _get_hf_token_offsets(tokenizer, token_ids) -> list[int]:
+def _gather_logprobs_from_logits(
+    logits: torch.Tensor,
+    selected_toks: torch.LongTensor,
+):
+    logprobs = torch.log_softmax(logits, dim=-1).detach()
+    return torch.gather(logprobs, -1, selected_toks.unsqueeze(-1)).squeeze(-1)
+
+
+def _verify_concatenable(generated_tokens: list[str], generated_text: str):
+    raise_exception = False
+    if "".join(generated_tokens) == generated_text:
+        msg = (
+            "Tokens do not appear to be concatenatable. This likely means the tokenizer is "
+            "doing some extra processing or we need to better handle special tokens."
+        )
+        if raise_exception:
+            raise NotImplementedError(msg)
+        else:
+            logging.warning(msg)
+
+
+def _get_token_offsets(tokenizer: PreTrainedTokenizerFast, token_ids: torch.Tensor | list[int]) -> list[int]:
     if isinstance(token_ids, torch.Tensor):
         token_ids = token_ids.tolist()
+
     if not isinstance(token_ids, list):
         raise TypeError("token_ids must be a list or tensor")
+
     if not tokenizer.is_fast:
-        raise ValueError("This requires a fast tokenizer so that way we can "
-                         "use the return_offsets_mapping option")
+        raise ValueError(
+            "This requires a fast tokenizer so that way we can "
+            "use the return_offsets_mapping option",
+        )
+
     new_tokenize = tokenizer(
         tokenizer.decode(token_ids),
         return_offsets_mapping=True,
         add_special_tokens=False,
     )
+
     new_token_ids = new_tokenize["input_ids"]
     offset_mapping = new_tokenize["offset_mapping"]
+
     if new_token_ids != token_ids:
         # Do a bit hacky things to at least try to align them
         if len(new_token_ids) - 1 == len(token_ids) and new_token_ids[1:] == token_ids:
@@ -557,7 +568,9 @@ def _get_hf_token_offsets(tokenizer, token_ids) -> list[int]:
                 f"New: {new_token_ids}"
             )
             raise AssertionError(msg)
-    starts, ends = list(zip(*offset_mapping))
+
+    starts, _ = list(zip(*offset_mapping))
+
     if new_token_ids != token_ids:
         msg = (
             "Token IDs do not match\n"
@@ -565,4 +578,5 @@ def _get_hf_token_offsets(tokenizer, token_ids) -> list[int]:
             f"New: {new_token_ids}"
         )
         raise AssertionError(msg)
+
     return list(starts)

@@ -2,13 +2,12 @@ import numpy as np
 import pytest
 import torch
 
-from lmwrapper.HuggingfacePredictor import _get_hf_token_offsets
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
+from lmwrapper.HuggingfacePredictor import _get_token_offsets
 from lmwrapper.prompt_trimming import HfTokenTrimmer
 from lmwrapper.runtime import Runtime
 from lmwrapper.structs import LmPrompt
 from lmwrapper.utils import StrEnum
-import numpy as np
 
 
 class Models(StrEnum):
@@ -763,13 +762,13 @@ def test_code_llama_stop():
         cache=False,
         temperature=0,
     )
+
     lm = get_huggingface_lm(
         Models.CodeLLama_7B,
-        #runtime=Runtime.PYTORCH,
         trust_remote_code=True,
         precision=torch.float16,
-        #device="cuda",
     )
+
     out = lm.predict(prompt)
     assert out.completion_text
 
@@ -778,11 +777,22 @@ def test_tokenizer_offsets_code_llama():
     model_name = Models.CodeLLama_7B
     # Get the huggingface tokenizer
     from transformers import AutoTokenizer
+
     tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
     token_ids = [13, 1678, 736, 921, 334, 29871, 29906, 13, 13, 13, 1753]
     expected_generated = "\n    return x * 2\n\n\ndef"
     token_vals = [
-        "\n", "   ", " return", " x", " *", " ", "2", "\n", "\n", "\n", "def",
+        "\n",
+        "   ",
+        " return",
+        " x",
+        " *",
+        " ",
+        "2",
+        "\n",
+        "\n",
+        "\n",
+        "def",
     ]
     print([tokenizer.decode([t]) for t in token_ids])
     cum_len = np.cumsum([len(t) for t in token_vals])
@@ -790,5 +800,5 @@ def test_tokenizer_offsets_code_llama():
     expected_offsets = [0, *(cum_len[:-1])]
     print("Expected", expected_offsets)
     assert expected_offsets[:3] == [0, 1, 4]
-    offsets = _get_hf_token_offsets(tokenizer, token_ids)
+    offsets = _get_token_offsets(tokenizer, token_ids)
     assert offsets == expected_offsets
