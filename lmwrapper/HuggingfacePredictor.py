@@ -295,15 +295,14 @@ class HuggingfacePredictor(LmPredictor):
             skip_special_tokens=True,
             clean_up_tokenization_spaces=True,
         )
-        token_offsets = _get_token_offsets(self._tokenizer, generated_sequence)
-        token_offsets_full = []
-        for i in range(1, len(token_offsets)):
-            token_offsets_full.extend(
-                [i - 1] * (token_offsets[i] - token_offsets[i - 1]),
-            )
 
         if prompt.stop:
-            _verify_concatenable()
+            token_offsets = _get_token_offsets(self._tokenizer, generated_sequence)
+            token_offsets_full = []
+            for i in range(1, len(token_offsets)):
+                token_offsets_full.extend(
+                    [i - 1] * (token_offsets[i] - token_offsets[i - 1]),
+                    )
             sorted_stop_sequences = sorted(prompt.stop, key=len, reverse=True)
 
             for stop_sequence in sorted_stop_sequences:
