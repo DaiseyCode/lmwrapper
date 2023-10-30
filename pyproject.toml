@@ -50,7 +50,7 @@ ort-gpu = ["optimum[onnxruntime-gpu]~=1.13.2"]
 
 [tool.black]
 line-length = 88
-target-version = ['py311']
+target-version = ['py310']
 
 [tool.ruff]
 fix-only = true
