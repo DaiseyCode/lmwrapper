@@ -156,25 +156,23 @@ class HuggingfacePredictor(LmPredictor):
         need_log_prob = prompt.logprobs is not None and prompt.logprobs > 0
 
         do_sample = prompt.temperature > 0
-
         num_beams = 1
         penalty_alpha = 0.0
         top_k = 50
         num_beam_groups = 1
-
-        generation_kwargs = {
+        optional_generation_kwargs = {
             "temperature": prompt.temperature,
             "do_sample": do_sample,
         }
 
         if self._tokenizer.pad_token_id is not None:
-            generation_kwargs["pad_token_id"] = self._tokenizer.pad_token_id
+            optional_generation_kwargs["pad_token_id"] = self._tokenizer.pad_token_id
 
         if self._tokenizer.eos_token_id is not None:
-            generation_kwargs["eos_token_id"] = self._tokenizer.eos_token_id
+            optional_generation_kwargs["eos_token_id"] = self._tokenizer.eos_token_id
 
         if self._tokenizer.bos_token_id is not None:
-            generation_kwargs["bos_token_id"] = self._tokenizer.bos_token_id
+            optional_generation_kwargs["bos_token_id"] = self._tokenizer.bos_token_id
 
         # Temperature cannot be set if do_sample is False
         # do_sample is False if prompt.temperature == 0
@@ -186,7 +184,7 @@ class HuggingfacePredictor(LmPredictor):
         # instance, which means the corresponding file may hold incorrect
         # parameterization and should be fixed.
         if not do_sample:  # i.e. prompt.temperature == 0.0:
-            generation_kwargs.pop("temperature", None)
+            optional_generation_kwargs.pop("temperature", None)
 
         if num_beams == 1 and do_sample is False:
             logging.info("Decoding strategy: greedy decoding")
@@ -206,13 +204,13 @@ class HuggingfacePredictor(LmPredictor):
         # Ref https://gist.github.com/kinoc/8a042d8c5683725aa8c372274c02ea2f
         gen_config = GenerationConfig(
             max_new_tokens=(
-                prompt.max_tokens
-                if prompt.max_tokens is not None
-                else self.default_tokens_generated
+                self.default_tokens_generated
+                if prompt.max_tokens is None
+                else prompt.max_tokens
             ),
             return_dict_in_generate=True,
             output_scores=need_log_prob,
-            **generation_kwargs,
+            **optional_generation_kwargs,
         )
 
         if patch_model_forward:
