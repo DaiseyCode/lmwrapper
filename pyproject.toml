@@ -8,7 +8,7 @@ packages = ["lmwrapper"]
 
 [project]
 name = "lmwrapper"
-version = "0.6.6"
+version = "0.6.7"
 authors = [
     { name = "David Gros", email = "DNGros@users.noreply.github.com" },
     { name = "Claudio Spiess", email = "claudiosv@users.noreply.github.com" },
@@ -50,7 +50,7 @@ ort-gpu = ["optimum[onnxruntime-gpu]~=1.13.2"]
 
 [tool.black]
 line-length = 88
-target-version = ['py311']
+target-version = ['py310']
 
 [tool.ruff]
 fix-only = true

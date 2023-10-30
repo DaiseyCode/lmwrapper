@@ -237,6 +237,33 @@ def test_no_stopping_in_prompt(lm):
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
+def test_no_stopping_program(lm):
+    capital_newlines = 'def double(x) -> int:\n    """Returns double"""\n'
+    resp = lm.predict(
+        LmPrompt(
+            capital_newlines,
+            max_tokens=50,
+            logprobs=1,
+            temperature=0,
+            cache=False,
+        ),
+    )
+    assert "def" in resp.completion_text
+    print(resp.completion_text)
+    resp = lm.predict(
+        LmPrompt(
+            capital_newlines,
+            stop=["\ndef"],
+            max_tokens=50,
+            logprobs=1,
+            temperature=0,
+            cache=False,
+        ),
+    )
+    assert "def" not in resp.completion_text
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
 def test_stopping_begin_tok(lm):
     val_normal = lm.predict(
         LmPrompt(
