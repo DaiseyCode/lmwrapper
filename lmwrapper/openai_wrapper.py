@@ -476,7 +476,7 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
 
 
 def get_open_ai_lm(
-    model_name: str = OpenAiModelNames.text_ada_001,
+    model_name: str = OpenAiModelNames.gpt_3_5_turbo_instruct,
     api_key_secret: SecretInterface = None,
     organization: str | None = None,
     cache_outputs_default: bool = False,

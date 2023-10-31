@@ -4,11 +4,11 @@ import numpy as np
 import pytest
 
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
-from lmwrapper.openai_wrapper import get_open_ai_lm
+from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
 from lmwrapper.structs import LmPrompt
 
 ALL_MODELS = [
-    get_open_ai_lm(),
+    get_open_ai_lm(OpenAiModelNames.text_ada_001),
     get_huggingface_lm("gpt2"),
 ]
 
@@ -238,7 +238,7 @@ def test_no_stopping_in_prompt(lm):
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_no_stopping_program(lm):
-    prompt_text = '# Write five one-liner functions\ndef double(x) -> int:\n    """Returns double"""\n'
+    prompt_text = '# Functions\ndef double(x):\n'
     resp = lm.predict(
         LmPrompt(
             prompt_text,
@@ -248,7 +248,7 @@ def test_no_stopping_program(lm):
             cache=False,
         ),
     )
-    assert "def" in resp.completion_text
+    assert "\ndef" in resp.completion_text
     print(resp.completion_text)
     resp = lm.predict(
         LmPrompt(
@@ -260,7 +260,7 @@ def test_no_stopping_program(lm):
             cache=False,
         ),
     )
-    assert "def" not in resp.completion_text
+    assert "\ndef" not in resp.completion_text
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
@@ -487,8 +487,8 @@ def test_stopping_span_subtoks_multiple(lm):
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_remove_prompt_from_cache(lm):
     prompt = LmPrompt(
-        "Write a fun story about a dog:",
-        max_tokens=50,
+        "Give a random base-64 guid:",
+        max_tokens=100,
         temperature=2.0,
         cache=True,
     )

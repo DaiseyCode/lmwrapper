@@ -246,7 +246,7 @@ def test_instantiation_hook():
 
         OpenAIPredictor.add_instantiation_hook(SimpleHook())
         assert not was_called
-        get_open_ai_lm()
+        get_open_ai_lm(OpenAiModelNames.text_ada_001)
         assert was_called
     finally:
         OpenAIPredictor._instantiation_hooks = []

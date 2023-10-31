@@ -287,7 +287,8 @@ class HuggingfacePredictor(LmPredictor):
         stop_token_idx_output = None
         stop_token_idx_generated = None
 
-        generated_text = self._tokenizer.decode(generated_sequence)
+        generated_text = self._tokenizer.decode(
+            generated_sequence, skip_special_tokens=False, clean_up_tokenization_spaces=False)
         clean_generated_text = self._tokenizer.decode(
             generated_sequence,
             skip_special_tokens=True,
@@ -555,7 +556,7 @@ def _get_token_offsets(
         )
 
     new_tokenize = tokenizer(
-        tokenizer.decode(token_ids),
+        tokenizer.decode(token_ids, clean_up_tokenization_spaces=False, skip_special_tokens=False),
         return_offsets_mapping=True,
         add_special_tokens=False,
     )
