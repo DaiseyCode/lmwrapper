@@ -3,7 +3,8 @@ import pytest
 import torch
 
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
-from lmwrapper.HuggingfacePredictor import _get_token_offsets
+from lmwrapper.HuggingfacePredictor import _get_token_offsets, \
+    _expand_offsets_to_a_token_index_for_every_text_index
 from lmwrapper.prompt_trimming import HfTokenTrimmer
 from lmwrapper.runtime import Runtime
 from lmwrapper.structs import LmPrompt
@@ -606,6 +607,14 @@ def test_stop_token_removal():
     assert "I like to eat candy" not in out.completion_text
 
 
+def test_degenerate_offsets():
+    lm = get_huggingface_lm(Models.DistilGPT2)
+    token_ids = [13, 198, 198]
+    text = ".\n\n"
+    offsets = _get_token_offsets(lm._tokenizer, token_ids)
+    assert offsets == [(0, 1), (1, 2), (2, 3)]
+
+
 def test_stop_tokens():
     # Load model
     lm = get_huggingface_lm(Models.DistilGPT2, runtime=Runtime.PYTORCH)
@@ -629,6 +638,7 @@ def test_stop_tokens():
         stop=["\n"],
     )
     out = lm.predict(prompt)
+    assert "\n" not in out.completion_text
     assert "\n\n" not in out.completion_text
 
     # Now with two
@@ -640,6 +650,7 @@ def test_stop_tokens():
         stop=["\n\n"],
     )
     out = lm.predict(prompt)
+    assert "\n\n" not in out.completion_text
     assert "\n\n\n" not in out.completion_text
 
     # Now let's try with a sequence longer than the input
@@ -801,4 +812,33 @@ def test_tokenizer_offsets_code_llama():
     print("Expected", expected_offsets)
     assert expected_offsets[:3] == [0, 1, 4]
     offsets = _get_token_offsets(tokenizer, token_ids)
-    assert offsets == expected_offsets
+    starts, ends = zip(*offsets)
+    assert list(starts) == expected_offsets
+
+
+def test_offsets_for_removal_prompt():
+    prompt_str = """Please list the capitals of the following countries
+1. Germany
+2. USA
+3. France
+4. Mexico"""
+    # get the tokenizer model
+    lm = get_huggingface_lm(Models.DistilGPT2, runtime=Runtime.PYTORCH)
+    tokenizer = lm._tokenizer
+    seq = [4486, 198, 21, 13, 8031]
+    print("dec\n" + tokenizer.decode(seq))
+    text = " Germany\n6. Italy"
+    print([tokenizer.decode([i]) for i in seq])
+    offsets = _get_token_offsets(tokenizer, seq)
+    first = 8
+    assert offsets == [(0, first), (first, 9), (9, 10), (10, 11), (11, len(text))]
+    assert text[first] == "\n"
+    expanded = _expand_offsets_to_a_token_index_for_every_text_index(offsets)
+    assert expanded == [
+        *([0] * len(" Germany")),
+        *([1] * len("\n")),
+        *([2] * len("6")),
+        *([3] * len(".")),
+        *([4] * len(" Italy")),
+    ]
+    assert len(expanded) == len(text)

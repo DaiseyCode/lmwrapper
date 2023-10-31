@@ -1,7 +1,7 @@
 import inspect
 import logging
 from functools import cached_property
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Sequence
 
 import torch
 from transformers import GenerationConfig, PreTrainedModel, PreTrainedTokenizerFast
@@ -296,10 +296,16 @@ class HuggingfacePredictor(LmPredictor):
 
         if prompt.stop:
             token_offsets = _get_token_offsets(self._tokenizer, generated_sequence)
-            token_offsets_full = []
-            for i in range(1, len(token_offsets)):
-                token_offsets_full.extend(
-                    [i - 1] * (token_offsets[i] - token_offsets[i - 1]),
+            token_offsets_full = _expand_offsets_to_a_token_index_for_every_text_index(
+                token_offsets
+            )
+            if len(token_offsets_full) != len(generated_text):
+                raise RuntimeError(
+                    f"Unexpected token offsets length\n"
+                    f"Generated text: '{generated_text}'\n"
+                    f"Token offsets: {token_offsets}\n"
+                    f"Tokens: {self._tokenizer.convert_ids_to_tokens(generated_sequence)}\n"
+                    f"Token offsets full: {token_offsets_full}"
                 )
             sorted_stop_sequences = sorted(prompt.stop, key=len, reverse=True)
 
@@ -534,7 +540,8 @@ def _verify_concatenable(generated_tokens: list[str], generated_text: str):
 def _get_token_offsets(
     tokenizer: PreTrainedTokenizerFast,
     token_ids: torch.Tensor | list[int],
-) -> list[int]:
+) -> list[tuple[int, int]]:
+    """Starts and ends of tokens"""
     if isinstance(token_ids, torch.Tensor):
         token_ids = token_ids.tolist()
 
@@ -563,17 +570,99 @@ def _get_token_offsets(
             new_token_ids = new_token_ids[1:]
             offset_mapping = offset_mapping[1:]
         else:
-            msg = (
-                "Token IDs do not match without an easy fix\n"
-                f"Original: {token_ids}\n"
-                f"New: {new_token_ids}"
+            offset_mapping = _attempt_to_fix_degenerate_merges(
+                token_ids,
+                new_token_ids,
+                offset_mapping,
+                tokenizer.convert_ids_to_tokens(token_ids),
+                tokenizer.convert_ids_to_tokens(new_token_ids),
             )
-            raise AssertionError(msg)
+            new_token_ids = token_ids
+            assert len(new_token_ids) == len(offset_mapping)
 
-    starts, _ = list(zip(*offset_mapping))
+    #starts, ends = list(zip(*offset_mapping))
 
     if new_token_ids != token_ids:
         msg = f"Token IDs do not match\nOriginal: {token_ids}\nNew: {new_token_ids}"
         raise AssertionError(msg)
 
-    return list(starts)
+    return offset_mapping
+
+
+def _attempt_to_fix_degenerate_merges(
+    output_tokens: Sequence[int],
+    new_tokenization: Sequence[int],
+    new_tokenization_offsets: Sequence[tuple[int, int]],
+    output_token_strs: Sequence[str],
+    new_tokenization_strs: Sequence[str],
+) -> Sequence[tuple[int, int]]:
+    """Sometimes a model might output what I'm calling 'degenerate merges'.
+    Here subtokens are outputted when a different token exists that is a merged
+    version of the subtokens. This is a problem because the way we get
+    the tokenize offsets relies on detokenizing the output tokens and then
+    retokenizing with the 'return_offsets_mapping' option set.
+
+    This function tries to fix this by replacing the returning a new
+    tokenization and new offsets with things unmerged to match the model.
+    I don't think we are going to try to handle all the edge cases, but hopefully
+    a more common.
+    """
+    if len(output_tokens) == len(new_tokenization):
+        if output_tokens == new_tokenization:
+            return new_tokenization, new_tokenization_offsets
+    if len(output_tokens) < len(new_tokenization):
+        raise ValueError(
+            "Cannot fix solutions when there are more new tokens than output tokens. "
+            "Expect cases where output has more because of extra unmerged tokens."
+        )
+    output_idx = 0
+    new_idx = 0
+    output_offsets = []
+    while output_idx < len(output_tokens):
+        if output_tokens[output_idx] == new_tokenization[new_idx]:
+            output_offsets.append(new_tokenization_offsets[new_idx])
+            output_idx += 1
+            new_idx += 1
+        else:
+            # Check to see if output tokens should be merged
+            output_tokens_idxes_for_this_new_token = []
+            this_new_token = new_tokenization_strs[new_idx]
+            combo_of_output_tokens = ""
+            while (
+                this_new_token.startswith(combo_of_output_tokens)
+                and output_idx < len(output_tokens)
+                and len(combo_of_output_tokens) < len(this_new_token)
+            ):
+                combo_of_output_tokens += output_token_strs[output_idx]
+                output_tokens_idxes_for_this_new_token.append(output_idx)
+                output_idx += 1
+            if combo_of_output_tokens == this_new_token:
+                # Split up the offsets
+                start_offset, _ = new_tokenization_offsets[new_idx]
+                for split_idx in output_tokens_idxes_for_this_new_token:
+                    output_token_str_for_this_split = output_token_strs[split_idx]
+                    output_offsets.append((start_offset, start_offset + len(output_token_str_for_this_split)))
+                    start_offset += len(output_token_str_for_this_split)
+            else:
+                msg = (
+                    f"Attempted to fix degenerate merges but failed\n"
+                    f"Original: {output_tokens}\n"
+                    f"New: {new_tokenization}\n"
+                    f"Original tokens: {output_token_strs}\n"
+                    f"New tokens: {new_tokenization_strs}\n"
+                )
+                raise ValueError(
+                    msg
+                )
+    return output_offsets
+
+
+def _expand_offsets_to_a_token_index_for_every_text_index(
+    token_offsets: list[tuple[int, int]],
+) -> list[int]:
+    if len(token_offsets) == 0:
+        return []
+    token_offsets_full = []
+    for i, (start, end) in enumerate(token_offsets):
+        token_offsets_full.extend([i] * (end - start))
+    return token_offsets_full
