@@ -102,7 +102,6 @@ class HuggingfacePredictor(LmPredictor):
         else:
             prompt_text = prompt.text
 
-        max_length = self._model.config.max_length
         model_parameters = set(inspect.signature(self._model.forward).parameters.keys())
         model_requires_attention_mask = "attention_mask" in model_parameters
 
@@ -116,7 +115,7 @@ class HuggingfacePredictor(LmPredictor):
             add_special_tokens=prompt.add_special_tokens,
         )
 
-        if len(encoded_input.input_ids) > max_length:
+        if len(encoded_input.input_ids) > self.token_limit:
             if self.prompt_trimmer:
                 msg = (
                     "Prompt is too long for model. Please check that the provided"
@@ -504,7 +503,14 @@ class HuggingfacePredictor(LmPredictor):
 
     @property
     def token_limit(self):
-        return self._model.config.max_length
+        max_length = self._model.config.max_length
+        n_positions = self._model.config.n_positions
+        if max_length is None and n_positions is None:
+            raise ValueError("Unknown max length")
+        limit = max(max_length or 0, n_positions or 0)
+        if limit < 100:
+            raise ValueError("Unexpectedly low token limit")
+        return limit
 
     def estimate_tokens_in_prompt(self, prompt: LmPrompt) -> int:
         if prompt.is_text_a_chat():

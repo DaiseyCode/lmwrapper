@@ -764,6 +764,11 @@ def test_tokenizer():
     assert tokens == ["I", "Ġlike", "Ġpie"]
 
 
+def test_max_length():
+    lm = get_huggingface_lm("gpt2")
+    assert lm.token_limit == 1024
+
+
 @pytest.mark.skip()
 def test_code_llama_stop():
     prompt = LmPrompt(
