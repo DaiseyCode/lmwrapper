@@ -148,7 +148,8 @@ class HuggingfacePredictor(LmPredictor):
         log_cuda_mem()
 
         if self.runtime in {Runtime.PYTORCH, Runtime.BETTER_TRANSFORMER}:
-            self._model.to(self._device)  # Ensure model is on device
+            if self._model.device != self._device:
+                self._model.to(self._device)  # Ensure model is on device
 
         logging.debug("Post model moving")
         log_cuda_mem()
@@ -276,7 +277,7 @@ class HuggingfacePredictor(LmPredictor):
             self._model.forward = old_forward
 
         model_output_sequence = (
-            generation_output.sequences[0].detach().cpu()
+            generation_output.sequences[0].detach()
         )  # we will not mutate this one
 
         output_sequence = model_output_sequence.clone()  # we will mutate this one
