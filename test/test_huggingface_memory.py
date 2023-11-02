@@ -94,9 +94,17 @@ def test_cuda_memory_cleanup_pred_no_keep():
         assert torch.cuda.memory_reserved() > 0, "Before deling no mem"
         print("Deleting model")
         del model
+        del inputs
+        del tokenizer
         gc.collect()
         torch.cuda.empty_cache()
         print("Tensors", list(get_tensors()))
+        for t in get_tensors():
+            del t
+        gc.collect()
+        torch.cuda.empty_cache()
+        print("Tensors1", list(get_tensors()))
+
         print("Memory", torch.cuda.memory_allocated())
         assert len(all_tensors) == 0
         assert torch.cuda.memory_allocated() == 0
