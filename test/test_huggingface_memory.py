@@ -64,7 +64,7 @@ def test_cuda_memory_cleanup_pred_no_keep():
         with_stack=False,
         record_shapes=False,
         profile_memory=True,
-    ) as profiler:
+    ) as profiler, torch.no_grad():
         if not torch.cuda.is_available():
             pytest.skip("No CUDA available")
         gc.collect()
@@ -87,7 +87,7 @@ def test_cuda_memory_cleanup_pred_no_keep():
         # print(lm._model)
         assert torch.cuda.memory_reserved() > 0, "Before deling no mem"
         print("pred no keep")
-        inputs = tokenizer("Hello world").to("cuda")
+        inputs = tokenizer("Hello world", return_tensors="pt").to("cuda")
         model.generate(**inputs)
         # lm.predict("Hello world")
         print("After predict")
