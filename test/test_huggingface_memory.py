@@ -15,7 +15,7 @@ import gc
 import torch
 
 from test.test_huggingface import Models
-
+from transformers import AutoModel, AutoTokenizer
 
 def test_cuda_memory_cleanup_no_pred():
     with torch.profiler.profile(
@@ -75,20 +75,25 @@ def test_cuda_memory_cleanup_pred_no_keep():
         assert torch.cuda.memory_reserved() == 0
         available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
         print("Available gpus", available_gpus)
-        lm = get_huggingface_lm(
-            Models.DistilGPT2,
-            runtime=Runtime.PYTORCH,
-            #device="cuda:0",
-        )
-        assert str(lm._model.device) != "cpu"
-        print(lm._model)
+        model = AutoModel.from_pretrained("distilgpt2").to("cuda")
+        tokenizer = AutoTokenizer.from_pretrained("distilgpt2")
+
+        # lm = get_huggingface_lm(
+        #     Models.DistilGPT2,
+        #     runtime=Runtime.PYTORCH,
+        #     #device="cuda:0",
+        # )
+        assert str(model.device) != "cpu"
+        # print(lm._model)
         assert torch.cuda.memory_reserved() > 0, "Before deling no mem"
         print("pred no keep")
-        lm.predict("Hello world")
+        inputs = tokenizer("Hello world").to("cuda")
+        model.generate(**inputs)
+        # lm.predict("Hello world")
         print("After predict")
         assert torch.cuda.memory_reserved() > 0, "Before deling no mem"
         print("Deleting model")
-        del lm
+        del model
         gc.collect()
         torch.cuda.empty_cache()
         print("Tensors", list(get_tensors()))
