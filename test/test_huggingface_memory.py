@@ -107,9 +107,11 @@ def test_cuda_memory_cleanup_pred_no_keep():
 
         print("Memory", torch.cuda.memory_allocated())
         assert len(all_tensors) == 0
-        assert torch.cuda.memory_allocated() == 0
-        assert torch.cuda.memory_reserved() == 0
+        new_context()
 
+def new_context():
+    assert torch.cuda.memory_allocated() == 0
+    assert torch.cuda.memory_reserved() == 0
 
 def test_cuda_memory_cleanup_pred_keep():
     with torch.profiler.profile(
