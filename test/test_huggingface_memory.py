@@ -64,7 +64,7 @@ def test_cuda_memory_cleanup_pred_no_keep():
         with_stack=False,
         record_shapes=False,
         profile_memory=True,
-    ) as profiler, torch.no_grad():
+    ) as profiler, torch.inference_mode():
         if not torch.cuda.is_available():
             pytest.skip("No CUDA available")
         gc.collect()
