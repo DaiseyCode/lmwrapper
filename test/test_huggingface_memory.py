@@ -15,7 +15,7 @@ import gc
 import torch
 
 from test.test_huggingface import Models
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 def test_cuda_memory_cleanup_no_pred():
     with torch.profiler.profile(
@@ -75,7 +75,7 @@ def test_cuda_memory_cleanup_pred_no_keep():
         assert torch.cuda.memory_reserved() == 0
         available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
         print("Available gpus", available_gpus)
-        model = AutoModel.from_pretrained("distilgpt2").to("cuda")
+        model = AutoModelForCausalLM.from_pretrained("distilgpt2").to("cuda")
         tokenizer = AutoTokenizer.from_pretrained("distilgpt2")
 
         # lm = get_huggingface_lm(
