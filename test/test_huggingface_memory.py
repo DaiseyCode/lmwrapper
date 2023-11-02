@@ -18,102 +18,129 @@ from test.test_huggingface import Models
 
 
 def test_cuda_memory_cleanup_no_pred():
-    if not torch.cuda.is_available():
-        pytest.skip("No CUDA available")
-    gc.collect()
-    torch.cuda.empty_cache()
-    all_tensors = list(get_tensors())
-    assert len(all_tensors) == 0
-    assert torch.cuda.memory_allocated() == 0
-    assert torch.cuda.memory_reserved() == 0
-    available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
-    print("Available gpus", available_gpus)
-    lm = get_huggingface_lm(
-        Models.DistilGPT2,
-        runtime=Runtime.PYTORCH,
-        #device="cuda:0",
-    )
-    assert str(lm._model.device) != "cpu"
-    print(lm._model)
-    assert torch.cuda.memory_allocated() > 0, "Before deling no mem"
-    assert torch.cuda.memory_reserved() > 0, "Before deling no mem"
-    print("Deleting model")
-    del lm
-    gc.collect()
-    torch.cuda.empty_cache()
-    assert len(all_tensors) == 0
-    assert torch.cuda.memory_allocated() == 0
-    assert torch.cuda.memory_reserved() == 0
+    with torch.profiler.profile(
+        activities=[
+        torch.profiler.ProfilerActivity.CPU,
+        torch.profiler.ProfilerActivity.CUDA],
+        on_trace_ready=torch.profiler.tensorboard_trace_handler('./tensorboard', worker_name='worker1'),
+        with_stack=False,
+        record_shapes=False,
+        profile_memory=True,
+    ) as profiler:
+        if not torch.cuda.is_available():
+            pytest.skip("No CUDA available")
+        gc.collect()
+        torch.cuda.empty_cache()
+        all_tensors = list(get_tensors())
+        assert len(all_tensors) == 0
+        assert torch.cuda.memory_allocated() == 0
+        assert torch.cuda.memory_reserved() == 0
+        available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
+        print("Available gpus", available_gpus)
+        lm = get_huggingface_lm(
+            Models.DistilGPT2,
+            runtime=Runtime.PYTORCH,
+            #device="cuda:0",
+        )
+        assert str(lm._model.device) != "cpu"
+        print(lm._model)
+        assert torch.cuda.memory_allocated() > 0, "Before deling no mem"
+        assert torch.cuda.memory_reserved() > 0, "Before deling no mem"
+        print("Deleting model")
+        del lm
+        gc.collect()
+        torch.cuda.empty_cache()
+        assert len(all_tensors) == 0
+        assert torch.cuda.memory_allocated() == 0
+        assert torch.cuda.memory_reserved() == 0
 
 
 def test_cuda_memory_cleanup_pred_no_keep():
-    if not torch.cuda.is_available():
-        pytest.skip("No CUDA available")
-    gc.collect()
-    torch.cuda.empty_cache()
-    all_tensors = list(get_tensors())
-    assert len(all_tensors) == 0
-    assert torch.cuda.memory_allocated() == 0
-    assert torch.cuda.memory_reserved() == 0
-    available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
-    print("Available gpus", available_gpus)
-    lm = get_huggingface_lm(
-        Models.DistilGPT2,
-        runtime=Runtime.PYTORCH,
-        #device="cuda:0",
-    )
-    assert str(lm._model.device) != "cpu"
-    print(lm._model)
-    assert torch.cuda.memory_reserved() > 0, "Before deling no mem"
-    print("pred no keep")
-    lm.predict("Hello world")
-    print("After predict")
-    assert torch.cuda.memory_reserved() > 0, "Before deling no mem"
-    print("Deleting model")
-    del lm
-    gc.collect()
-    torch.cuda.empty_cache()
-    print("Tensors", list(get_tensors()))
-    print("Memory", torch.cuda.memory_allocated())
-    assert len(all_tensors) == 0
-    assert torch.cuda.memory_allocated() == 0
-    assert torch.cuda.memory_reserved() == 0
+    with torch.profiler.profile(
+        activities=[
+        torch.profiler.ProfilerActivity.CPU,
+        torch.profiler.ProfilerActivity.CUDA],
+        on_trace_ready=torch.profiler.tensorboard_trace_handler('./tensorboard', worker_name='worker1'),
+        with_stack=False,
+        record_shapes=False,
+        profile_memory=True,
+    ) as profiler:
+        if not torch.cuda.is_available():
+            pytest.skip("No CUDA available")
+        gc.collect()
+        torch.cuda.empty_cache()
+        all_tensors = list(get_tensors())
+        assert len(all_tensors) == 0
+        assert torch.cuda.memory_allocated() == 0
+        assert torch.cuda.memory_reserved() == 0
+        available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
+        print("Available gpus", available_gpus)
+        lm = get_huggingface_lm(
+            Models.DistilGPT2,
+            runtime=Runtime.PYTORCH,
+            #device="cuda:0",
+        )
+        assert str(lm._model.device) != "cpu"
+        print(lm._model)
+        assert torch.cuda.memory_reserved() > 0, "Before deling no mem"
+        print("pred no keep")
+        lm.predict("Hello world")
+        print("After predict")
+        assert torch.cuda.memory_reserved() > 0, "Before deling no mem"
+        print("Deleting model")
+        del lm
+        gc.collect()
+        torch.cuda.empty_cache()
+        print("Tensors", list(get_tensors()))
+        print("Memory", torch.cuda.memory_allocated())
+        assert len(all_tensors) == 0
+        assert torch.cuda.memory_allocated() == 0
+        assert torch.cuda.memory_reserved() == 0
 
 
 def test_cuda_memory_cleanup_pred_keep():
-    if not torch.cuda.is_available():
-        pytest.skip("No CUDA available")
-    gc.collect()
-    torch.cuda.empty_cache()
-    all_tensors = list(get_tensors())
-    assert len(all_tensors) == 0
-    assert torch.cuda.memory_allocated() == 0
-    assert torch.cuda.memory_reserved() == 0
-    available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
-    print("Available gpus", available_gpus)
-    lm = get_huggingface_lm(
-        Models.DistilGPT2,
-        runtime=Runtime.PYTORCH,
-        #device="cuda:0",
-    )
-    assert str(lm._model.device) != "cpu"
-    print(lm._model)
-    assert torch.cuda.memory_reserved() > 0, "Before deling no mem"
-    print("pred keep")
-    pred = lm.predict("Hello world")
-    print("After predict")
-    assert torch.cuda.memory_reserved() > 0, "Before deling no mem"
-    print("Deleting model")
-    del lm
-    gc.collect()
-    torch.cuda.empty_cache()
-    print("Tensors", list(get_tensors()))
-    print("Memory", torch.cuda.memory_allocated())
-    assert len(all_tensors) == 0
-    assert torch.cuda.memory_allocated() == 0
-    assert torch.cuda.memory_reserved() == 0
-    print("pred")
-    print(pred)
+    with torch.profiler.profile(
+        activities=[
+        torch.profiler.ProfilerActivity.CPU,
+        torch.profiler.ProfilerActivity.CUDA],
+        on_trace_ready=torch.profiler.tensorboard_trace_handler('./tensorboard', worker_name='worker1'),
+        with_stack=False,
+        record_shapes=False,
+        profile_memory=True,
+    ) as profiler:
+        if not torch.cuda.is_available():
+            pytest.skip("No CUDA available")
+        gc.collect()
+        torch.cuda.empty_cache()
+        all_tensors = list(get_tensors())
+        assert len(all_tensors) == 0
+        assert torch.cuda.memory_allocated() == 0
+        assert torch.cuda.memory_reserved() == 0
+        available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
+        print("Available gpus", available_gpus)
+        lm = get_huggingface_lm(
+            Models.DistilGPT2,
+            runtime=Runtime.PYTORCH,
+            #device="cuda:0",
+        )
+        assert str(lm._model.device) != "cpu"
+        print(lm._model)
+        assert torch.cuda.memory_reserved() > 0, "Before deling no mem"
+        print("pred keep")
+        pred = lm.predict("Hello world")
+        print("After predict")
+        assert torch.cuda.memory_reserved() > 0, "Before deling no mem"
+        print("Deleting model")
+        del lm
+        gc.collect()
+        torch.cuda.empty_cache()
+        print("Tensors", list(get_tensors()))
+        print("Memory", torch.cuda.memory_allocated())
+        assert len(all_tensors) == 0
+        assert torch.cuda.memory_allocated() == 0
+        assert torch.cuda.memory_reserved() == 0
+        print("pred")
+        print(pred)
 
 
 def get_tensors(gpu_only=True):
