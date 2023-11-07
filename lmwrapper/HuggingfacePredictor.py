@@ -476,7 +476,8 @@ class HuggingfacePredictor(LmPredictor):
         if torch.cuda.is_available():
             pre_memory = torch.cuda.memory_allocated()
 
-        prediction = self._predict_hf(prompt)
+        with torch.inference_mode():
+            prediction = self._predict_hf(prompt)
 
         if torch.cuda.is_available():
             post_memory = torch.cuda.memory_allocated()
