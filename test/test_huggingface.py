@@ -5,8 +5,10 @@ import torch
 from transformers import AutoTokenizer
 
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
-from lmwrapper.HuggingfacePredictor import _get_token_offsets, \
-    _expand_offsets_to_a_token_index_for_every_text_index
+from lmwrapper.HuggingfacePredictor import (
+    _expand_offsets_to_a_token_index_for_every_text_index,
+    _get_token_offsets,
+)
 from lmwrapper.prompt_trimming import HfTokenTrimmer
 from lmwrapper.runtime import Runtime
 from lmwrapper.structs import LmPrompt
@@ -853,7 +855,8 @@ def test_offsets_for_removal_prompt():
 
 def test_token_expanding_weird_from_t5():
     expand = _expand_offsets_to_a_token_index_for_every_text_index(
-        [(0, 1), (0, 1), (0, 1), (1, 6), (7, 13), (13, 14), (14, 15)])
+        [(0, 1), (0, 1), (0, 1), (1, 6), (7, 13), (13, 14), (14, 15)],
+    )
     assert expand == [
         0,
         *([3] * (6 - 1)),

@@ -1,29 +1,27 @@
 """Attempts at chasing down potential memory leaks"""
-import numpy as np
+
+import gc
+from test.test_huggingface import Models
+
 import pytest
 import torch
 
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
-from lmwrapper.HuggingfacePredictor import _get_token_offsets, \
-    _expand_offsets_to_a_token_index_for_every_text_index
-from lmwrapper.prompt_trimming import HfTokenTrimmer
 from lmwrapper.runtime import Runtime
 from lmwrapper.structs import LmPrompt
-from lmwrapper.utils import StrEnum
 
-import gc
-import torch
-
-from test.test_huggingface import Models
-from transformers import AutoModelForCausalLM, AutoTokenizer
 
 @pytest.mark.skip("Not going to try with the profiler version stuff")
 def test_cuda_memory_cleanup_no_pred():
     with torch.profiler.profile(
         activities=[
-        torch.profiler.ProfilerActivity.CPU,
-        torch.profiler.ProfilerActivity.CUDA],
-        on_trace_ready=torch.profiler.tensorboard_trace_handler('./tensorboard', worker_name='worker1'),
+            torch.profiler.ProfilerActivity.CPU,
+            torch.profiler.ProfilerActivity.CUDA,
+        ],
+        on_trace_ready=torch.profiler.tensorboard_trace_handler(
+            "./tensorboard",
+            worker_name="worker1",
+        ),
         with_stack=False,
         record_shapes=False,
         profile_memory=True,
@@ -36,12 +34,14 @@ def test_cuda_memory_cleanup_no_pred():
         assert len(all_tensors) == 0
         assert torch.cuda.memory_allocated() == 0
         assert torch.cuda.memory_reserved() == 0
-        available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
+        available_gpus = [
+            torch.cuda.device(i) for i in range(torch.cuda.device_count())
+        ]
         print("Available gpus", available_gpus)
         lm = get_huggingface_lm(
             Models.DistilGPT2,
             runtime=Runtime.PYTORCH,
-            #device="cuda:0",
+            # device="cuda:0",
         )
         assert str(lm._model.device) != "cpu"
         print(lm._model)
@@ -58,7 +58,7 @@ def test_cuda_memory_cleanup_no_pred():
 
 @pytest.mark.skip("Huggingface/torch seems to hang on to some memory")
 def test_cuda_memory_cleanup_pred_no_keep():
-    #with torch.profiler.profile(
+    # with torch.profiler.profile(
     #    activities=[
     #    torch.profiler.ProfilerActivity.CPU,
     #    torch.profiler.ProfilerActivity.CUDA],
@@ -66,7 +66,7 @@ def test_cuda_memory_cleanup_pred_no_keep():
     #    with_stack=False,
     #    record_shapes=False,
     #    profile_memory=True,
-    #) as profiler, torch.inference_mode():
+    # ) as profiler, torch.inference_mode():
     #    if not torch.cuda.is_available():
     #        pytest.skip("No CUDA available")
     #    gc.collect()
@@ -91,21 +91,17 @@ def test_cuda_memory_cleanup_pred_no_keep():
     print("Available gpus", available_gpus)
     lm = get_huggingface_lm(
         "Salesforce/codegen2-16b",
-        #Models.DistilGPT2,
+        # Models.DistilGPT2,
         runtime=Runtime.PYTORCH,
         trust_remote_code=True,
-        #device="cuda:0",
+        # device="cuda:0",
     )
     assert str(lm._model.device) != "cpu"
     print(lm._model)
     assert torch.cuda.memory_reserved() > 0, "Before deling no mem"
     print("pred no keep")
     for i in range(50):
-        lm.predict(LmPrompt(
-            text="Hello world",
-            logprobs=0,
-            echo=False
-        ))
+        lm.predict(LmPrompt(text="Hello world", logprobs=0, echo=False))
     print("After predict")
     assert torch.cuda.memory_reserved() > 0, "Before deling no mem"
     print("Deleting model")
@@ -123,9 +119,13 @@ def test_cuda_memory_cleanup_pred_no_keep():
 def test_cuda_memory_cleanup_pred_keep():
     with torch.profiler.profile(
         activities=[
-        torch.profiler.ProfilerActivity.CPU,
-        torch.profiler.ProfilerActivity.CUDA],
-        on_trace_ready=torch.profiler.tensorboard_trace_handler('./tensorboard', worker_name='worker1'),
+            torch.profiler.ProfilerActivity.CPU,
+            torch.profiler.ProfilerActivity.CUDA,
+        ],
+        on_trace_ready=torch.profiler.tensorboard_trace_handler(
+            "./tensorboard",
+            worker_name="worker1",
+        ),
         with_stack=False,
         record_shapes=False,
         profile_memory=True,
@@ -138,12 +138,14 @@ def test_cuda_memory_cleanup_pred_keep():
         assert len(all_tensors) == 0
         assert torch.cuda.memory_allocated() == 0
         assert torch.cuda.memory_reserved() == 0
-        available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
+        available_gpus = [
+            torch.cuda.device(i) for i in range(torch.cuda.device_count())
+        ]
         print("Available gpus", available_gpus)
         lm = get_huggingface_lm(
             Models.DistilGPT2,
             runtime=Runtime.PYTORCH,
-            #device="cuda:0",
+            # device="cuda:0",
         )
         assert str(lm._model.device) != "cpu"
         print(lm._model)

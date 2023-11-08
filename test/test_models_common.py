@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
-from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
+from lmwrapper.openai_wrapper import OpenAiModelNames, get_open_ai_lm
 from lmwrapper.structs import LmPrompt
 
 ALL_MODELS = [
@@ -238,7 +238,7 @@ def test_no_stopping_in_prompt(lm):
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_no_stopping_program(lm):
-    prompt_text = '# Functions\ndef double(x):\n'
+    prompt_text = "# Functions\ndef double(x):\n"
     resp = lm.predict(
         LmPrompt(
             prompt_text,
