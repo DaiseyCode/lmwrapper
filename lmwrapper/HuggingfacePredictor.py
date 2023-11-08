@@ -582,13 +582,11 @@ def _get_token_offsets(
             "use the return_offsets_mapping option",
         )
 
-    #print("TOKEN IDS", token_ids)
     re_decoded = tokenizer.decode(
         token_ids,
         clean_up_tokenization_spaces=False,
         skip_special_tokens=False
     )
-    #print("re decoded", repr(re_decoded))
     new_tokenize = tokenizer(
         re_decoded,
         return_offsets_mapping=True,
@@ -597,7 +595,6 @@ def _get_token_offsets(
 
     new_token_ids = new_tokenize["input_ids"]
     offset_mapping = new_tokenize["offset_mapping"]
-    #print("MAPPING", offset_mapping)
 
     if new_token_ids != token_ids:
         # Do a bit hacky things to at least try to align them
@@ -700,7 +697,6 @@ def _expand_offsets_to_a_token_index_for_every_text_index(
     if len(token_offsets) == 0:
         return []
     token_offsets = _merge_equivalent_consecutive_spans(token_offsets)
-    #print("MERGED OFFSETS", token_offsets)
     token_offsets_full = []
     for i, (start, end) in enumerate(token_offsets):
         last_start, last_end = token_offsets[i - 1] if i > 0 else (0, start)
