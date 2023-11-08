@@ -505,11 +505,26 @@ class HuggingfacePredictor(LmPredictor):
 
     @property
     def token_limit(self):
-        max_length = self._model.config.max_length
-        n_positions = self._model.config.n_positions
-        if max_length is None and n_positions is None:
+        """Returns the max tokens of this model. For encoder-decoder models
+        it returns jus the encoder limit (this behaviour should probably be
+        refined)"""
+        possible_attr_names = [
+            "max_length",
+            "max_position_embeddings",
+            "n_positions",
+        ]
+        vals = [
+            getattr(self._model.config, attr_name, None)
+            for attr_name in possible_attr_names
+        ]
+        if hasattr(self._model.config, "encoder"):
+            vals.extend([
+                getattr(self._model.config.encoder, attr_name, None)
+                for attr_name in possible_attr_names
+            ])
+        if all(val is None for val in vals):
             raise ValueError("Unknown max length")
-        limit = max(max_length or 0, n_positions or 0)
+        limit = max(val for val in vals if val is not None)
         if limit < 100:
             raise ValueError("Unexpectedly low token limit")
         return limit
