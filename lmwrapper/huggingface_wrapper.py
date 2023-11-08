@@ -680,6 +680,9 @@ def _initialize_hf_model(
             " cause unexpected behavior.",
         )
 
+    if runtime in {Runtime.PYTORCH, Runtime.BETTER_TRANSFORMER}:
+        model.to(torch_device)  # Ensure model is on device
+
     predictor = get_huggingface_predictor(
         tokenizer=tokenizer,
         model=model,

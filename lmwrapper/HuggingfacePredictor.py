@@ -1,7 +1,8 @@
 import inspect
 import logging
+from collections.abc import Sequence
 from functools import cached_property
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 import torch
 from transformers import GenerationConfig, PreTrainedModel, PreTrainedTokenizerFast
@@ -148,7 +149,8 @@ class HuggingfacePredictor(LmPredictor):
         log_cuda_mem()
 
         if self.runtime in {Runtime.PYTORCH, Runtime.BETTER_TRANSFORMER}:
-            self._model.to(self._device)  # Ensure model is on device
+            if self._model.device != self._device:
+                self._model.to(self._device)  # Ensure model is on device
 
         logging.debug("Post model moving")
         log_cuda_mem()
@@ -275,9 +277,9 @@ class HuggingfacePredictor(LmPredictor):
         if patch_model_forward:
             self._model.forward = old_forward
 
-        model_output_sequence = (
-            generation_output.sequences[0].detach().cpu()
-        )  # we will not mutate this one
+        model_output_sequence = generation_output.sequences[
+            0
+        ].detach()  # we will not mutate this one
 
         output_sequence = model_output_sequence.clone()  # we will mutate this one
 
@@ -287,7 +289,10 @@ class HuggingfacePredictor(LmPredictor):
         stop_token_idx_generated = None
 
         generated_text = self._tokenizer.decode(
-            generated_sequence, skip_special_tokens=False, clean_up_tokenization_spaces=False)
+            generated_sequence,
+            skip_special_tokens=False,
+            clean_up_tokenization_spaces=False,
+        )
         clean_generated_text = self._tokenizer.decode(
             generated_sequence,
             skip_special_tokens=True,
@@ -297,15 +302,18 @@ class HuggingfacePredictor(LmPredictor):
         if prompt.stop:
             token_offsets = _get_token_offsets(self._tokenizer, generated_sequence)
             token_offsets_full = _expand_offsets_to_a_token_index_for_every_text_index(
-                token_offsets
+                token_offsets,
             )
             if len(token_offsets_full) != len(generated_text):
                 raise RuntimeError(
-                    f"Unexpected token offsets length\n"
-                    f"Generated text: '{generated_text}'\n"
-                    f"Token offsets: {token_offsets}\n"
-                    f"Tokens: {self._tokenizer.convert_ids_to_tokens(generated_sequence)}\n"
-                    f"Token offsets full: {token_offsets_full}"
+                    "Unexpected token offsets length\nGenerated text:"
+                    f" '{generated_text}'\nToken offsets: {token_offsets}\nTokens:"
+                    f" {self._tokenizer.convert_ids_to_tokens(generated_sequence)}\nToken"
+                    f" offsets full: {token_offsets_full}\nToken ids:"
+                    f" {generated_sequence}\nSpecial ids:"
+                    f" {self._tokenizer.all_special_ids}\nlen(token_offsets_full):"
+                    f" {len(token_offsets_full)}\nlen(generated_text):"
+                    f" {len(generated_text)}\n",
                 )
             sorted_stop_sequences = sorted(prompt.stop, key=len, reverse=True)
 
@@ -475,7 +483,8 @@ class HuggingfacePredictor(LmPredictor):
         if torch.cuda.is_available():
             pre_memory = torch.cuda.memory_allocated()
 
-        prediction = self._predict_hf(prompt)
+        with torch.inference_mode():
+            prediction = self._predict_hf(prompt)
 
         if torch.cuda.is_available():
             post_memory = torch.cuda.memory_allocated()
@@ -503,11 +512,30 @@ class HuggingfacePredictor(LmPredictor):
 
     @property
     def token_limit(self):
-        max_length = self._model.config.max_length
-        n_positions = self._model.config.n_positions
-        if max_length is None and n_positions is None:
+        """
+        Returns the max tokens of this model. For encoder-decoder models
+        it returns jus the encoder limit (this behaviour should probably be
+        refined)
+        """
+        possible_attr_names = [
+            "max_length",
+            "max_position_embeddings",
+            "n_positions",
+        ]
+        vals = [
+            getattr(self._model.config, attr_name, None)
+            for attr_name in possible_attr_names
+        ]
+        if hasattr(self._model.config, "encoder"):
+            vals.extend(
+                [
+                    getattr(self._model.config.encoder, attr_name, None)
+                    for attr_name in possible_attr_names
+                ],
+            )
+        if all(val is None for val in vals):
             raise ValueError("Unknown max length")
-        limit = max(max_length or 0, n_positions or 0)
+        limit = max(val for val in vals if val is not None)
         if limit < 100:
             raise ValueError("Unexpectedly low token limit")
         return limit
@@ -561,8 +589,13 @@ def _get_token_offsets(
             "use the return_offsets_mapping option",
         )
 
+    re_decoded = tokenizer.decode(
+        token_ids,
+        clean_up_tokenization_spaces=False,
+        skip_special_tokens=False,
+    )
     new_tokenize = tokenizer(
-        tokenizer.decode(token_ids, clean_up_tokenization_spaces=False, skip_special_tokens=False),
+        re_decoded,
         return_offsets_mapping=True,
         add_special_tokens=False,
     )
@@ -587,7 +620,7 @@ def _get_token_offsets(
             new_token_ids = token_ids
             assert len(new_token_ids) == len(offset_mapping)
 
-    #starts, ends = list(zip(*offset_mapping))
+    # starts, ends = list(zip(*offset_mapping))
 
     if new_token_ids != token_ids:
         msg = f"Token IDs do not match\nOriginal: {token_ids}\nNew: {new_token_ids}"
@@ -603,13 +636,14 @@ def _attempt_to_fix_degenerate_merges(
     output_token_strs: Sequence[str],
     new_tokenization_strs: Sequence[str],
 ) -> Sequence[tuple[int, int]]:
-    """Sometimes a model might output what I'm calling 'degenerate merges'.
+    """
+    Sometimes a model might output what I'm calling 'degenerate merges'.
     Here subtokens are outputted when a different token exists that is a merged
     version of the subtokens. This is a problem because the way we get
     the tokenize offsets relies on detokenizing the output tokens and then
     retokenizing with the 'return_offsets_mapping' option set.
 
-    This function tries to fix this by replacing the returning a new
+    This function tries to fix this by returning a new
     tokenization and new offsets with things unmerged to match the model.
     I don't think we are going to try to handle all the edge cases, but hopefully
     a more common.
@@ -620,7 +654,7 @@ def _attempt_to_fix_degenerate_merges(
     if len(output_tokens) < len(new_tokenization):
         raise ValueError(
             "Cannot fix solutions when there are more new tokens than output tokens. "
-            "Expect cases where output has more because of extra unmerged tokens."
+            "Expect cases where output has more because of extra unmerged tokens.",
         )
     output_idx = 0
     new_idx = 0
@@ -648,19 +682,23 @@ def _attempt_to_fix_degenerate_merges(
                 start_offset, _ = new_tokenization_offsets[new_idx]
                 for split_idx in output_tokens_idxes_for_this_new_token:
                     output_token_str_for_this_split = output_token_strs[split_idx]
-                    output_offsets.append((start_offset, start_offset + len(output_token_str_for_this_split)))
+                    output_offsets.append(
+                        (
+                            start_offset,
+                            start_offset + len(output_token_str_for_this_split),
+                        ),
+                    )
                     start_offset += len(output_token_str_for_this_split)
             else:
                 msg = (
-                    f"Attempted to fix degenerate merges but failed\n"
+                    "Attempted to fix degenerate merges but failed\n"
                     f"Original: {output_tokens}\n"
                     f"New: {new_tokenization}\n"
                     f"Original tokens: {output_token_strs}\n"
                     f"New tokens: {new_tokenization_strs}\n"
                 )
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
+            new_idx += 1
     return output_offsets
 
 
@@ -669,7 +707,32 @@ def _expand_offsets_to_a_token_index_for_every_text_index(
 ) -> list[int]:
     if len(token_offsets) == 0:
         return []
+    token_offsets = _merge_equivalent_consecutive_spans(token_offsets)
     token_offsets_full = []
     for i, (start, end) in enumerate(token_offsets):
-        token_offsets_full.extend([i] * (end - start))
+        last_start, last_end = token_offsets[i - 1] if i > 0 else (0, start)
+        token_offsets_full.extend([i] * (end - last_end))
     return token_offsets_full
+
+
+def _merge_equivalent_consecutive_spans(
+    spans: list[tuple[int, int]],
+) -> list[tuple[int, int]]:
+    """
+    Merges spans that are equivalent and consecutive.
+    Only the first instance of the span is kept with the rest
+    will be converted to a span with the same start end
+    """
+    if len(spans) == 0:
+        return []
+    if len(spans) == 1:
+        return spans
+    merged_spans = [spans[0]]
+    last_span = spans[0]
+    for span in spans[1:]:
+        if span == last_span:
+            merged_spans.append((span[1], span[1]))
+        else:
+            merged_spans.append(span)
+            last_span = span
+    return merged_spans

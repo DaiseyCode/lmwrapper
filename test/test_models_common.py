@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
-from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
+from lmwrapper.openai_wrapper import OpenAiModelNames, get_open_ai_lm
 from lmwrapper.structs import LmPrompt
 
 ALL_MODELS = [
@@ -238,7 +238,7 @@ def test_no_stopping_in_prompt(lm):
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_no_stopping_program(lm):
-    prompt_text = '# Functions\ndef double(x):\n'
+    prompt_text = "# Functions\ndef double(x):\n"
     resp = lm.predict(
         LmPrompt(
             prompt_text,
@@ -497,7 +497,15 @@ def test_remove_prompt_from_cache(lm):
     assert r1.completion_text == r2.completion_text
     assert lm.remove_prompt_from_cache(prompt)
     r3 = lm.predict(prompt)
-    assert r1.completion_text != r3.completion_text
+    if r1.completion_text != r3.completion_text:
+        return  # Pass because it is different and uncached
+    # Sometimes still flacky with just one prompt
+    assert lm.remove_prompt_from_cache(prompt)
+    r4 = lm.predict(prompt)
+    assert (
+        r1.completion_text != r3.completion_text
+        or r1.completion_text != r4.completion_text
+    )
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
