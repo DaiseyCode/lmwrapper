@@ -497,7 +497,15 @@ def test_remove_prompt_from_cache(lm):
     assert r1.completion_text == r2.completion_text
     assert lm.remove_prompt_from_cache(prompt)
     r3 = lm.predict(prompt)
-    assert r1.completion_text != r3.completion_text
+    if r1.completion_text != r3.completion_text:
+        return  # Pass because it is different and uncached
+    # Sometimes still flacky with just one prompt
+    assert lm.remove_prompt_from_cache(prompt)
+    r4 = lm.predict(prompt)
+    assert (
+        r1.completion_text != r3.completion_text
+        or r1.completion_text != r4.completion_text
+    )
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS)

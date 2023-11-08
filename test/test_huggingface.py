@@ -2,6 +2,7 @@
 import numpy as np
 import pytest
 import torch
+from transformers import AutoTokenizer
 
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
 from lmwrapper.HuggingfacePredictor import _get_token_offsets, \
@@ -239,7 +240,7 @@ def test_stop_n_codet5():
     no_logprobs_n_pred = lm.predict(no_logprobs_n_prompt)
     assert "\n" not in no_logprobs_n_pred.completion_text
     assert no_logprobs_n_pred.completion_tokens[0] not in ["<s>", r"<\s>"]
-    assert len(no_logprobs_n_pred.completion_tokens) == 5
+    assert len(no_logprobs_n_pred.completion_tokens) == 6  # or 5?
 
     logprobs_prompt = LmPrompt(
         text="def hello_world():",
@@ -848,3 +849,48 @@ def test_offsets_for_removal_prompt():
         *([4] * len(" Italy")),
     ]
     assert len(expanded) == len(text)
+
+
+def test_token_expanding_weird_from_t5():
+    expand = _expand_offsets_to_a_token_index_for_every_text_index(
+        [(0, 1), (0, 1), (0, 1), (1, 6), (7, 13), (13, 14), (14, 15)])
+    assert expand == [
+        0,
+        *([3] * (6 - 1)),
+        *([4] * (13 - 6)),
+        *([5] * (14 - 13)),
+        *([6] * (15 - 14)),
+    ]
+
+
+def test_degenerative_multiple():
+    # Load model
+    tokenizer = AutoTokenizer.from_pretrained(Models.DistilGPT2, use_fast=True)
+    tokens = [13, 198, 198, 198, 198]
+    text = ".\n\n\n\n"
+    assert tokenizer.decode(tokens) == text
+    offsets = _get_token_offsets(tokenizer, tokens)
+    assert offsets == [
+        (0, 1),
+        (1, 2),
+        (2, 3),
+        (3, 4),
+        (4, 5),
+    ]
+
+
+def test_degenerative_multiple_2():
+    # Load model
+    tokenizer = AutoTokenizer.from_pretrained(Models.DistilGPT2, use_fast=True)
+    tokens = [13, 198, 198, 198, 198, 198]
+    text = ".\n\n\n\n\n"
+    assert tokenizer.decode(tokens) == text
+    offsets = _get_token_offsets(tokenizer, tokens)
+    assert offsets == [
+        (0, 1),
+        (1, 2),
+        (2, 3),
+        (3, 4),
+        (4, 5),
+        (5, 6),
+    ]

@@ -306,7 +306,11 @@ class HuggingfacePredictor(LmPredictor):
                     f"Generated text: '{generated_text}'\n"
                     f"Token offsets: {token_offsets}\n"
                     f"Tokens: {self._tokenizer.convert_ids_to_tokens(generated_sequence)}\n"
-                    f"Token offsets full: {token_offsets_full}"
+                    f"Token offsets full: {token_offsets_full}\n"
+                    f"Token ids: {generated_sequence}\n"
+                    f"Special ids: {self._tokenizer.all_special_ids}\n"
+                    f"len(token_offsets_full): {len(token_offsets_full)}\n"
+                    f"len(generated_text): {len(generated_text)}\n"
                 )
             sorted_stop_sequences = sorted(prompt.stop, key=len, reverse=True)
 
@@ -578,14 +582,22 @@ def _get_token_offsets(
             "use the return_offsets_mapping option",
         )
 
+    #print("TOKEN IDS", token_ids)
+    re_decoded = tokenizer.decode(
+        token_ids,
+        clean_up_tokenization_spaces=False,
+        skip_special_tokens=False
+    )
+    #print("re decoded", repr(re_decoded))
     new_tokenize = tokenizer(
-        tokenizer.decode(token_ids, clean_up_tokenization_spaces=False, skip_special_tokens=False),
+        re_decoded,
         return_offsets_mapping=True,
         add_special_tokens=False,
     )
 
     new_token_ids = new_tokenize["input_ids"]
     offset_mapping = new_tokenize["offset_mapping"]
+    #print("MAPPING", offset_mapping)
 
     if new_token_ids != token_ids:
         # Do a bit hacky things to at least try to align them
@@ -626,7 +638,7 @@ def _attempt_to_fix_degenerate_merges(
     the tokenize offsets relies on detokenizing the output tokens and then
     retokenizing with the 'return_offsets_mapping' option set.
 
-    This function tries to fix this by replacing the returning a new
+    This function tries to fix this by returning a new
     tokenization and new offsets with things unmerged to match the model.
     I don't think we are going to try to handle all the edge cases, but hopefully
     a more common.
@@ -678,6 +690,7 @@ def _attempt_to_fix_degenerate_merges(
                 raise ValueError(
                     msg
                 )
+            new_idx += 1
     return output_offsets
 
 
@@ -686,7 +699,32 @@ def _expand_offsets_to_a_token_index_for_every_text_index(
 ) -> list[int]:
     if len(token_offsets) == 0:
         return []
+    token_offsets = _merge_equivalent_consecutive_spans(token_offsets)
+    #print("MERGED OFFSETS", token_offsets)
     token_offsets_full = []
     for i, (start, end) in enumerate(token_offsets):
-        token_offsets_full.extend([i] * (end - start))
+        last_start, last_end = token_offsets[i - 1] if i > 0 else (0, start)
+        token_offsets_full.extend([i] * (end - last_end))
     return token_offsets_full
+
+
+def _merge_equivalent_consecutive_spans(
+    spans: list[tuple[int, int]],
+) -> list[tuple[int, int]]:
+    """Merges spans that are equivalent and consecutive.
+    Only the first instance of the span is kept with the rest
+    will be converted to a span with the same start end
+    """
+    if len(spans) == 0:
+        return []
+    if len(spans) == 1:
+        return spans
+    merged_spans = [spans[0]]
+    last_span = spans[0]
+    for span in spans[1:]:
+        if span == last_span:
+            merged_spans.append((span[1], span[1]))
+        else:
+            merged_spans.append(span)
+            last_span = span
+    return merged_spans
