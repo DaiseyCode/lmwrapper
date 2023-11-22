@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from sqlite3 import OperationalError
 
 from ratemate import RateLimit
 
@@ -28,7 +29,10 @@ class LmPredictor:
             if cache_key in self._disk_cache:
                 return self._disk_cache.get(cache_key)
             val = self._predict_maybe_cached(prompt)
-            self._disk_cache.set(cache_key, val)
+            try:
+                self._disk_cache.set(cache_key, val)
+            except OperationalError as e:
+                print("Failed to cache", e)
             return val
         else:
             return self._predict_maybe_cached(prompt)
