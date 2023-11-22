@@ -6,9 +6,10 @@ from joblib import Memory
 cur_file = Path(__file__).parent.absolute()
 
 _set_cache_dir = None
+_set_cache_size_limit = None
 
 
-def set_cache_dir(path: Path):
+def set_cache_dir(path: Path, size_limit: int = int(1e9)):
     """
     Sets the caching directory. Note it does not affect any already constructed
     models
@@ -48,7 +49,7 @@ def _get_disk_cache_diskcache() -> diskcache.FanoutCache:
         timeout=int(9e9),
         size_limit=50e9,
         shards=4,
-        eviction_policy="none",
+        #eviction_policy="none",
     )
 
 

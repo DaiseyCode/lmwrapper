@@ -170,8 +170,13 @@ def test_trim_start():
 
 @pytest.mark.slow()
 def test_logprobs_codegen2():
+    #model = Models.CodeGen2_1B
+    #model = Models.CodeGen2_3_7B
+    model = "Salesforce/codegen2-16B"
     lm = get_huggingface_lm(
-        Models.CodeGen2_1B,
+        model,
+        #Models.CodeGen2_3_7B,
+        #"Salesforce/codegen2-16B",
         allow_patch_model_forward=False,
         runtime=Runtime.PYTORCH,
         trust_remote_code=True,
@@ -184,9 +189,14 @@ def test_logprobs_codegen2():
     )
     outa = lm.predict(prompt)
     logprobs_a = np.array(outa.completion_logprobs)
+    del outa
+    del lm
+    import gc
+    gc.collect()
+    torch.cuda.empty_cache()
 
     lm = get_huggingface_lm(
-        Models.CodeGen2_1B,
+        model,
         allow_patch_model_forward=True,
         runtime=Runtime.PYTORCH,
         trust_remote_code=True,
@@ -197,6 +207,7 @@ def test_logprobs_codegen2():
         cache=False,
         temperature=0,
         echo=True,
+        logprobs=1,
     )
     outb = lm.predict(prompt)
     logprobs_b = np.array(outb.completion_logprobs)

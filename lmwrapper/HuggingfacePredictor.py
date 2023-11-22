@@ -356,6 +356,7 @@ class HuggingfacePredictor(LmPredictor):
 
         logprobs_dicts = []
         # Calculate the logprobs if needed
+        logprobs = None
         if need_log_prob:
             if patch_model_forward:
                 assert prompt.echo
@@ -425,8 +426,6 @@ class HuggingfacePredictor(LmPredictor):
                         "probability": float(probability),
                     },
                 )
-        else:
-            logprobs = None
 
         if prompt.max_tokens == 0:
             # Huggingface seems to default to one token always return an extra token
