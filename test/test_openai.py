@@ -252,6 +252,30 @@ def test_instantiation_hook():
         OpenAIPredictor._instantiation_hooks = []
 
 
+@pytest.mark.skip("We don't need to do this usually")
+def test_simple_chat_mode_multiturn_4turbo():
+    lm = get_open_ai_lm(OpenAiModelNames.gpt_4_turbo)
+    prompt = [
+        "What is 2+2? Answer with just one number.",
+        "4",
+        "What is 3+2?",
+    ]
+    assert LmChatDialog(prompt).as_dicts() == [
+        {"role": "user", "content": "What is 2+2? Answer with just one number."},
+        {"role": "assistant", "content": "4"},
+        {"role": "user", "content": "What is 3+2?"},
+    ]
+    out = lm.predict(
+        LmPrompt(
+            prompt,
+            max_tokens=1,
+            num_completions=1,
+            cache=False,
+        ),
+    )
+    assert out.completion_text.strip() == "5"
+
+
 def test_tokenizer():
     lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo)
     tokens = lm.tokenize("I like pie")
