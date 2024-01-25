@@ -171,9 +171,9 @@ def main():
 
 def test_tokenizer_gpt3():
     lm = get_open_ai_lm(
-        OpenAiModelNames.text_ada_001,
+        OpenAiModelNames.gpt_3_5_turbo_instruct,
     )
-    assert lm.token_limit == 2049
+    assert lm.token_limit == 4096
     assert lm.estimate_tokens_in_prompt(LmPrompt("Once", max_tokens=10)) == 1
     assert (
         lm.estimate_tokens_in_prompt(
@@ -183,26 +183,25 @@ def test_tokenizer_gpt3():
                 max_tokens=10,
             ),
         )
-        == 20
+        == 21
     )
-    assert (
-        lm.estimate_tokens_in_prompt(
-            LmPrompt(
-                " ".join(["once"] * 2000),
-                max_tokens=10,
-            ),
-        )
-        == 2000
+    long_prompt = " ".join(["once"] * 2000)
+    estimate = lm.estimate_tokens_in_prompt(
+        LmPrompt(
+            long_prompt,
+            max_tokens=10,
+        ),
     )
+    assert estimate == 2000
     assert not lm.could_completion_go_over_token_limit(
         LmPrompt(
-            " ".join(["once"] * 2000),
+            " ".join(["once"] * 4000),
             max_tokens=10,
         ),
     )
     assert lm.could_completion_go_over_token_limit(
         LmPrompt(
-            " ".join(["once"] * 2000),
+            " ".join(["once"] * 4090),
             max_tokens=50,
         ),
     )
@@ -242,11 +241,11 @@ def test_instantiation_hook():
             ):
                 nonlocal was_called
                 was_called = True
-                assert engine_name == OpenAiModelNames.text_ada_001
+                assert engine_name == OpenAiModelNames.gpt_3_5_turbo_instruct
 
         OpenAIPredictor.add_instantiation_hook(SimpleHook())
         assert not was_called
-        get_open_ai_lm(OpenAiModelNames.text_ada_001)
+        get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct)
         assert was_called
     finally:
         OpenAIPredictor._instantiation_hooks = []

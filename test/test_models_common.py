@@ -8,7 +8,7 @@ from lmwrapper.openai_wrapper import OpenAiModelNames, get_open_ai_lm
 from lmwrapper.structs import LmPrompt
 
 ALL_MODELS = [
-    get_open_ai_lm(OpenAiModelNames.text_ada_001),
+    get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct),
     get_huggingface_lm("gpt2"),
 ]
 

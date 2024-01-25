@@ -444,20 +444,20 @@ class _ModelNamesMeta(type):
 
 
 class OpenAiModelNames(metaclass=_ModelNamesMeta):
-    text_ada_001 = OpenAiModelInfo("text-ada-001", False, 2049)
-    """Capable of very simple tasks, usually the fastest model in the GPT-3 series, and lowest cost."""
-    text_davinci_003 = OpenAiModelInfo("text-davinci-003", False, 4097)
-    code_davinci_002 = OpenAiModelInfo("code-davinci-002", False, 4097)
-    """Can do any language task with better quality, longer output, and consistent instruction-following
-    than the curie, babbage, or ada models.
-    Also supports some additional features such as inserting text."""
+    """Enum for available OpenAI models. Variable docstrings adapted from
+    documentation on OpenAI's website at the time."""
+
     gpt_3_5_turbo = OpenAiModelInfo("gpt-3.5-turbo", True, 4096)
-    """	Most capable GPT-3.5 model and optimized for chat at 1/10th the cost of text-davinci-003.
+    """Most capable GPT-3.5 model and optimized for chat at 1/10th the cost of text-davinci-003.
     Will be updated with our latest model iteration 2 weeks after it is released."""
     gpt_3_5_turbo_16k = OpenAiModelInfo("gpt-3.5-turbo-16k", True, 16384)
     """Same capabilities as the standard gpt-3.5-turbo model but with 4 times the context."""
     gpt_3_5_turbo_instruct = OpenAiModelInfo("gpt-3.5-turbo-instruct", False, 4096)
     """A GPT-3.5 version but for completion"""
+    code_davinci_002 = OpenAiModelInfo("code-davinci-002", False, 4097)
+    """Can do any language task with better quality, longer output, and consistent instruction-following
+    than the curie, babbage, or ada models.
+    Also supports some additional features such as inserting text."""
     gpt_4 = OpenAiModelInfo("gpt-4", True, 8192)
     """More capable than any GPT-3.5 model, able to do more complex tasks, and optimized for chat.
     Will be updated with our latest model iteration 2 weeks after it is released."""
