@@ -170,13 +170,13 @@ def test_trim_start():
 
 @pytest.mark.slow()
 def test_logprobs_codegen2():
-    #model = Models.CodeGen2_1B
-    #model = Models.CodeGen2_3_7B
+    # model = Models.CodeGen2_1B
+    # model = Models.CodeGen2_3_7B
     model = "Salesforce/codegen2-16B"
     lm = get_huggingface_lm(
         model,
-        #Models.CodeGen2_3_7B,
-        #"Salesforce/codegen2-16B",
+        # Models.CodeGen2_3_7B,
+        # "Salesforce/codegen2-16B",
         allow_patch_model_forward=False,
         runtime=Runtime.PYTORCH,
         trust_remote_code=True,
@@ -192,6 +192,7 @@ def test_logprobs_codegen2():
     del outa
     del lm
     import gc
+
     gc.collect()
     torch.cuda.empty_cache()
 

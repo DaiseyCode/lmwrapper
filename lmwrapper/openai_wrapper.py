@@ -444,8 +444,10 @@ class _ModelNamesMeta(type):
 
 
 class OpenAiModelNames(metaclass=_ModelNamesMeta):
-    """Enum for available OpenAI models. Variable docstrings adapted from
-    documentation on OpenAI's website at the time."""
+    """
+    Enum for available OpenAI models. Variable docstrings adapted from
+    documentation on OpenAI's website at the time.
+    """
 
     gpt_3_5_turbo = OpenAiModelInfo("gpt-3.5-turbo", True, 4096)
     """Most capable GPT-3.5 model and optimized for chat at 1/10th the cost of text-davinci-003.
@@ -465,14 +467,14 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
     """Same capabilities as the base gpt-4 mode but with 4x the context length.
     Will be updated with our latest model iteration."""
     gpt_4_turbo = OpenAiModelInfo("gpt-4-1106-preview", True, 128_000)
-    """GPT-4 model with improved instruction following, JSON mode, 
-    reproducible outputs, parallel function calling, and more. 
-    Returns a maximum of 4,096 output tokens. This preview model is 
+    """GPT-4 model with improved instruction following, JSON mode,
+    reproducible outputs, parallel function calling, and more.
+    Returns a maximum of 4,096 output tokens. This preview model is
     not yet suited for production traffic.
-    
+
     Note that we don't currently handle the differing input and output
     token limits (tracked #25).
-    
+
     see: https://help.openai.com/en/articles/8555510-gpt-4-turbo
     """
 

@@ -14,7 +14,7 @@ ALL_MODELS = [
 
 
 ECHOABLE_MODELS = [
-    #get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct),
+    # get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct),
     # Won't work with now that echo disabled
     get_huggingface_lm("gpt2"),
 ]
