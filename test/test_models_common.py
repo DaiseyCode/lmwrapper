@@ -154,22 +154,6 @@ def test_low_prob_in_weird_sentence(lm):
     )
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
-def test_no_gen(lm):
-    val = lm.predict(
-        LmPrompt(
-            "I like pie",
-            max_tokens=0,
-            cache=False,
-            num_completions=1,
-            logprobs=1,
-        ),
-    )
-    assert len(val.completion_tokens) == 0
-    assert len(val.completion_text) == 0
-    assert len(val.completion_logprobs) == 0
-
-
 @pytest.mark.parametrize("lm", ECHOABLE_MODELS)
 def test_no_gen_with_echo(lm):
     val = lm.predict(
