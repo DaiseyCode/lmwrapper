@@ -13,6 +13,13 @@ ALL_MODELS = [
 ]
 
 
+ECHOABLE_MODELS = [
+    #get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct),
+    # Won't work with now that echo disabled
+    get_huggingface_lm("gpt2"),
+]
+
+
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_simple_pred(lm):
     out = lm.predict(
@@ -66,7 +73,7 @@ def test_simple_pred_cache(lm):
         runtimes.append(end - start)
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", ECHOABLE_MODELS)
 def test_echo(lm):
     out = lm.predict(
         LmPrompt(
@@ -97,7 +104,7 @@ def test_echo(lm):
     ]
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", ECHOABLE_MODELS)
 def test_low_prob_in_weird_sentence(lm):
     weird = lm.predict(
         LmPrompt(
@@ -149,6 +156,22 @@ def test_low_prob_in_weird_sentence(lm):
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_no_gen(lm):
+    val = lm.predict(
+        LmPrompt(
+            "I like pie",
+            max_tokens=0,
+            cache=False,
+            num_completions=1,
+            logprobs=1,
+        ),
+    )
+    assert len(val.completion_tokens) == 0
+    assert len(val.completion_text) == 0
+    assert len(val.completion_logprobs) == 0
+
+
+@pytest.mark.parametrize("lm", ECHOABLE_MODELS)
+def test_no_gen_with_echo(lm):
     val = lm.predict(
         LmPrompt(
             "I like pie",
