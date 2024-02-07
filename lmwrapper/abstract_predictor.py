@@ -130,4 +130,4 @@ class LmPredictor:
 
     @property
     def default_tokens_generated(self) -> int:
-        return self.token_limit // 8
+        return self.token_limit // 16

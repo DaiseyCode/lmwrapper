@@ -518,7 +518,7 @@ def test_remove_prompt_from_cache(lm):
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_none_max_tokens(lm):
     prompt = LmPrompt(
-        "Write a long and detailed story about a dog:",
+        "Write a long and detailed story (multiple paragraphs) about a dog:",
         max_tokens=None,
         temperature=1.0,
         cache=False,
