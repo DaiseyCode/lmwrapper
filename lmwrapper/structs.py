@@ -150,6 +150,15 @@ class LmPrompt:
         else:
             return self.text
 
+    def as_dict(self) -> dict:
+        """Serialize the prompt into a dictionary. Note this is not
+        guaranteed to be the same as the JSON representation for use
+        in an openai api call. This is just for serialization purposes."""
+        out = dataclasses.asdict(self)
+        if self.is_text_a_chat():
+            out["text"] = self.get_text_as_chat().as_dicts()
+        return out
+
 
 class ChatGptRoles(StrEnum):
     system = "system"
@@ -209,7 +218,7 @@ class LmChatDialog(list[LmChatTurn]):
 
     def as_dicts(self) -> list[dict]:
         return [
-            {k: v for k, v in chat_turn.__dict__.items() if v is not None}
+            {k: str(v) for k, v in chat_turn.__dict__.items() if v is not None}
             for chat_turn in self
         ]
 

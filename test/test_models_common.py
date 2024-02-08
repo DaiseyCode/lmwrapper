@@ -543,15 +543,18 @@ def test_none_max_tokens(lm):
 #    assert result.prompt_tokens == tokens
 
 #@pytest.mark.parametrize("lm", ALL_MODELS)
-#def test_to_dict_conversion():
+#def test_response_to_dict_conversion(lm):
 #    prompt = LmPrompt(
 #        text="Hello world",
 #        max_tokens=10,
 #        stop=["world"],
 #        logprobs=1,
-#        temperature=,
+#        temperature=1.0,
 #        cache=False,
 #    )
+#    resp = lm.predict(prompt)
+#    resp_dict = resp.as_dict()
+
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
