@@ -525,3 +525,61 @@ def test_none_max_tokens(lm):
     )
     result = lm.predict(prompt)
     assert len(result.completion_tokens) == lm.default_tokens_generated
+
+
+#@pytest.mark.parametrize("lm", ALL_MODELS)
+#def test_need_tokens(lm):
+#    prompt = LmPrompt(
+#        capital_prompt,
+#        max_tokens=4,
+#        temperature=0.0,
+#        cache=False,
+#        potentially_need_tokens=True,
+#        logprobs=0,
+#    )
+#    result = lm.predict(prompt)
+#    tokens = lm.tokenize(capital_prompt)
+#    assert tokens[:4] == ["The", " capital", " of", " Germany"]
+#    assert result.prompt_tokens == tokens
+
+#@pytest.mark.parametrize("lm", ALL_MODELS)
+#def test_to_dict_conversion():
+#    prompt = LmPrompt(
+#        text="Hello world",
+#        max_tokens=10,
+#        stop=["world"],
+#        logprobs=1,
+#        temperature=,
+#        cache=False,
+#    )
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_was_cached_marking(lm):
+    prompt = LmPrompt(
+        "Give a random base-64 guid:",
+        max_tokens=10,
+        temperature=2.0,
+        cache=False,
+    )
+    r1 = lm.predict(prompt)
+    assert not r1.was_cached
+    r2 = lm.predict(prompt)
+    assert not r2.was_cached
+    prompt = LmPrompt(
+        "Give a random base-64 guid:",
+        max_tokens=100,
+        temperature=2.0,
+        cache=True,
+    )
+    lm.remove_prompt_from_cache(prompt)
+    r3 = lm.predict(prompt)
+    assert not r3.was_cached
+    r4 = lm.predict(prompt)
+    assert r4.was_cached
+    assert not r3.was_cached
+    assert r3.completion_text == r4.completion_text
+    lm.remove_prompt_from_cache(prompt)
+    r5 = lm.predict(prompt)
+    assert not r5.was_cached
+

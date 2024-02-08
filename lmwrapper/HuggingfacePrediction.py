@@ -14,6 +14,7 @@ class HuggingfacePrediction(LmPrediction):
     _completion_with_special_tok: str
 
     def __post_init__(self):
+        super().__post_init__()
         assert len(self._prompt_encoding["input_ids"]) == 1
         assert self._num_prompt_tokens
         if self.prompt.add_bos_token:

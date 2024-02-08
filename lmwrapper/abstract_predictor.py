@@ -27,7 +27,10 @@ class LmPredictor:
         if should_cache:
             cache_key = (prompt, self._get_cache_key_metadata())
             if cache_key in self._disk_cache:
-                return self._disk_cache.get(cache_key)
+                cache_copy = self._disk_cache.get(cache_key)
+                if cache_copy:
+                    cache_copy = cache_copy.mark_as_cached()
+                return cache_copy
             val = self._predict_maybe_cached(prompt)
             try:
                 self._disk_cache.set(cache_key, val)

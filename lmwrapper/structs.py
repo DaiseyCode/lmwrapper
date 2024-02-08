@@ -1,3 +1,5 @@
+import dataclasses
+import copy
 import statistics
 from dataclasses import dataclass
 from typing import Any, Union
@@ -85,6 +87,7 @@ class LmPrompt:
     could be controlled in other models."""
     add_special_tokens: bool = True
     """Whether or not to add special tokens when encoding the prompt."""
+
     # TODO: make a auto_reduce_max_tokens to reduce when might go over.
 
     def __post_init__(self):
@@ -232,6 +235,17 @@ class LmPrediction:
     completion_text: str
     prompt: LmPrompt
     metad: Any
+
+    def __post_init__(self):
+        self._was_cached = False
+
+    @property
+    def was_cached(self) -> bool:
+        return hasattr(self, "_was_cached") and self._was_cached
+
+    def mark_as_cached(self) -> 'LmPrediction':
+        self._was_cached = True
+        return self
 
     def _verify_logprobs(self):
         if self.prompt.logprobs is None or self.prompt.logprobs == 0:
