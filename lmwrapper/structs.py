@@ -330,3 +330,42 @@ class LmPrediction:
         raise NotImplementedError(
             msg,
         )
+
+    def as_dict(
+        self,
+        pull_out_props: bool = True,
+        include_metad: bool = False,
+    ) -> dict[str, Any]:
+        out = {
+            "completion_text": self.completion_text,
+            "prompt": self.prompt.as_dict(),
+            "was_cached": self.was_cached,
+        }
+        if pull_out_props:
+            try:
+                out['prompt_tokens'] = self.prompt_tokens
+            except Exception:
+                pass
+            try:
+                out['completion_tokens'] = self.completion_tokens
+            except Exception:
+                pass
+            try:
+                out['prompt_logprobs'] = self.prompt_logprobs
+            except Exception:
+                pass
+            try:
+                out['completion_logprobs'] = self.completion_logprobs
+            except Exception:
+                pass
+            try:
+                out['full_logprobs'] = self.full_logprobs
+            except Exception:
+                pass
+            try:
+                out['top_token_logprobs'] = self.top_token_logprobs
+            except Exception:
+                pass
+        if include_metad:
+            out["metad"] = self.metad
+        return out

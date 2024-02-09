@@ -542,19 +542,31 @@ def test_none_max_tokens(lm):
 #    assert tokens[:4] == ["The", " capital", " of", " Germany"]
 #    assert result.prompt_tokens == tokens
 
-#@pytest.mark.parametrize("lm", ALL_MODELS)
-#def test_response_to_dict_conversion(lm):
-#    prompt = LmPrompt(
-#        text="Hello world",
-#        max_tokens=10,
-#        stop=["world"],
-#        logprobs=1,
-#        temperature=1.0,
-#        cache=False,
-#    )
-#    resp = lm.predict(prompt)
-#    resp_dict = resp.as_dict()
-
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_response_to_dict_conversion(lm):
+    prompt = LmPrompt(
+        text=capital_prompt,
+        max_tokens=4,
+        stop=["\n"],
+        logprobs=1,
+        temperature=0,
+        cache=False,
+    )
+    resp = lm.predict(prompt)
+    resp_dict = resp.as_dict()
+    expected = {
+        "completion_text": " is the city Paris",
+        "prompt": prompt.as_dict(),
+        "was_cached": False,
+        "completion_tokens": [
+            " is",
+            " the",
+            " city",
+            " Paris",
+        ],
+    }
+    assert all(key in resp_dict for key in expected)
+    assert all(resp_dict[key] == expected[key] for key in expected)
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
