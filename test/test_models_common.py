@@ -527,8 +527,8 @@ def test_none_max_tokens(lm):
     assert len(result.completion_tokens) == lm.default_tokens_generated
 
 
-#@pytest.mark.parametrize("lm", ALL_MODELS)
-#def test_need_tokens(lm):
+# @pytest.mark.parametrize("lm", ALL_MODELS)
+# def test_need_tokens(lm):
 #    prompt = LmPrompt(
 #        capital_prompt,
 #        max_tokens=4,
@@ -541,6 +541,7 @@ def test_none_max_tokens(lm):
 #    tokens = lm.tokenize(capital_prompt)
 #    assert tokens[:4] == ["The", " capital", " of", " Germany"]
 #    assert result.prompt_tokens == tokens
+
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_response_to_dict_conversion(lm):
@@ -597,4 +598,3 @@ def test_was_cached_marking(lm):
     lm.remove_prompt_from_cache(prompt)
     r5 = lm.predict(prompt)
     assert not r5.was_cached
-

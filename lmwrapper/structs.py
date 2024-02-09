@@ -1,5 +1,4 @@
 import dataclasses
-import copy
 import statistics
 from dataclasses import dataclass
 from typing import Any, Union
@@ -151,9 +150,11 @@ class LmPrompt:
             return self.text
 
     def as_dict(self) -> dict:
-        """Serialize the prompt into a dictionary. Note this is not
+        """
+        Serialize the prompt into a dictionary. Note this is not
         guaranteed to be the same as the JSON representation for use
-        in an openai api call. This is just for serialization purposes."""
+        in an openai api call. This is just for serialization purposes.
+        """
         out = dataclasses.asdict(self)
         if self.is_text_a_chat():
             out["text"] = self.get_text_as_chat().as_dicts()
@@ -252,7 +253,7 @@ class LmPrediction:
     def was_cached(self) -> bool:
         return hasattr(self, "_was_cached") and self._was_cached
 
-    def mark_as_cached(self) -> 'LmPrediction':
+    def mark_as_cached(self) -> "LmPrediction":
         self._was_cached = True
         return self
 
@@ -343,27 +344,27 @@ class LmPrediction:
         }
         if pull_out_props:
             try:
-                out['prompt_tokens'] = self.prompt_tokens
+                out["prompt_tokens"] = self.prompt_tokens
             except Exception:
                 pass
             try:
-                out['completion_tokens'] = self.completion_tokens
+                out["completion_tokens"] = self.completion_tokens
             except Exception:
                 pass
             try:
-                out['prompt_logprobs'] = self.prompt_logprobs
+                out["prompt_logprobs"] = self.prompt_logprobs
             except Exception:
                 pass
             try:
-                out['completion_logprobs'] = self.completion_logprobs
+                out["completion_logprobs"] = self.completion_logprobs
             except Exception:
                 pass
             try:
-                out['full_logprobs'] = self.full_logprobs
+                out["full_logprobs"] = self.full_logprobs
             except Exception:
                 pass
             try:
-                out['top_token_logprobs'] = self.top_token_logprobs
+                out["top_token_logprobs"] = self.top_token_logprobs
             except Exception:
                 pass
         if include_metad:
