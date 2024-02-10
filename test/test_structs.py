@@ -10,7 +10,7 @@ def test_prompt_to_dict_conversion():
         temperature=1.0,
         cache=False,
     )
-    prompt_dict = prompt.as_serialize_dict()
+    prompt_dict = prompt.dict_serialize()
     expected = {
         "text": "Hello world",
         "max_tokens": 10,
@@ -33,7 +33,7 @@ def test_prompt_to_dict_conversion_chat():
         temperature=1.0,
         cache=False,
     )
-    prompt_dict = prompt.as_serialize_dict()
+    prompt_dict = prompt.dict_serialize()
     expected = {
         "text": [
             {
