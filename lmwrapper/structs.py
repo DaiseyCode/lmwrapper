@@ -155,9 +155,24 @@ class LmPrompt:
         guaranteed to be the same as the JSON representation for use
         in an openai api call. This is just for serialization purposes.
         """
-        out = dataclasses.asdict(self)
+        out = {
+            "max_tokens": self.max_tokens,
+            "stop": self.stop,
+            "logprobs": self.logprobs,
+            "temperature": self.temperature,
+            "top_p": self.top_p,
+            "presence_penalty": self.presence_penalty,
+            "frequency_penalty": self.frequency_penalty,
+            "num_completions": self.num_completions,
+            "cache": self.cache,
+            "echo": self.echo,
+            "add_bos_token": self.add_bos_token,
+            "add_special_tokens": self.add_special_tokens,
+        }
         if self.is_text_a_chat():
             out["text"] = self.get_text_as_chat().as_dicts()
+        else:
+            out["text"] = self.text
         return out
 
 
