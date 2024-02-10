@@ -55,22 +55,27 @@ def test_simple_pred_lp(lm):
 def test_simple_pred_cache(lm):
     runtimes = []
     import time
+    prompt = LmPrompt(
+        "Once upon a",
+        max_tokens=1,
+        logprobs=1,
+        cache=True,
+        num_completions=1,
+        echo=False,
+        temperature=0.0
+    )
+    lm.remove_prompt_from_cache(prompt)
 
     for _i in range(2):
         start = time.time()
         out = lm.predict(
-            LmPrompt(
-                "Once upon a",
-                max_tokens=1,
-                logprobs=1,
-                cache=True,
-                num_completions=1,
-                echo=False,
-            ),
+            prompt
         )
         end = time.time()
         assert out.completion_text.strip() == "time"
         runtimes.append(end - start)
+
+    assert runtimes[0] > runtimes[1] * 5
 
 
 @pytest.mark.parametrize("lm", ECHOABLE_MODELS)
