@@ -55,6 +55,7 @@ def test_simple_pred_lp(lm):
 def test_simple_pred_cache(lm):
     runtimes = []
     import time
+
     prompt = LmPrompt(
         "Once upon a",
         max_tokens=1,
@@ -62,15 +63,13 @@ def test_simple_pred_cache(lm):
         cache=True,
         num_completions=1,
         echo=False,
-        temperature=0.0
+        temperature=0.0,
     )
     lm.remove_prompt_from_cache(prompt)
 
     for _i in range(2):
         start = time.time()
-        out = lm.predict(
-            prompt
-        )
+        out = lm.predict(prompt)
         end = time.time()
         assert out.completion_text.strip() == "time"
         runtimes.append(end - start)
