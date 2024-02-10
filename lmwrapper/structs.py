@@ -149,9 +149,9 @@ class LmPrompt:
         else:
             return self.text
 
-    def as_dict(self) -> dict:
+    def as_serialize_dict(self) -> dict:
         """
-        Serialize the prompt into a dictionary. Note this is not
+        Serialize the prompt into a json-compatible dictionary. Note this is not
         guaranteed to be the same as the JSON representation for use
         in an openai api call. This is just for serialization purposes.
         """
@@ -332,14 +332,14 @@ class LmPrediction:
             msg,
         )
 
-    def as_dict(
+    def as_serialize_dict(
         self,
         pull_out_props: bool = True,
         include_metad: bool = False,
     ) -> dict[str, Any]:
         out = {
             "completion_text": self.completion_text,
-            "prompt": self.prompt.as_dict(),
+            "prompt": self.prompt.as_serialize_dict(),
             "was_cached": self.was_cached,
         }
         if pull_out_props:

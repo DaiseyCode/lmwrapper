@@ -554,10 +554,10 @@ def test_response_to_dict_conversion(lm):
         cache=False,
     )
     resp = lm.predict(prompt)
-    resp_dict = resp.as_dict()
+    resp_dict = resp.as_serialize_dict()
     expected = {
         "completion_text": " is the city Paris",
-        "prompt": prompt.as_dict(),
+        "prompt": prompt.as_serialize_dict(),
         "was_cached": False,
         "completion_tokens": [
             " is",
