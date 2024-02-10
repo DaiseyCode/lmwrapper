@@ -57,17 +57,24 @@ def log_cuda_mem():
         )
 
 
-def flatten_dict(d: dict[str, Any], parent_key: str = "", sep: str = "__") -> dict:
+def flatten_dict(
+    d: dict[str, Any],
+    parent_key: str = "",
+    sep: str = "__",
+    verify_keys_do_not_have_sep: bool = True,
+) -> dict:
     """Flatten a nested dictionary"""
     items = []
     for k, v in d.items():
-        if sep in k:
+        if verify_keys_do_not_have_sep and sep in k:
             raise ValueError(
                 f"Separator {sep!r} is not allowed in keys. Found in {k!r}",
             )
         new_key = f"{parent_key}{sep}{k}" if parent_key else k
         if isinstance(v, dict):
-            items.extend(flatten_dict(v, new_key, sep=sep).items())
+            items.extend(flatten_dict(
+                v, new_key, sep, verify_keys_do_not_have_sep
+            ).items())
         else:
             items.append((new_key, v))
     return dict(items)
