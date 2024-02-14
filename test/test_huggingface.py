@@ -6,8 +6,9 @@ from transformers import AutoTokenizer
 
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
 from lmwrapper.HuggingfacePredictor import (
+    _check_tokenizer_to_see_if_adds_bos,
     _expand_offsets_to_a_token_index_for_every_text_index,
-    _get_token_offsets, _check_tokenizer_to_see_if_adds_bos,
+    _get_token_offsets,
 )
 from lmwrapper.prompt_trimming import HfTokenTrimmer
 from lmwrapper.runtime import Runtime
@@ -912,7 +913,7 @@ def test_degenerative_multiple_2():
     ]
 
 
-#@pytest.mark.parametrize("lm", ALL_MODELS)
+# @pytest.mark.parametrize("lm", ALL_MODELS)
 @pytest.mark.slow()
 def test_hello_world_prompt():
     # Known to currently fail.
@@ -928,20 +929,22 @@ def test_hello_world_prompt():
         precision=torch.float16,
     )
     hello_world_prompt = (
-        'def hello():\n'
+        "def hello():\n"
         '    """prints the string \'hello\'"""\n'
         '    print("hello")\n'
-        '\n'
-        'def hello_world():\n'
+        "\n"
+        "def hello_world():\n"
         '    """prints the string \'hello world\'"""\n'
     )
-    resp = lm.predict(LmPrompt(
-        hello_world_prompt,
-        max_tokens=15,
-        cache=False,
-        stop=["\n"],
-        temperature=0
-    ))
+    resp = lm.predict(
+        LmPrompt(
+            hello_world_prompt,
+            max_tokens=15,
+            cache=False,
+            stop=["\n"],
+            temperature=0,
+        ),
+    )
     assert resp.completion_text in (
         "    print('hello world')",
         '    print("hello world")',

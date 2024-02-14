@@ -70,17 +70,14 @@ class HuggingfacePredictor(LmPredictor):
 
         is_encoder_decoder = self._model.config.is_encoder_decoder
 
-        will_add_bos = (
-            prompt.add_bos_token
-            or (
-                prompt.add_bos_token is None
-                and self._tokenizer.bos_token
-                and not is_encoder_decoder
-                and not self._does_this_tokenizer_seem_add_a_bos(prompt.add_special_tokens)
-            )
+        will_add_bos = prompt.add_bos_token or (
+            prompt.add_bos_token is None
+            and self._tokenizer.bos_token
+            and not is_encoder_decoder
+            and not self._does_this_tokenizer_seem_add_a_bos(prompt.add_special_tokens)
         )
-        will_have_bos = (
-            will_add_bos or self._does_this_tokenizer_seem_add_a_bos(prompt.add_special_tokens)
+        will_have_bos = will_add_bos or self._does_this_tokenizer_seem_add_a_bos(
+            prompt.add_special_tokens,
         )
 
         if prompt.logprobs > 1:
@@ -477,16 +474,12 @@ class HuggingfacePredictor(LmPredictor):
         logging.debug("Post del statements")
         log_cuda_mem()
 
-
         return HuggingfacePrediction(
             completion_text=clean_generated_text,
             prompt=prompt,
             metad=updated_output,
             _completion_with_special_tok=generated_text,
-            _num_prompt_tokens=(
-                int(input_length)
-                - (1 if will_have_bos else 0)
-            ),
+            _num_prompt_tokens=(int(input_length) - (1 if will_have_bos else 0)),
             _prompt_encoding=np_encoded_input,
             _tokens=output_tokens,
             _log_probs=np_logprobs,
@@ -513,9 +506,11 @@ class HuggingfacePredictor(LmPredictor):
     def _does_this_tokenizer_seem_add_a_bos(self, add_special_tokens) -> bool:
         if self._tokenizer_already_adds_bos.get(add_special_tokens, None) is not None:
             return self._tokenizer_already_adds_bos[add_special_tokens]
-        self._tokenizer_already_adds_bos[add_special_tokens] = _check_tokenizer_to_see_if_adds_bos(
-            self._tokenizer,
-            add_special_tokens,
+        self._tokenizer_already_adds_bos[add_special_tokens] = (
+            _check_tokenizer_to_see_if_adds_bos(
+                self._tokenizer,
+                add_special_tokens,
+            )
         )
         return self._tokenizer_already_adds_bos[add_special_tokens]
 

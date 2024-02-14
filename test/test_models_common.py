@@ -615,4 +615,5 @@ def test_simple_pred_serialize(lm):
     )
     pred_dict = pred.dict_serialize()
     from pprint import pprint
+
     pprint(pred_dict)
