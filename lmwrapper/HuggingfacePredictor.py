@@ -38,6 +38,7 @@ class HuggingfacePredictor(LmPredictor):
         self.runtime = runtime
         self.allow_patch_model_forward = allow_patch_model_forward
         self.prompt_trimmer = prompt_trimmer
+        self._tokenizer_already_adds_bos = None
 
     def _get_cache_key_metadata(self):
         return {
@@ -67,6 +68,21 @@ class HuggingfacePredictor(LmPredictor):
         if self.allow_patch_model_forward:
             patch_model_forward = prompt.echo
 
+        is_encoder_decoder = self._model.config.is_encoder_decoder
+
+        will_add_bos = (
+            prompt.add_bos_token
+            or (
+                prompt.add_bos_token is None
+                and self._tokenizer.bos_token
+                and not is_encoder_decoder
+                and not self._does_this_tokenizer_seem_add_a_bos()
+            )
+        )
+        will_have_bos = (
+            will_add_bos or self._does_this_tokenizer_seem_add_a_bos()
+        )
+
         if prompt.logprobs > 1:
             msg = (
                 "Retrieving more than 1 logprob is not yet supported for HuggingFace"
@@ -83,21 +99,19 @@ class HuggingfacePredictor(LmPredictor):
             msg = "Presence penalty not implemented"
             raise NotImplementedError(msg)
 
-        if prompt.text == "" and not prompt.add_bos_token:
+        if prompt.text == "" and not will_have_bos:
             msg = "Cannot do unconditional generation without `add_bos_token`."
             raise Exception(
                 msg,
             )
 
-        is_encoder_decoder = self._model.config.is_encoder_decoder
-
-        if is_encoder_decoder and prompt.add_bos_token:
+        if is_encoder_decoder and will_add_bos:
             msg = "Encoder/decoder models should not have bos tokens added manually."
             raise Exception(
                 msg,
             )
 
-        if prompt.add_bos_token:
+        if will_add_bos:
             assert self._tokenizer.bos_token
             prompt_text = self._tokenizer.bos_token + prompt.text
         else:
@@ -350,7 +364,7 @@ class HuggingfacePredictor(LmPredictor):
             msg = "Output token length did not match output sequence length!"
             raise Exception(msg)
 
-        if prompt.add_bos_token:
+        if will_have_bos:
             output_tokens = output_tokens[1:]
             output_sequence = output_sequence[1:]
 
@@ -463,12 +477,16 @@ class HuggingfacePredictor(LmPredictor):
         logging.debug("Post del statements")
         log_cuda_mem()
 
+
         return HuggingfacePrediction(
             completion_text=clean_generated_text,
             prompt=prompt,
             metad=updated_output,
             _completion_with_special_tok=generated_text,
-            _num_prompt_tokens=int(input_length),
+            _num_prompt_tokens=(
+                int(input_length)
+                - (1 if will_have_bos else 0)
+            ),
             _prompt_encoding=np_encoded_input,
             _tokens=output_tokens,
             _log_probs=np_logprobs,
@@ -491,6 +509,16 @@ class HuggingfacePredictor(LmPredictor):
                 logging.warning("Possible memory leak detected in model prediction.")
 
         return prediction
+
+    def _does_this_tokenizer_seem_add_a_bos(self) -> bool:
+        if self._tokenizer_already_adds_bos is not None:
+            return self._tokenizer_already_adds_bos
+        # Use a little test tokenization to see if a bos token is added
+        tokens = self._tokenizer.tokenize("Test prompt")
+        self._tokenizer_already_adds_bos = (
+            len(tokens) > 1 and tokens[0] == self._tokenizer.bos_token
+        )
+        return self._tokenizer_already_adds_bos
 
     @cached_property
     def space_char(self) -> str:

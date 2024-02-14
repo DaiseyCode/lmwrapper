@@ -25,6 +25,7 @@ class Models(StrEnum):
     CodeLLama_7B_Instruct = "codellama/CodeLlama-7b-Instruct-hf"
     DistilGPT2 = "distilgpt2"
     GPT2 = "gpt2"
+    Mistral_7B = "mistralai/Mistral-7B-v0.1"
 
 
 CUDA_UNAVAILABLE = not torch.cuda.is_available()
@@ -33,7 +34,7 @@ SMALL_GPU = CUDA_UNAVAILABLE or torch.cuda.mem_get_info()[0] < 17_179_869_184  #
 SEQ2SEQ_MODELS = {Models.CodeT5plus_220M}
 CAUSAL_MODELS = {Models.DistilGPT2, Models.GPT2, Models.CodeGen2_1B}
 BIG_SEQ2SEQ_MODELS = {Models.CodeT5plus_6B, Models.InstructCodeT5plus_16B}
-BIG_CAUSAL_MODELS = {Models.CodeGen2_3_7B}
+BIG_CAUSAL_MODELS = {Models.CodeGen2_3_7B, Models.Mistral_7B}
 BIG_MODELS = BIG_SEQ2SEQ_MODELS | BIG_CAUSAL_MODELS
 ALL_MODELS = SEQ2SEQ_MODELS | CAUSAL_MODELS | BIG_MODELS
 
@@ -909,3 +910,39 @@ def test_degenerative_multiple_2():
         (4, 5),
         (5, 6),
     ]
+
+
+#@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.slow()
+def test_hello_world_prompt():
+    # Known to currently fail.
+    lm = Models.Mistral_7B
+    if SMALL_GPU and lm in BIG_MODELS:
+        pytest.skip(
+            f"Skipped model '{lm}' as model too large for available GPU memory.",
+        )
+    lm = get_huggingface_lm(
+        lm,
+        runtime=Runtime.PYTORCH,
+        trust_remote_code=True,
+        precision=torch.float16,
+    )
+    hello_world_prompt = (
+        'def hello():\n'
+        '    """prints the string \'hello\'"""\n'
+        '    print("hello")\n'
+        '\n'
+        'def hello_world():\n'
+        '    """prints the string \'hello world\'"""\n'
+    )
+    resp = lm.predict(LmPrompt(
+        hello_world_prompt,
+        max_tokens=15,
+        cache=False,
+        stop=["\n"],
+        temperature=0
+    ))
+    assert resp.completion_text in (
+        "    print('hello world')",
+        '    print("hello world")',
+    )

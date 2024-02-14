@@ -78,11 +78,19 @@ class LmPrompt:
     echo: bool = False
     """Whether to echo back the original prompt. Also allows you to get the
     probability of the prompt under the model"""
-    add_bos_token: bool = True
+    add_bos_token: bool = None
     """Whether to add a bos (beginning-of-sentence) token at the beginning of the prompt.
-    This allows for unconditional generation and allows for the first token to have
-    a probability. This always happens in the openai endpoints (presumably), but
-    could be controlled in other models."""
+    Properly handling BOS tokens is important for several reasons
+       1. Some models might be trained this way. Their learned algorithms might depend
+          on the existence of the token, and we want to match the training setting.
+       2. Having a BOS allows for unconditional generation (ie, no prompt)
+       3. Having a BOS lets us have a probability even for the first token.
+    There are three states this could be (None, True, False).
+    By default (None), we will add a bos token if the tokenizer does not seem to
+    add one by default, and it is not a seq2seq model.
+    Set to True to always add a bos token.
+    Set to False to never add a bos token (but the tokenizer might still add one).
+    """
     add_special_tokens: bool = True
     """Whether or not to add special tokens when encoding the prompt."""
 
