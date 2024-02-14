@@ -38,7 +38,7 @@ class HuggingfacePredictor(LmPredictor):
         self.runtime = runtime
         self.allow_patch_model_forward = allow_patch_model_forward
         self.prompt_trimmer = prompt_trimmer
-        self._tokenizer_already_adds_bos = None
+        self._tokenizer_already_adds_bos = {}
 
     def _get_cache_key_metadata(self):
         return {
@@ -76,11 +76,11 @@ class HuggingfacePredictor(LmPredictor):
                 prompt.add_bos_token is None
                 and self._tokenizer.bos_token
                 and not is_encoder_decoder
-                and not self._does_this_tokenizer_seem_add_a_bos()
+                and not self._does_this_tokenizer_seem_add_a_bos(prompt.add_special_tokens)
             )
         )
         will_have_bos = (
-            will_add_bos or self._does_this_tokenizer_seem_add_a_bos()
+            will_add_bos or self._does_this_tokenizer_seem_add_a_bos(prompt.add_special_tokens)
         )
 
         if prompt.logprobs > 1:
@@ -510,15 +510,14 @@ class HuggingfacePredictor(LmPredictor):
 
         return prediction
 
-    def _does_this_tokenizer_seem_add_a_bos(self) -> bool:
-        if self._tokenizer_already_adds_bos is not None:
-            return self._tokenizer_already_adds_bos
-        # Use a little test tokenization to see if a bos token is added
-        tokens = self._tokenizer.tokenize("Test prompt")
-        self._tokenizer_already_adds_bos = (
-            len(tokens) > 1 and tokens[0] == self._tokenizer.bos_token
+    def _does_this_tokenizer_seem_add_a_bos(self, add_special_tokens) -> bool:
+        if self._tokenizer_already_adds_bos.get(add_special_tokens, None) is not None:
+            return self._tokenizer_already_adds_bos[add_special_tokens]
+        self._tokenizer_already_adds_bos[add_special_tokens] = _check_tokenizer_to_see_if_adds_bos(
+            self._tokenizer,
+            add_special_tokens,
         )
-        return self._tokenizer_already_adds_bos
+        return self._tokenizer_already_adds_bos[add_special_tokens]
 
     @cached_property
     def space_char(self) -> str:
@@ -575,6 +574,15 @@ class HuggingfacePredictor(LmPredictor):
     @property
     def is_chat_model(self):
         return self._is_chat_model
+
+
+def _check_tokenizer_to_see_if_adds_bos(
+    tokenizer: PreTrainedTokenizerFast,
+    add_special_tokens: bool,
+) -> bool:
+    # Use a little test tokenization to see if a bos token is added
+    tokens = tokenizer.tokenize("Test prompt", add_special_tokens=add_special_tokens)
+    return len(tokens) > 1 and tokens[0] == tokenizer.bos_token
 
 
 def _gather_logprobs_from_logits(

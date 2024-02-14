@@ -7,7 +7,7 @@ from transformers import AutoTokenizer
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
 from lmwrapper.HuggingfacePredictor import (
     _expand_offsets_to_a_token_index_for_every_text_index,
-    _get_token_offsets,
+    _get_token_offsets, _check_tokenizer_to_see_if_adds_bos,
 )
 from lmwrapper.prompt_trimming import HfTokenTrimmer
 from lmwrapper.runtime import Runtime
@@ -946,3 +946,10 @@ def test_hello_world_prompt():
         "    print('hello world')",
         '    print("hello world")',
     )
+
+
+def test_check_tokenizer_check():
+    mistral_tokenizer = AutoTokenizer.from_pretrained(Models.Mistral_7B, use_fast=True)
+    assert _check_tokenizer_to_see_if_adds_bos(mistral_tokenizer, True)
+    gpt2_tokenizer = AutoTokenizer.from_pretrained(Models.DistilGPT2, use_fast=True)
+    assert not _check_tokenizer_to_see_if_adds_bos(gpt2_tokenizer, True)
