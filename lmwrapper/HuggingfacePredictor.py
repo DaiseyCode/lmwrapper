@@ -299,15 +299,11 @@ class HuggingfacePredictor(LmPredictor):
         stop_token_idx_output = None
         stop_token_idx_generated = None
 
-        generated_text = self._tokenizer.decode(
+        # Get the generated text (which might have special tokens and unclean spaces)
+        # and the clean_generated_text (which skips special tokens and cleans up spaces)
+        generated_text, clean_generated_text = _figure_out_generated_text(
+            self._tokenizer,
             generated_sequence,
-            skip_special_tokens=False,
-            clean_up_tokenization_spaces=False,
-        )
-        clean_generated_text = self._tokenizer.decode(
-            generated_sequence,
-            skip_special_tokens=True,
-            clean_up_tokenization_spaces=True,
         )
 
         if prompt.stop:
@@ -600,6 +596,48 @@ def _verify_concatenable(generated_tokens: list[str], generated_text: str):
             raise NotImplementedError(msg)
         else:
             logging.warning(msg)
+
+
+def _figure_out_generated_text(
+    tokenizer: PreTrainedTokenizerFast,
+    generated_sequence,
+):
+    # Some tokenizers (notably mistral) has buggy behaviour when
+    # not having a first token. We try to work around this by adding
+    # a bos token
+    print(generated_sequence)
+    assert isinstance(generated_sequence, torch.Tensor)
+    assert len(generated_sequence.shape) == 1
+    have_mod = False
+    if tokenizer.bos_token and generated_sequence[0] != tokenizer.bos_token_id:
+        mod_gen_seq = torch.cat(
+            [torch.tensor(
+                [tokenizer.bos_token_id],
+                device=generated_sequence.device,
+            ), generated_sequence],
+            dim=0,
+        )
+        have_mod = True
+    else:
+        mod_gen_seq = generated_sequence
+    generated_text = tokenizer.decode(
+        mod_gen_seq,
+        skip_special_tokens=False,
+        clean_up_tokenization_spaces=False,
+    )
+    clean_generated_text = tokenizer.decode(
+        mod_gen_seq,
+        skip_special_tokens=True,
+        clean_up_tokenization_spaces=True,
+    )
+    if have_mod:
+        if generated_text.startswith(tokenizer.bos_token):
+            generated_text = generated_text[len(tokenizer.bos_token) :]
+        if clean_generated_text.startswith(tokenizer.bos_token):
+            clean_generated_text = clean_generated_text[len(tokenizer.bos_token):]
+    return generated_text, clean_generated_text
+
+
 
 
 def _get_token_offsets(
