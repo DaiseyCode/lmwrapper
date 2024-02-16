@@ -1,4 +1,3 @@
-import functools
 import inspect
 import logging
 from collections.abc import Sequence
@@ -355,7 +354,7 @@ class HuggingfacePredictor(LmPredictor):
         # Original: self._tokenizer.convert_ids_to_tokens(output_sequence)
         # output_tokens = [self._tokenizer.decode(t) for t in output_sequence]
         output_tokens = self.remove_special_chars_from_tokens(
-            self._tokenizer.convert_ids_to_tokens(output_sequence)
+            self._tokenizer.convert_ids_to_tokens(output_sequence),
         )
         if len(output_tokens) != len(output_sequence):
             msg = "Output token length did not match output sequence length!"
@@ -523,7 +522,6 @@ class HuggingfacePredictor(LmPredictor):
                 return tok.replace("went", "")
         return None
 
-
     @cached_property
     def newline_char(self) -> str | None:
         for attempt in ("I\nI", "a\na"):
@@ -567,10 +565,12 @@ class HuggingfacePredictor(LmPredictor):
                 ],
             )
         if all(val is None for val in vals):
-            raise ValueError("Unknown max length")
+            msg = "Unknown max length"
+            raise ValueError(msg)
         limit = max(val for val in vals if val is not None)
         if limit < 100:
-            raise ValueError("Unexpectedly low token limit")
+            msg = "Unexpectedly low token limit"
+            raise ValueError(msg)
         return limit
 
     def estimate_tokens_in_prompt(self, prompt: LmPrompt) -> int:
@@ -621,7 +621,6 @@ def _figure_out_generated_text(
     # Some tokenizers (notably mistral) has buggy behaviour when
     # not having a first token. We try to work around this by adding
     # a bos token
-    print(generated_sequence)
     if isinstance(generated_sequence, torch.Tensor):
         assert len(generated_sequence.shape) == 1
     else:
@@ -629,13 +628,16 @@ def _figure_out_generated_text(
     have_mod = False
     if tokenizer.bos_token and generated_sequence[0] != tokenizer.bos_token_id:
         if isinstance(generated_sequence, list):
-            mod_gen_seq = [tokenizer.bos_token_id] + generated_sequence
+            mod_gen_seq = [tokenizer.bos_token_id, *generated_sequence]
         else:
             mod_gen_seq = torch.cat(
-                [torch.tensor(
-                    [tokenizer.bos_token_id],
-                    device=generated_sequence.device,
-                ), generated_sequence],
+                [
+                    torch.tensor(
+                        [tokenizer.bos_token_id],
+                        device=generated_sequence.device,
+                    ),
+                    generated_sequence,
+                ],
                 dim=0,
             )
         have_mod = True
@@ -655,24 +657,24 @@ def _figure_out_generated_text(
         if generated_text.startswith(tokenizer.bos_token):
             generated_text = generated_text[len(tokenizer.bos_token) :]
         if clean_generated_text.startswith(tokenizer.bos_token):
-            clean_generated_text = clean_generated_text[len(tokenizer.bos_token):]
+            clean_generated_text = clean_generated_text[len(tokenizer.bos_token) :]
     if _tokenizer_removes_prefix_space_on_detok(tokenizer):
+        # TODO: this might actually be all that is needed? Not the BOS stuff?
         clean_generated_text = " " + clean_generated_text
     return generated_text, clean_generated_text
 
 
 _tokenizer_adds_prefix_space_cache = {}
 
+
 def _tokenizer_removes_prefix_space_on_detok(
-    tokenizer: PreTrainedTokenizerFast
+    tokenizer: PreTrainedTokenizerFast,
 ) -> bool | None:
     if tokenizer.name_or_path in _tokenizer_adds_prefix_space_cache:
         return _tokenizer_adds_prefix_space_cache[tokenizer.name_or_path]
+
     def figure_out_val():
-        tokens = tokenizer.tokenize(
-            "the",
-            add_special_tokens=False
-        )
+        tokens = tokenizer.tokenize("the", add_special_tokens=False)
         if len(tokens) != 1:
             return None
         tokens *= 2
@@ -681,9 +683,6 @@ def _tokenizer_removes_prefix_space_on_detok(
 
     _tokenizer_adds_prefix_space_cache[tokenizer.name_or_path] = figure_out_val()
     return _tokenizer_adds_prefix_space_cache[tokenizer.name_or_path]
-
-
-
 
 
 def _get_token_offsets(
@@ -695,30 +694,33 @@ def _get_token_offsets(
         token_ids = token_ids.tolist()
 
     if not isinstance(token_ids, list):
-        raise TypeError("token_ids must be a list or tensor")
+        msg = "token_ids must be a list or tensor"
+        raise TypeError(msg)
 
     if not tokenizer.is_fast:
+        msg = (
+            "This requires a fast tokenizer so that way we can use the"
+            " return_offsets_mapping option"
+        )
         raise ValueError(
-            "This requires a fast tokenizer so that way we can "
-            "use the return_offsets_mapping option",
+            msg,
         )
 
     add_fake_bos = (
-        _tokenizer_removes_prefix_space_on_detok(tokenizer)
-        and tokenizer.bos_token
+        _tokenizer_removes_prefix_space_on_detok(tokenizer) and tokenizer.bos_token
     )
-    fake_bos = "😂" # We can't use a real bos because codellama/mistral
-                    # will still try to add a space to the start of the first
-                    # real token. Instead we are going to the 😂 emoji (it
-                    # is the most common emoji, so likely in a tokenizer,
-                    # but is also unlikely to be merged with anything, so unlikely
-                    # to screw up future tokens. (would prefer a sadder emoji tbh))
+    fake_bos = "😂"  # We can't use a real bos because codellama/mistral
+    # will still try to add a space to the start of the first
+    # real token. Instead we are going to the 😂 emoji (it
+    # is the most common emoji, so likely in a tokenizer,
+    # but is also unlikely to be merged with anything, so unlikely
+    # to screw up future tokens. (would prefer a sadder emoji tbh))
     re_decoded = tokenizer.decode(
-        [tokenizer.bos_token_id] + token_ids,
+        [tokenizer.bos_token_id, *token_ids],
         clean_up_tokenization_spaces=False,
         skip_special_tokens=False,
     )
-    re_decoded = re_decoded[len(tokenizer.bos_token):]
+    re_decoded = re_decoded[len(tokenizer.bos_token) :]
     new_tokenize = tokenizer(
         fake_bos + re_decoded if add_fake_bos else re_decoded,
         return_offsets_mapping=True,
@@ -736,14 +738,6 @@ def _get_token_offsets(
             (left - first_offset, right - first_offset)
             for left, right in offset_mapping[fake_tokenizer_len:]
         ]
-    #if _tokenizer_removes_prefix_space_on_detok(tokenizer):
-    #    if len(offset_mapping) == 1:
-    #        offset_mapping[0] = (0, offset_mapping[0][1] + 1)
-    #    elif len(offset_mapping) > 1:
-    #        offset_mapping = [(0, offset_mapping[0][1] + 1)] + [
-    #            (left + 1, right + 1)
-    #            for left, right in offset_mapping[1:]
-    #        ]
 
     if new_token_ids != token_ids:
         # Do a bit hacky things to at least try to align them
@@ -794,9 +788,12 @@ def _attempt_to_fix_degenerate_merges(
         if output_tokens == new_tokenization:
             return new_tokenization, new_tokenization_offsets
     if len(output_tokens) < len(new_tokenization):
+        msg = (
+            "Cannot fix solutions when there are more new tokens than output tokens."
+            " Expect cases where output has more because of extra unmerged tokens."
+        )
         raise ValueError(
-            "Cannot fix solutions when there are more new tokens than output tokens. "
-            "Expect cases where output has more because of extra unmerged tokens.",
+            msg,
         )
     output_idx = 0
     new_idx = 0

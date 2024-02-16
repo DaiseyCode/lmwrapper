@@ -31,7 +31,9 @@ class Models(StrEnum):
 
 CUDA_UNAVAILABLE = not torch.cuda.is_available()
 try:
-    SMALL_GPU = CUDA_UNAVAILABLE or torch.cuda.mem_get_info()[0] < 17_179_869_184  # 16GB
+    SMALL_GPU = (
+        CUDA_UNAVAILABLE or torch.cuda.mem_get_info()[0] < 17_179_869_184
+    )  # 16GB
 except RuntimeError:
     SMALL_GPU = True
 
@@ -631,7 +633,6 @@ def test_stop_token_removal():
 def test_degenerate_offsets():
     lm = get_huggingface_lm(Models.DistilGPT2)
     token_ids = [13, 198, 198]
-    text = ".\n\n"
     offsets = _get_token_offsets(lm._tokenizer, token_ids)
     assert offsets == [(0, 1), (1, 2), (2, 3)]
 
@@ -817,7 +818,6 @@ def test_tokenizer_offsets_code_llama():
 
     tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
     token_ids = [13, 1678, 736, 921, 334, 29871, 29906, 13, 13, 13, 1753]
-    expected_generated = "\n    return x * 2\n\n\ndef"
     token_vals = [
         "\n",
         "   ",
@@ -845,48 +845,45 @@ def test_tokenizer_offsets_code_llama():
 def test_offsets_for_mistral():
     model_name = Models.Mistral_7B
     from transformers import AutoTokenizer
+
     tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
-    #token_ids = [2287,  2682,   618, 2287, 2682]
-    #assert ' ' + tokenizer.decode(token_ids) == '    print("    print'
-    token_ids = [2287,  2682,   618]
+    # token_ids = [2287,  2682,   618, 2287, 2682]
+    # assert ' ' + tokenizer.decode(token_ids) == '    print("    print'
+    token_ids = [2287, 2682, 618]
     offsets = _get_token_offsets(tokenizer, token_ids)
-    assert offsets == [(0, len("▁▁▁")), (3, 3 + len("▁print")), (3 + len("▁print"), 3 + len("▁print") + len('("'))]
+    assert offsets == [
+        (0, len("▁▁▁")),
+        (3, 3 + len("▁print")),
+        (3 + len("▁print"), 3 + len("▁print") + len('("')),
+    ]
 
 
 def test_offsets_for_mistral2():
     model_name = Models.Mistral_7B
     from transformers import AutoTokenizer
+
     tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
-    token_ids = [618, 2287,  2682,   618]
+    token_ids = [618, 2287, 2682, 618]
     offsets = _get_token_offsets(tokenizer, token_ids)
     assert offsets == [
         (0, len('("')),
         (2, 2 + len("▁▁▁")),
         (5, 5 + len("▁print")),
-        (11, 11 + len('("'))
+        (11, 11 + len('("')),
     ]
 
 
 def test_offsets_for_mistral3():
     model_name = Models.Mistral_7B
     from transformers import AutoTokenizer
+
     tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
-    token_ids = [2682,   618]
+    token_ids = [2682, 618]
     offsets = _get_token_offsets(tokenizer, token_ids)
-    assert offsets == [
-        (0, 0 + len("▁print")),
-        (6, 6 + len('("'))
-    ]
-
-
+    assert offsets == [(0, 0 + len("▁print")), (6, 6 + len('("'))]
 
 
 def test_offsets_for_removal_prompt():
-    prompt_str = """Please list the capitals of the following countries
-1. Germany
-2. USA
-3. France
-4. Mexico"""
     # get the tokenizer model
     lm = get_huggingface_lm(Models.DistilGPT2, runtime=Runtime.PYTORCH)
     tokenizer = lm._tokenizer
@@ -982,7 +979,7 @@ def test_hello_world_prompt():
             hello_world_prompt,
             max_tokens=10,
             cache=False,
-            #stop=["\n"],
+            # stop=["\n"],
             temperature=0,
         ),
     )

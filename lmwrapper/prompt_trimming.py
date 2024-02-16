@@ -41,7 +41,8 @@ class CharPromptTrimmer(PromptTrimmer):
 
 class TrimmingTokenizer:
     @abstractmethod
-    def tokenize(self, text: str) -> list[str]: ...
+    def tokenize(self, text: str) -> list[str]:
+        ...
 
 
 class HfTrimmingTokenizer(TrimmingTokenizer):
