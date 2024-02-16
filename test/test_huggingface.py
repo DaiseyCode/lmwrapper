@@ -30,7 +30,10 @@ class Models(StrEnum):
 
 
 CUDA_UNAVAILABLE = not torch.cuda.is_available()
-SMALL_GPU = CUDA_UNAVAILABLE or torch.cuda.mem_get_info()[0] < 17_179_869_184  # 16GB
+try:
+    SMALL_GPU = CUDA_UNAVAILABLE or torch.cuda.mem_get_info()[0] < 17_179_869_184  # 16GB
+except RuntimeError:
+    SMALL_GPU = True
 
 SEQ2SEQ_MODELS = {Models.CodeT5plus_220M}
 CAUSAL_MODELS = {Models.DistilGPT2, Models.GPT2, Models.CodeGen2_1B}
@@ -839,6 +842,45 @@ def test_tokenizer_offsets_code_llama():
     assert list(starts) == expected_offsets
 
 
+def test_offsets_for_mistral():
+    model_name = Models.Mistral_7B
+    from transformers import AutoTokenizer
+    tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
+    #token_ids = [2287,  2682,   618, 2287, 2682]
+    #assert ' ' + tokenizer.decode(token_ids) == '    print("    print'
+    token_ids = [2287,  2682,   618]
+    offsets = _get_token_offsets(tokenizer, token_ids)
+    assert offsets == [(0, len("▁▁▁")), (3, 3 + len("▁print")), (3 + len("▁print"), 3 + len("▁print") + len('("'))]
+
+
+def test_offsets_for_mistral2():
+    model_name = Models.Mistral_7B
+    from transformers import AutoTokenizer
+    tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
+    token_ids = [618, 2287,  2682,   618]
+    offsets = _get_token_offsets(tokenizer, token_ids)
+    assert offsets == [
+        (0, len('("')),
+        (2, 2 + len("▁▁▁")),
+        (5, 5 + len("▁print")),
+        (11, 11 + len('("'))
+    ]
+
+
+def test_offsets_for_mistral3():
+    model_name = Models.Mistral_7B
+    from transformers import AutoTokenizer
+    tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
+    token_ids = [2682,   618]
+    offsets = _get_token_offsets(tokenizer, token_ids)
+    assert offsets == [
+        (0, 0 + len("▁print")),
+        (6, 6 + len('("'))
+    ]
+
+
+
+
 def test_offsets_for_removal_prompt():
     prompt_str = """Please list the capitals of the following countries
 1. Germany
@@ -950,19 +992,19 @@ def test_hello_world_prompt():
     )
 
     # A version using stop. Breaks because the tokenization is wrong.
-    #resp = lm.predict(
-    #    LmPrompt(
-    #        hello_world_prompt,
-    #        max_tokens=10,
-    #        cache=False,
-    #        stop=["\n"],
-    #        temperature=0,
-    #    ),
-    #)
-    #assert resp.completion_text in (
-    #    "    print('hello world')",
-    #    '    print("hello world")',
-    #)
+    resp = lm.predict(
+        LmPrompt(
+            hello_world_prompt,
+            max_tokens=10,
+            cache=False,
+            stop=["\n"],
+            temperature=0,
+        ),
+    )
+    assert resp.completion_text in (
+        "    print('hello world')",
+        '    print("hello world")',
+    )
 
 
 def test_check_tokenizer_check():
