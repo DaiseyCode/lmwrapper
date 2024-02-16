@@ -1001,10 +1001,10 @@ def test_hello_world_prompt():
             temperature=0,
         ),
     )
-    assert resp.completion_text in (
+    assert resp.completion_text in {
         "    print('hello world')",
         '    print("hello world")',
-    )
+    }
 
 
 def test_check_tokenizer_check():
