@@ -658,8 +658,14 @@ def _figure_out_generated_text(
             generated_text = generated_text[len(tokenizer.bos_token) :]
         if clean_generated_text.startswith(tokenizer.bos_token):
             clean_generated_text = clean_generated_text[len(tokenizer.bos_token) :]
-    if _tokenizer_removes_prefix_space_on_detok(tokenizer):
-        # TODO: this might actually be all that is needed? Not the BOS stuff?
+    generated_text_has_one_more_leading_space = (
+        (len(generated_text) - len(generated_text.lstrip()) - 1)
+        == (len(clean_generated_text) - len(clean_generated_text.lstrip()))
+    )
+    if (
+        _tokenizer_removes_prefix_space_on_detok(tokenizer)
+        and generated_text_has_one_more_leading_space
+    ):
         clean_generated_text = " " + clean_generated_text
     return generated_text, clean_generated_text
 

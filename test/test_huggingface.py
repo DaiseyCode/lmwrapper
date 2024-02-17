@@ -1002,6 +1002,19 @@ def test_hello_world_prompt():
         "    print('hello world')",
         '    print("hello world")',
     }
+    resp = lm.predict(
+        LmPrompt(
+            hello_world_prompt + '    print',
+            max_tokens=10,
+            cache=False,
+            stop=["\n"],
+            temperature=0,
+        ),
+    )
+    assert resp.completion_text in {
+        "('hello world')",
+        '("hello world")',
+    }
 
 
 def test_check_tokenizer_check():
