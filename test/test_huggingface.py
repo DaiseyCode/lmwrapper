@@ -1004,7 +1004,7 @@ def test_hello_world_prompt():
     }
     resp = lm.predict(
         LmPrompt(
-            hello_world_prompt + '    print',
+            hello_world_prompt + "    print",
             max_tokens=10,
             cache=False,
             stop=["\n"],
