@@ -960,16 +960,19 @@ def test_degenerative_multiple_2():
     ]
 
 
-# @pytest.mark.parametrize("lm", ALL_MODELS)
-@pytest.mark.slow()
-def test_hello_world_prompt():
-    lm = Models.Mistral_7B
-    if SMALL_GPU and lm in BIG_MODELS:
+#@pytest.mark.slow()
+@pytest.mark.parametrize("model", [
+    #Models.CodeT5plus_6B,  # This seems not to indent properly for unexplored reasons
+    Models.CodeGen2_1B,
+    Models.Mistral_7B,
+])
+def test_hello_world_prompt(model):
+    if SMALL_GPU and model in BIG_MODELS:
         pytest.skip(
-            f"Skipped model '{lm}' as model too large for available GPU memory.",
+            f"Skipped model '{model}' as model too large for available GPU memory.",
         )
     lm = get_huggingface_lm(
-        lm,
+        model,
         runtime=Runtime.PYTORCH,
         trust_remote_code=True,
         precision=torch.float16,
