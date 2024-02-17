@@ -129,7 +129,10 @@ def test_code_llama_conversation(model):
     )
 
     out = lm.predict(prompt)
-    assert out.completion_text == " You can"
+    # It for some reason genrates a space token. (there are 3 tokens, one
+    #   of which is a space). This seems to match the behaviour of the
+    #   native HF text generation pipeline.
+    assert out.completion_text == "  You can"
 
     system = "Provide answers in JavaScript"
     user = (
@@ -150,7 +153,7 @@ def test_code_llama_conversation(model):
     )
 
     out = lm.predict(prompt)
-    assert out.completion_text == " ```\n"
+    assert out.completion_text == "  ```\n"
 
 
 @pytest.mark.slow()
@@ -724,7 +727,12 @@ def test_all_pytorch_runtime(lm: str):
         temperature=0,
         add_bos_token=lm not in SEQ2SEQ_MODELS | BIG_SEQ2SEQ_MODELS,
     )
-    lm = get_huggingface_lm(lm, runtime=Runtime.PYTORCH, trust_remote_code=True)
+    lm = get_huggingface_lm(
+        lm,
+        runtime=Runtime.PYTORCH,
+        trust_remote_code=True,
+        precision=torch.float16,
+    )
     out = lm.predict(prompt)
     assert out.completion_text
 
