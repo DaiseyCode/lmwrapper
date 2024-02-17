@@ -17,8 +17,7 @@ class _BigModelMixin(HuggingFaceModelWrappingConfig):
         self.model_kwargs |= {"low_cpu_mem_usage": True}
 
 
-class _AutoModel(HuggingFaceModelWrappingConfig):
-    ...
+class _AutoModel(HuggingFaceModelWrappingConfig): ...
 
 
 class _PreTrainedModel(HuggingFaceModelWrappingConfig):
