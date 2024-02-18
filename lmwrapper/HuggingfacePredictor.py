@@ -720,6 +720,8 @@ def _get_token_offsets(
     # is the most common emoji, so likely in a tokenizer,
     # but is also unlikely to be merged with anything, so unlikely
     # to screw up future tokens. (would prefer a sadder emoji tbh))
+    # NOTE (actually maybe a be a way to get to this to work without this,
+    # it seems to work)
     re_decoded = tokenizer.decode(
         [tokenizer.bos_token_id, *token_ids],
         clean_up_tokenization_spaces=False,
