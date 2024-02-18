@@ -602,3 +602,18 @@ def test_was_cached_marking(lm):
     lm.remove_prompt_from_cache(prompt)
     r5 = lm.predict(prompt)
     assert not r5.was_cached
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_simple_pred_serialize(lm):
+    pred = lm.predict(
+        LmPrompt(
+            "Here is a story. Once upon a",
+            max_tokens=3,
+            cache=False,
+        ),
+    )
+    pred_dict = pred.dict_serialize()
+    from pprint import pprint
+
+    pprint(pred_dict)

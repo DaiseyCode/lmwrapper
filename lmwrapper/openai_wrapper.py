@@ -125,9 +125,12 @@ class OpenAiLmPrediction(LmPrediction):
         so there may be up to logprobs+1 elements in the response.
         """
         if self.metad.get("logprobs", {}).get("top_logprobs", None) is None:
-            raise ValueError(
+            msg = (
                 "Response does not contain top_logprobs. Are you sure logprobs was set"
-                f" > 0? Currently: {self.prompt.logprobs}",
+                f" > 0? Currently: {self.prompt.logprobs}"
+            )
+            raise ValueError(
+                msg,
             )
         return [dict(p) for p in self.metad["logprobs"]["top_logprobs"]]
 

@@ -38,6 +38,7 @@ class HuggingfacePredictor(LmPredictor):
         self.runtime = runtime
         self.allow_patch_model_forward = allow_patch_model_forward
         self.prompt_trimmer = prompt_trimmer
+        self._tokenizer_already_adds_bos = {}
 
     def _get_cache_key_metadata(self):
         return {
@@ -67,6 +68,18 @@ class HuggingfacePredictor(LmPredictor):
         if self.allow_patch_model_forward:
             patch_model_forward = prompt.echo
 
+        is_encoder_decoder = self._model.config.is_encoder_decoder
+
+        will_add_bos = prompt.add_bos_token or (
+            prompt.add_bos_token is None
+            and self._tokenizer.bos_token
+            and not is_encoder_decoder
+            and not self._does_this_tokenizer_seem_add_a_bos(prompt.add_special_tokens)
+        )
+        will_have_bos = will_add_bos or self._does_this_tokenizer_seem_add_a_bos(
+            prompt.add_special_tokens,
+        )
+
         if prompt.logprobs > 1:
             msg = (
                 "Retrieving more than 1 logprob is not yet supported for HuggingFace"
@@ -83,21 +96,19 @@ class HuggingfacePredictor(LmPredictor):
             msg = "Presence penalty not implemented"
             raise NotImplementedError(msg)
 
-        if prompt.text == "" and not prompt.add_bos_token:
+        if prompt.text == "" and not will_have_bos:
             msg = "Cannot do unconditional generation without `add_bos_token`."
             raise Exception(
                 msg,
             )
 
-        is_encoder_decoder = self._model.config.is_encoder_decoder
-
-        if is_encoder_decoder and prompt.add_bos_token:
+        if is_encoder_decoder and will_add_bos:
             msg = "Encoder/decoder models should not have bos tokens added manually."
             raise Exception(
                 msg,
             )
 
-        if prompt.add_bos_token:
+        if will_add_bos:
             assert self._tokenizer.bos_token
             prompt_text = self._tokenizer.bos_token + prompt.text
         else:
@@ -288,15 +299,11 @@ class HuggingfacePredictor(LmPredictor):
         stop_token_idx_output = None
         stop_token_idx_generated = None
 
-        generated_text = self._tokenizer.decode(
+        # Get the generated text (which might have special tokens and unclean spaces)
+        # and the clean_generated_text (which skips special tokens and cleans up spaces)
+        generated_text, clean_generated_text = _figure_out_generated_text(
+            self._tokenizer,
             generated_sequence,
-            skip_special_tokens=False,
-            clean_up_tokenization_spaces=False,
-        )
-        clean_generated_text = self._tokenizer.decode(
-            generated_sequence,
-            skip_special_tokens=True,
-            clean_up_tokenization_spaces=True,
         )
 
         if prompt.stop:
@@ -345,12 +352,15 @@ class HuggingfacePredictor(LmPredictor):
         # e.g.: convert: 'Ġprocess'
         # decode: ' process'
         # Original: self._tokenizer.convert_ids_to_tokens(output_sequence)
-        output_tokens = [self._tokenizer.decode(t) for t in output_sequence]
+        # output_tokens = [self._tokenizer.decode(t) for t in output_sequence]
+        output_tokens = self.remove_special_chars_from_tokens(
+            self._tokenizer.convert_ids_to_tokens(output_sequence),
+        )
         if len(output_tokens) != len(output_sequence):
             msg = "Output token length did not match output sequence length!"
             raise Exception(msg)
 
-        if prompt.add_bos_token:
+        if will_have_bos:
             output_tokens = output_tokens[1:]
             output_sequence = output_sequence[1:]
 
@@ -468,7 +478,7 @@ class HuggingfacePredictor(LmPredictor):
             prompt=prompt,
             metad=updated_output,
             _completion_with_special_tok=generated_text,
-            _num_prompt_tokens=int(input_length),
+            _num_prompt_tokens=(int(input_length) - (1 if will_have_bos else 0)),
             _prompt_encoding=np_encoded_input,
             _tokens=output_tokens,
             _log_probs=np_logprobs,
@@ -492,8 +502,19 @@ class HuggingfacePredictor(LmPredictor):
 
         return prediction
 
+    def _does_this_tokenizer_seem_add_a_bos(self, add_special_tokens) -> bool:
+        if self._tokenizer_already_adds_bos.get(add_special_tokens, None) is not None:
+            return self._tokenizer_already_adds_bos[add_special_tokens]
+        self._tokenizer_already_adds_bos[add_special_tokens] = (
+            _check_tokenizer_to_see_if_adds_bos(
+                self._tokenizer,
+                add_special_tokens,
+            )
+        )
+        return self._tokenizer_already_adds_bos[add_special_tokens]
+
     @cached_property
-    def space_char(self) -> str:
+    def space_char(self) -> str | None:
         # Try to discover the space char in the tokens
         tokens = self._tokenizer.tokenize("I went to")
         for tok in tokens:
@@ -501,10 +522,21 @@ class HuggingfacePredictor(LmPredictor):
                 return tok.replace("went", "")
         return None
 
+    @cached_property
+    def newline_char(self) -> str | None:
+        for attempt in ("I\nI", "a\na"):
+            tokens = self._tokenizer.tokenize(attempt)
+            if len(tokens) != 3:
+                continue
+            return tokens[1]
+        return None
+
     def remove_special_chars_from_tokens(self, tokens: list[str]) -> list[str]:
-        if self.space_char is None:
-            return tokens
-        return [tok.replace(self.space_char, " ") for tok in tokens]
+        if self.space_char is not None and self.space_char != " ":
+            tokens = [tok.replace(self.space_char, " ") for tok in tokens]
+        if self.newline_char is not None and self.newline_char != "\n":
+            tokens = [tok.replace(self.newline_char, "\n") for tok in tokens]
+        return tokens
 
     def tokenize(self, text: str) -> list[str]:
         return self._tokenizer.tokenize(text)
@@ -533,10 +565,12 @@ class HuggingfacePredictor(LmPredictor):
                 ],
             )
         if all(val is None for val in vals):
-            raise ValueError("Unknown max length")
+            msg = "Unknown max length"
+            raise ValueError(msg)
         limit = max(val for val in vals if val is not None)
         if limit < 100:
-            raise ValueError("Unexpectedly low token limit")
+            msg = "Unexpectedly low token limit"
+            raise ValueError(msg)
         return limit
 
     def estimate_tokens_in_prompt(self, prompt: LmPrompt) -> int:
@@ -547,6 +581,15 @@ class HuggingfacePredictor(LmPredictor):
     @property
     def is_chat_model(self):
         return self._is_chat_model
+
+
+def _check_tokenizer_to_see_if_adds_bos(
+    tokenizer: PreTrainedTokenizerFast,
+    add_special_tokens: bool,
+) -> bool:
+    # Use a little test tokenization to see if a bos token is added
+    tokens = tokenizer.tokenize("Test prompt", add_special_tokens=add_special_tokens)
+    return len(tokens) > 1 and tokens[0] == tokenizer.bos_token
 
 
 def _gather_logprobs_from_logits(
@@ -571,6 +614,82 @@ def _verify_concatenable(generated_tokens: list[str], generated_text: str):
             logging.warning(msg)
 
 
+def _figure_out_generated_text(
+    tokenizer: PreTrainedTokenizerFast,
+    generated_sequence: list | torch.Tensor,
+):
+    # Some tokenizers (notably mistral) has buggy behaviour when
+    # not having a first token. We try to work around this by adding
+    # a bos token
+    if isinstance(generated_sequence, torch.Tensor):
+        assert len(generated_sequence.shape) == 1
+    else:
+        assert isinstance(generated_sequence, list)
+    have_mod = False
+    if tokenizer.bos_token and generated_sequence[0] != tokenizer.bos_token_id:
+        if isinstance(generated_sequence, list):
+            mod_gen_seq = [tokenizer.bos_token_id, *generated_sequence]
+        else:
+            mod_gen_seq = torch.cat(
+                [
+                    torch.tensor(
+                        [tokenizer.bos_token_id],
+                        device=generated_sequence.device,
+                    ),
+                    generated_sequence,
+                ],
+                dim=0,
+            )
+        have_mod = True
+    else:
+        mod_gen_seq = generated_sequence
+    generated_text = tokenizer.decode(
+        mod_gen_seq,
+        skip_special_tokens=False,
+        clean_up_tokenization_spaces=False,
+    )
+    clean_generated_text = tokenizer.decode(
+        mod_gen_seq,
+        skip_special_tokens=True,
+        clean_up_tokenization_spaces=True,
+    )
+    if have_mod:
+        if generated_text.startswith(tokenizer.bos_token):
+            generated_text = generated_text[len(tokenizer.bos_token) :]
+        if clean_generated_text.startswith(tokenizer.bos_token):
+            clean_generated_text = clean_generated_text[len(tokenizer.bos_token) :]
+    generated_text_has_one_more_leading_space = (
+        len(generated_text) - len(generated_text.lstrip()) - 1
+    ) == (len(clean_generated_text) - len(clean_generated_text.lstrip()))
+    if (
+        _tokenizer_removes_prefix_space_on_detok(tokenizer)
+        and generated_text_has_one_more_leading_space
+    ):
+        clean_generated_text = " " + clean_generated_text
+    return generated_text, clean_generated_text
+
+
+_tokenizer_adds_prefix_space_cache = {}
+
+
+def _tokenizer_removes_prefix_space_on_detok(
+    tokenizer: PreTrainedTokenizerFast,
+) -> bool | None:
+    if tokenizer.name_or_path in _tokenizer_adds_prefix_space_cache:
+        return _tokenizer_adds_prefix_space_cache[tokenizer.name_or_path]
+
+    def figure_out_val():
+        tokens = tokenizer.tokenize("the", add_special_tokens=False)
+        if len(tokens) != 1:
+            return None
+        tokens *= 2
+        tokens = tokenizer.decode(tokenizer.convert_tokens_to_ids(tokens))
+        return tokens == "the the"
+
+    _tokenizer_adds_prefix_space_cache[tokenizer.name_or_path] = figure_out_val()
+    return _tokenizer_adds_prefix_space_cache[tokenizer.name_or_path]
+
+
 def _get_token_offsets(
     tokenizer: PreTrainedTokenizerFast,
     token_ids: torch.Tensor | list[int],
@@ -580,27 +699,52 @@ def _get_token_offsets(
         token_ids = token_ids.tolist()
 
     if not isinstance(token_ids, list):
-        raise TypeError("token_ids must be a list or tensor")
+        msg = "token_ids must be a list or tensor"
+        raise TypeError(msg)
 
     if not tokenizer.is_fast:
+        msg = (
+            "This requires a fast tokenizer so that way we can use the"
+            " return_offsets_mapping option"
+        )
         raise ValueError(
-            "This requires a fast tokenizer so that way we can "
-            "use the return_offsets_mapping option",
+            msg,
         )
 
+    add_fake_bos = (
+        _tokenizer_removes_prefix_space_on_detok(tokenizer) and tokenizer.bos_token
+    )
+    fake_bos = "😂"  # We can't use a real bos because codellama/mistral
+    # will still try to add a space to the start of the first
+    # real token. Instead we are going to the 😂 emoji (it
+    # is the most common emoji, so likely in a tokenizer,
+    # but is also unlikely to be merged with anything, so unlikely
+    # to screw up future tokens. (would prefer a sadder emoji tbh))
+    # NOTE (actually maybe a be a way to get to this to work without this,
+    # it seems to work)
     re_decoded = tokenizer.decode(
-        token_ids,
+        [tokenizer.bos_token_id, *token_ids],
         clean_up_tokenization_spaces=False,
         skip_special_tokens=False,
     )
+    re_decoded = re_decoded[len(tokenizer.bos_token) :]
     new_tokenize = tokenizer(
-        re_decoded,
+        fake_bos + re_decoded if add_fake_bos else re_decoded,
         return_offsets_mapping=True,
         add_special_tokens=False,
     )
 
     new_token_ids = new_tokenize["input_ids"]
     offset_mapping = new_tokenize["offset_mapping"]
+
+    if add_fake_bos:
+        fake_tokenizer_len = len(tokenizer.tokenize(fake_bos, add_special_tokens=False))
+        new_token_ids = new_token_ids[fake_tokenizer_len:]
+        _, first_offset = offset_mapping[fake_tokenizer_len - 1]
+        offset_mapping = [
+            (left - first_offset, right - first_offset)
+            for left, right in offset_mapping[fake_tokenizer_len:]
+        ]
 
     if new_token_ids != token_ids:
         # Do a bit hacky things to at least try to align them
@@ -651,9 +795,12 @@ def _attempt_to_fix_degenerate_merges(
         if output_tokens == new_tokenization:
             return new_tokenization, new_tokenization_offsets
     if len(output_tokens) < len(new_tokenization):
+        msg = (
+            "Cannot fix solutions when there are more new tokens than output tokens."
+            " Expect cases where output has more because of extra unmerged tokens."
+        )
         raise ValueError(
-            "Cannot fix solutions when there are more new tokens than output tokens. "
-            "Expect cases where output has more because of extra unmerged tokens.",
+            msg,
         )
     output_idx = 0
     new_idx = 0

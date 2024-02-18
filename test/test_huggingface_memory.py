@@ -25,7 +25,7 @@ def test_cuda_memory_cleanup_no_pred():
         with_stack=False,
         record_shapes=False,
         profile_memory=True,
-    ) as profiler:
+    ):
         if not torch.cuda.is_available():
             pytest.skip("No CUDA available")
         gc.collect()
@@ -100,7 +100,7 @@ def test_cuda_memory_cleanup_pred_no_keep():
     print(lm._model)
     assert torch.cuda.memory_reserved() > 0, "Before deling no mem"
     print("pred no keep")
-    for i in range(50):
+    for _i in range(50):
         lm.predict(LmPrompt(text="Hello world", logprobs=0, echo=False))
     print("After predict")
     assert torch.cuda.memory_reserved() > 0, "Before deling no mem"
@@ -129,7 +129,7 @@ def test_cuda_memory_cleanup_pred_keep():
         with_stack=False,
         record_shapes=False,
         profile_memory=True,
-    ) as profiler:
+    ):
         if not torch.cuda.is_available():
             pytest.skip("No CUDA available")
         gc.collect()
