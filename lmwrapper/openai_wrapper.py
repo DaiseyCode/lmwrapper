@@ -518,6 +518,10 @@ def get_open_ai_lm(
         msg = "API key is not defined"
         raise ValueError(msg)
     openai.api_key = api_key_secret.get_secret().strip()
+    if organization is None:
+        api_key_secret = SecretEnvVar("OPENAI_ORGANIZATION")
+        if api_key_secret.is_readable():
+            organization = api_key_secret.get_secret().strip()
     if organization:
         openai.organization = organization
     return OpenAIPredictor(

@@ -524,7 +524,7 @@ def test_none_max_tokens(lm):
     prompt = LmPrompt(
         "Write a long and detailed story (multiple paragraphs) about a dog:",
         max_tokens=None,
-        temperature=1.0,
+        temperature=0.2,
         cache=False,
     )
     result = lm.predict(prompt)
