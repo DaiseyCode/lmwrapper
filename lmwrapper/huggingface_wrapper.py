@@ -155,6 +155,7 @@ def _get_accelerator() -> torch.device:
     >>> device = _get_accelerator()
     >>> print(device)
     cuda # or mps or cpu
+
     """
     if torch.cuda.is_available():
         if _QUANTIZATION_ENABLED and _QUANT_CONFIG:
@@ -231,6 +232,7 @@ def get_huggingface_lm(
     --------
     >>> predictor = get_huggingface_lm("gpt-2")
     >>> predictor = get_huggingface_lm("gpt-2", precision=torch.float16, device="cuda:0")
+
     """
     if isinstance(device, str):
         if device.strip() == "":
@@ -340,6 +342,7 @@ def _configure_model(
     --------
     >>> model_class, kwargs = _configure_model("gpt-2", config, Runtime.PYTORCH, {})
     >>> model_class, kwargs = _configure_model("Salesforce/codegen", config, Runtime.BETTER_TRANSFORMER, {})
+
     """
     model_class: AutoPretrainedModelType = AutoModelForCausalLM
     model_config_dict = model_config.to_dict()
@@ -538,6 +541,7 @@ def _initialize_hf_model(
     --------
     >>> predictor = _initialize_hf_model('gpt-2', AutoModelForCausalLM, config)
     >>> predictor = _initialize_hf_model('Salesforce/codegen', AutoModelForSeq2SeqLM, config, runtime=Runtime.BETTER_TRANSFORMER)
+
     """
     torch_device = _get_accelerator() if device is None else device
 
@@ -728,6 +732,7 @@ def _warmup_model(predictor: HuggingfacePredictor):
     --------
     >>> predictor = _initialize_hf_model('gpt-2', AutoModelForCausalLM, config)
     >>> _warmup_model(predictor)
+
     """
     raise NotImplementedError("Model warmup is not support yet.")
     small_prompt = LmPrompt("!", cache=False, temperature=0, max_tokens=1)
