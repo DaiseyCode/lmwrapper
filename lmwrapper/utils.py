@@ -67,8 +67,9 @@ def flatten_dict(
     items = []
     for k, v in d.items():
         if verify_keys_do_not_have_sep and sep in k:
+            msg = f"Separator {sep!r} is not allowed in keys. Found in {k!r}"
             raise ValueError(
-                f"Separator {sep!r} is not allowed in keys. Found in {k!r}",
+                msg,
             )
         new_key = f"{parent_key}{sep}{k}" if parent_key else k
         if isinstance(v, dict):
