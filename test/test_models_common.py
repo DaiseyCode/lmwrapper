@@ -617,3 +617,46 @@ def test_simple_pred_serialize(lm):
     from pprint import pprint
 
     pprint(pred_dict)
+
+
+@pytest.mark.skip(reason="Huggingface does not support completion_token_offsets currently")
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_token_offsets(lm):
+    prompt = "A B C D E F G H"
+    pred = lm.predict(
+        LmPrompt(
+            prompt,
+            max_tokens=3,
+            cache=False,
+            temperature=0,
+        ),
+    )
+    assert pred.completion_text == " I J K"
+    assert pred.completion_tokens == [" I", " J", " K"]
+    base_len = len(prompt)
+    assert pred.completion_token_offsets == [
+        base_len + 0, base_len + 2, base_len + 4]
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_token_offsets(lm):
+    prompt = "A B C D E F G H"
+    pred = lm.predict(
+        LmPrompt(
+            prompt,
+            max_tokens=3,
+            cache=False,
+            temperature=0,
+            logprobs=1,
+        ),
+    )
+    assert pred.completion_text == " I J K"
+    assert pred.completion_tokens == [" I", " J", " K"]
+    top_probs = pred.top_token_logprobs
+    assert len(top_probs) == 3
+    for i, expected in enumerate([" I", " J", " K"]):
+        assert isinstance(top_probs[i][expected], float)
+        assert top_probs[i][expected] == pred.completion_logprobs[i]
+        assert top_probs[i][expected] < 0
+
+

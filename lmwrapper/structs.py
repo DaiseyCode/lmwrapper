@@ -350,6 +350,20 @@ class LmPrediction:
 
     @property
     def top_token_logprobs(self) -> list[dict[str, float]]:
+        if self.prompt.logprobs == 1:
+            # If we only have a single logprob, then we can adapt the
+            #   logprob property into a list of dictionaries. This allows
+            #   partial support for implementations that support only that.
+            return [
+                {
+                    token: float(logprob)
+                }
+                for token, logprob in zip(
+                    self.completion_tokens,
+                    self.completion_logprobs,
+                    strict=True
+                )
+            ]
         msg = "This version of prediction does not support top token logprobs"
         raise NotImplementedError(
             msg,
