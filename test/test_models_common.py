@@ -9,14 +9,14 @@ from lmwrapper.structs import LmPrompt
 
 ALL_MODELS = [
     get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct),
-    # get_huggingface_lm("gpt2"),
+    get_huggingface_lm("gpt2"),
 ]
 
 
 ECHOABLE_MODELS = [
     # get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct),
     # Won't work with now that echo disabled
-    # get_huggingface_lm("gpt2"),
+    get_huggingface_lm("gpt2"),
 ]
 
 

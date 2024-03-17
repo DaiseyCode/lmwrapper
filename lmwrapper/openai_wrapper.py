@@ -8,6 +8,8 @@ from pathlib import Path
 
 import tiktoken
 from openai import OpenAI, RateLimitError
+from openai.types.completion_choice import Logprobs
+from openai.types.chat.chat_completion_token_logprob import TopLogprob
 
 from lmwrapper.abstract_predictor import LmPredictor
 from lmwrapper.secrets_manager import (
@@ -132,6 +134,10 @@ class OpenAiLmPrediction(LmPrediction):
             raise ValueError(
                 msg,
             )
+
+        if isinstance(self.metad.logprobs, Logprobs):
+            return self.metad.logprobs.top_logprobs
+
         top_logprobs = []
         for p in self.metad.logprobs.content: # for each token
             odict = dict([ (t.token,t.logprob) for t in p.top_logprobs ])
