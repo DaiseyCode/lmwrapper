@@ -99,6 +99,22 @@ def test_simple_chat_mode():
     )
     assert out.completion_text.strip() == "4"
 
+def test_chat_nologprob_exception():
+    lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo)
+    out = lm.predict(
+        LmPrompt(
+            "What is 2+2? Answer with just one number.",
+            max_tokens=1,
+            num_completions=1,
+            temperature=0.0,
+            cache=False,
+            logprobs=0,
+        ),
+    )
+    with pytest.raises(ValueError, match="Response does not contain top_logprobs.") as exc_info:
+        out.top_token_logprobs
+
+    assert type(exc_info.value) is ValueError
 
 def test_simple_chat_mode_multiturn():
     lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo)
@@ -121,6 +137,48 @@ def test_simple_chat_mode_multiturn():
         ),
     )
     assert out.completion_text.strip() == "5"
+
+
+def test_multiturn_chat_logprobs():
+    lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo)
+    prompt = [
+        "What is 2+2? Answer with one number followed by a period.",
+        "4.",
+        "What is 3+2?",
+    ]
+    assert LmChatDialog(prompt).as_dicts() == [
+        {
+            "role": "user",
+            "content": "What is 2+2? Answer with one number followed by a period.",
+        },
+        {"role": "assistant", "content": "4."},
+        {"role": "user", "content": "What is 3+2?"},
+    ]
+    out = lm.predict(
+        LmPrompt(
+            prompt,
+            max_tokens=2,
+            num_completions=1,
+            temperature=0,
+            cache=False,
+            logprobs=2,
+        ),
+    )
+    assert out.completion_text.strip() == "5."
+
+    # even at t=0, the logprobs have high variance
+    # perhaps anti-reverse engineering measures?
+
+    assert out.top_token_logprobs == [
+        {
+            "5": pytest.approx(-0.00012689977, abs=2),
+            "The": pytest.approx(-9.452922, abs=2),
+        },
+        {
+            ".": pytest.approx(-4.2391708e-05, abs=2),
+            "<|end|>": pytest.approx(-10.109505, abs=2),
+        },
+    ]
 
 
 def test_ratelimit():

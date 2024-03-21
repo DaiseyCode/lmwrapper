@@ -6,8 +6,10 @@ import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-import openai.error
 import tiktoken
+from openai import OpenAI, RateLimitError
+from openai.types.completion_choice import Logprobs
+from openai.types.chat.chat_completion_token_logprob import TopLogprob
 
 from lmwrapper.abstract_predictor import LmPredictor
 from lmwrapper.secrets_manager import (
@@ -45,16 +47,16 @@ class OpenAiLmPrediction(LmPrediction):
             raise ValueError(
                 msg,
             )
-        return self.metad["logprobs"]["tokens"]
+        return self.metad.logprobs.tokens
 
     def _all_toks_offsets(self):
-        return self.metad["logprobs"]["text_offset"]
+        return self.metad.logprobs.text_offset
 
     def _all_logprobs(self):
-        if self.metad["logprobs"] is None:
+        if self.metad.logprobs is None:
             assert self.prompt.logprobs is None or self.prompt.logprobs == 0
             return None
-        return self.metad["logprobs"]["token_logprobs"]
+        return self.metad.logprobs.token_logprobs
 
     @property
     def completion_tokens(self):
@@ -124,7 +126,7 @@ class OpenAiLmPrediction(LmPrediction):
         The API will always return the logprob of the sampled token,
         so there may be up to logprobs+1 elements in the response.
         """
-        if self.metad.get("logprobs", {}).get("top_logprobs", None) is None:
+        if self.metad.logprobs is None:
             msg = (
                 "Response does not contain top_logprobs. Are you sure logprobs was set"
                 f" > 0? Currently: {self.prompt.logprobs}"
@@ -132,7 +134,15 @@ class OpenAiLmPrediction(LmPrediction):
             raise ValueError(
                 msg,
             )
-        return [dict(p) for p in self.metad["logprobs"]["top_logprobs"]]
+
+        if isinstance(self.metad.logprobs, Logprobs):
+            return self.metad.logprobs.top_logprobs
+
+        top_logprobs = []
+        for p in self.metad.logprobs.content: # for each token
+            odict = dict([ (t.token,t.logprob) for t in p.top_logprobs ])
+            top_logprobs.append(odict)
+        return top_logprobs
 
 
 class OpenAiLmChatPrediction(LmPrediction):
@@ -144,7 +154,7 @@ class OpenAIPredictor(LmPredictor):
 
     def __init__(
         self,
-        api: openai,
+        api: OpenAI,
         engine_name: str,
         chat_mode: bool | None = None,
         cache_outputs_default: bool = False,
@@ -271,8 +281,8 @@ class OpenAIPredictor(LmPredictor):
 
             try:
                 if not self._chat_mode:
-                    return self._api.Completion.create(
-                        engine=self._engine_name,
+                    return self._api.completions.create(
+                        model=self._engine_name,
                         prompt=prompt.get_text_as_string_default_form(),
                         max_tokens=max_toks,
                         stop=prompt.stop,
@@ -285,24 +295,27 @@ class OpenAIPredictor(LmPredictor):
                         echo=prompt.echo,
                     )
                 else:
-                    return self._api.ChatCompletion.create(
-                        model=self._engine_name,
+                    return self._api.chat.completions.create(
                         messages=prompt.get_text_as_chat().as_dicts(),
-                        temperature=prompt.temperature,
+                        model=self._engine_name,
+                        logprobs=prompt.logprobs > 0,
                         max_tokens=max_toks,
-                        stop=prompt.stop,
-                        top_p=prompt.top_p,
                         n=prompt.num_completions,
                         presence_penalty=prompt.presence_penalty,
+                        stop=prompt.stop,
+                        temperature=prompt.temperature,
+                        # top_logprobs accepts ints 0 to 20, logprobs must be a boolean true
+                        top_logprobs=prompt.logprobs if prompt.logprobs > 0 else None,
+                        top_p=prompt.top_p,
                     )
-            except openai.error.RateLimitError as e:
+            except RateLimitError as e:
                 print(e)
                 return e
 
         def is_success_func(result):
-            return not isinstance(result, openai.error.RateLimitError)
+            return not isinstance(result, RateLimitError)
 
-        def backoff_time(exception: openai.error.RateLimitError) -> int:
+        def backoff_time(exception: RateLimitError) -> int:
             # Please try again in 3s.
             regex = r".*Please try again in (\d+)s\..*"
             matches = re.findall(regex, exception._message)
@@ -322,7 +335,7 @@ class OpenAIPredictor(LmPredictor):
         if not is_success_func(completion):
             raise completion
 
-        choices = completion["choices"]
+        choices = completion.choices
 
         def get_completion_text(text):
             if not prompt.echo:
@@ -330,9 +343,7 @@ class OpenAIPredictor(LmPredictor):
             return text[len(prompt.text) :]
 
         def get_text_from_choice(choice):
-            return (
-                choice["text"] if not self._chat_mode else choice["message"]["content"]
-            )
+            return choice.text if not self._chat_mode else choice.message.content
 
         out = [
             OpenAiLmPrediction(
@@ -402,25 +413,6 @@ def attempt_with_exponential_backoff(
         result = call_func()
         attempts += 1
     return result
-
-
-def get_goose_lm(
-    model_name: str = "gpt-neo-125m",
-    api_key_secret: SecretInterface = None,
-    retry_on_rate_limit: bool = False,
-):
-    if api_key_secret is None:
-        api_key_secret = SecretFile(Path("~/goose_key.txt").expanduser())
-    assert_is_a_secret(api_key_secret)
-    import openai
-
-    openai.api_key = api_key_secret.get_secret().strip()
-    openai.api_base = "https://api.goose.ai/v1"
-    return OpenAIPredictor(
-        api=openai,
-        engine_name=model_name,
-        retry_on_rate_limit=retry_on_rate_limit,
-    )
 
 
 class OpenAiModelInfo(str):
@@ -515,20 +507,23 @@ def get_open_ai_lm(
                 msg,
             )
     assert_is_a_secret(api_key_secret)
-    import openai
 
     if not api_key_secret.is_readable():
         msg = "API key is not defined"
         raise ValueError(msg)
-    openai.api_key = api_key_secret.get_secret().strip()
+
     if organization is None:
-        api_key_secret = SecretEnvVar("OPENAI_ORGANIZATION")
-        if api_key_secret.is_readable():
-            organization = api_key_secret.get_secret().strip()
-    if organization:
-        openai.organization = organization
+        org_secret = SecretEnvVar("OPENAI_ORGANIZATION")
+        if org_secret.is_readable():
+            organization = org_secret.get_secret().strip()
+
+    client = OpenAI(
+        api_key=api_key_secret.get_secret().strip(),
+        organization=organization if organization is not None else None,
+    )
+
     return OpenAIPredictor(
-        api=openai,
+        api=client,
         engine_name=model_name,
         cache_outputs_default=cache_outputs_default,
         retry_on_rate_limit=retry_on_rate_limit,
