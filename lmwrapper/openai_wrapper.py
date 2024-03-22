@@ -321,6 +321,12 @@ class OpenAIPredictor(LmPredictor):
             matches = re.findall(regex, exception.message)
             if matches:
                 return int(matches[0])
+            # Newer format
+            # Please try again in 837ms
+            regex = r".*Please try again in (\d+)ms.*"
+            matches = re.findall(regex, exception.message)
+            if matches:
+                return int(max(int(matches[0]) / 1000, 1))
             print(f"Unable to parse backoff time. Message: {exception.message}")
             return None
 
