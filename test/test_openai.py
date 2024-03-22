@@ -1,5 +1,6 @@
 import sys
 import warnings
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -8,7 +9,7 @@ from lmwrapper.openai_wrapper import (
     OpenAiInstantiationHook,
     OpenAiModelNames,
     OpenAIPredictor,
-    get_open_ai_lm,
+    get_open_ai_lm, parse_backoff_time,
 )
 from lmwrapper.structs import LmChatDialog, LmPrompt
 
@@ -337,6 +338,27 @@ def test_tokenizer():
     lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo)
     tokens = lm.tokenize("I like pie")
     assert tokens == ["I", " like", " pie"]
+
+
+def test_backoff_parse():
+    mock_exception = MagicMock()
+    mock_exception.message = "Rate limit reached for gpt-3.5-turbo-instruct in organization on tokens per min (TPM): Limit 90000, Used 89007, Requested 2360. Please try again in 1.42s. Visit https://platform.openai.com/account/rate-limits to learn more."
+    backoff = parse_backoff_time(mock_exception)
+    assert backoff == 2
+
+
+def test_backoff_parse2():
+    mock_exception = MagicMock()
+    mock_exception.message = "Rate limit reached for gpt-3.5-turbo-instruct in organization org on tokens per min (TPM): Limit 90000, Used 89007, Requested 2360. Please try again in 1.42s. Visit https://platform.openai.com/account/rate-limits to learn more."
+    backoff = parse_backoff_time(mock_exception)
+    assert backoff == 2
+
+
+def test_backoff_parse3():
+    mock_exception = MagicMock()
+    mock_exception.message = "Rate limit reached for gpt-3.5-turbo-instruct in organization org on tokens per min (TPM): Limit 90000, Used 89007, Requested 2360. Please try again in 5s. Visit https://platform.openai.com/account/rate-limits to learn more."
+    backoff = parse_backoff_time(mock_exception)
+    assert backoff == 5
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 import bisect
+import math
 import random
 import re
 import time
@@ -263,6 +264,9 @@ class OpenAIPredictor(LmPredictor):
             val = len(self._tokenizer.encode(prompt.get_text_as_string_default_form()))
         return val
 
+
+
+
     def _predict_maybe_cached(
         self,
         prompt: LmPrompt,
@@ -315,26 +319,11 @@ class OpenAIPredictor(LmPredictor):
         def is_success_func(result):
             return not isinstance(result, RateLimitError)
 
-        def backoff_time(exception: RateLimitError) -> int:
-            # Please try again in 3s.
-            regex = r".*Please try again in (\d+)s\..*"
-            matches = re.findall(regex, exception.message)
-            if matches:
-                return int(matches[0])
-            # Newer format
-            # Please try again in 837ms
-            regex = r".*Please try again in (\d+)ms.*"
-            matches = re.findall(regex, exception.message)
-            if matches:
-                return int(max(int(matches[0]) / 1000, 1))
-            print(f"Unable to parse backoff time. Message: {exception.message}")
-            return None
-
         if self._retry_on_rate_limit:
             completion = attempt_with_exponential_backoff(
                 run_func,
                 is_success_func,
-                backoff_time=backoff_time,
+                backoff_time=parse_backoff_time,
             )
         else:
             completion = run_func()
@@ -488,6 +477,22 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
             if info == name:
                 return info
         return None
+
+
+def parse_backoff_time(exception: RateLimitError) -> int:
+    # Please try again in 3s.
+    regex = r".*Please try again in (\d+(\.\d+)?)s\..*"
+    matches = re.findall(regex, exception.message)
+    if matches:
+        return int(math.ceil(float(matches[0][0])))
+    # Newer format
+    # Please try again in 837ms
+    regex = r".*Please try again in (\d+)ms.*"
+    matches = re.findall(regex, exception.message)
+    if matches:
+        return int(max(int(matches[0]) / 1000, 1))
+    print(f"Unable to parse backoff time. Message: {exception.message}")
+    return None
 
 
 def get_open_ai_lm(
