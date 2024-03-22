@@ -318,9 +318,10 @@ class OpenAIPredictor(LmPredictor):
         def backoff_time(exception: RateLimitError) -> int:
             # Please try again in 3s.
             regex = r".*Please try again in (\d+)s\..*"
-            matches = re.findall(regex, exception._message)
+            matches = re.findall(regex, exception.message)
             if matches:
                 return int(matches[0])
+            print(f"Unable to parse backoff time. Message: {exception.message}")
             return None
 
         if self._retry_on_rate_limit:
