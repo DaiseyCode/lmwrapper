@@ -51,7 +51,7 @@ from lmwrapper.structs import LmPrompt
 
 lm = get_open_ai_lm(
     model_name=OpenAiModelNames.gpt_3_5_turbo_instruct,
-    api_key_secret=None, # By default this will read from the OPENAI_API_KEY environment variable.
+    api_key_secret=None, # By default, this will read from the OPENAI_API_KEY environment variable.
                          # If that isn't set, it will try the file ~/oai_key.txt
                          # You need to place the key in one of these places,
                          # or pass in a different location. You can get an API
@@ -164,6 +164,11 @@ assert not lm.could_completion_go_over_token_limit(LmPrompt(
     "My name is Spingldorph", max_tokens=1000))
 ```
 
+### Comprehensive OpenAI emulation
+We focus on emulating the behaviour of OpenAI endpoints across platforms as
+best as possible. This includes coverage of arguments like `stop`,
+`logprobs` (>1), which can be missing or implemented differently.
+
 ## TODOs
 
 If you are interested in one of these particular features or something else
@@ -174,9 +179,9 @@ please make a Github Issue.
 - [X] Huggingface interface
 - [X] Huggingface device checking on PyTorch
 - [X] Move cache to be per project
+- [ ] Anthropic interface
+- [ ] Redesign cache to make it easier to manage
 - [ ] sort through usage of quantized models
 - [ ] async / streaming
-- [ ] Redesign cache to make it easier to manage
 - [ ] Additional Huggingface runtimes (TensorRT, BetterTransformers, etc)
-- [ ] Anthropic interface
 - [ ] Cost estimating (so can estimate cost of a prompt before running / track total cost)

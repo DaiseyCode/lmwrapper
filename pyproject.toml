@@ -46,7 +46,7 @@ ort = ["optimum[onnxruntime]~=1.13.2"]
 ort-gpu = ["optimum[onnxruntime-gpu]~=1.13.2"]
 
 [project.urls]
-"Homepage" = "https://github.com/DNGros/lmwrapper"
+"Homepage" = "https://github.com/DaiseyCode/lmwrapper"
 
 [tool.black]
 line-length = 88
