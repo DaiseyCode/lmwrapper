@@ -29,6 +29,7 @@ else
   exit 1
 fi
 
+
 # Verify that the version in pyproject.toml is not already on PyPI
 VERSION=$(grep "version" pyproject.toml | cut -d '"' -f 2)
 if [ -z "$VERSION" ]; then
@@ -57,6 +58,14 @@ fi
 ./run_tests.sh
 if [ $? -ne 0 ]; then
   echo "Tests failed. Abort."
+  exit 1
+fi
+
+# Hacky ask the user to check whether has passed CI. Works for now 🤷
+read -p "Please ensure that CI has passed. Type 'green' to confirm: " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Gg][Rr][Ee][Ee][Nn]$ ]]; then
+  echo "CI has not passed. Abort."
   exit 1
 fi
 
