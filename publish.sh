@@ -12,7 +12,7 @@ fi
 
 # Verify that the current branch is up-to-date with the remote
 echo "Verifying that the current branch is up-to-date with the remote..."
-git fetch origin
+git fetch
 LOCAL=$(git rev-parse @)
 REMOTE=$(git rev-parse @{u})
 BASE=$(git merge-base @ @{u})
