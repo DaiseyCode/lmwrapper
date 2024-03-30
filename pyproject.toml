@@ -17,7 +17,7 @@ description = "Wrapper around language model APIs"
 readme = "README.md"
 requires-python = ">=3.10"
 classifiers = ["Programming Language :: Python :: 3"]
-keywords = ["large language models"]
+keywords = ["large language models", "openai"]
 dependencies = [
     "openai~=1.14.0",
     "diskcache~=5.6.3",
