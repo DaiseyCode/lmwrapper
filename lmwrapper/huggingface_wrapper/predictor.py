@@ -10,7 +10,7 @@ from transformers.utils.generic import TensorType
 
 from lmwrapper._TokenStoppingCriteria import _TokenStoppingCriteria
 from lmwrapper.abstract_predictor import LmPredictor
-from lmwrapper.HuggingfacePrediction import HuggingfacePrediction
+from lmwrapper.huggingface_wrapper.prediction import HuggingFacePrediction
 from lmwrapper.prompt_trimming import PromptTrimmer
 from lmwrapper.runtime import Runtime
 from lmwrapper.structs import LmPrediction, LmPrompt
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from transformers.generation.utils import GenerateOutput
 
 
-class HuggingfacePredictor(LmPredictor):
+class HuggingFacePredictor(LmPredictor):
     def __init__(
         self,
         tokenizer: PreTrainedTokenizerFast,
@@ -473,7 +473,7 @@ class HuggingfacePredictor(LmPredictor):
         logging.debug("Post del statements")
         log_cuda_mem()
 
-        return HuggingfacePrediction(
+        return HuggingFacePrediction(
             completion_text=clean_generated_text,
             prompt=prompt,
             metad=updated_output,

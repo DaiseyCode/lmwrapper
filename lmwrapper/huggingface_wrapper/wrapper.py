@@ -6,7 +6,7 @@ from typing import Literal
 from packaging import version
 
 from lmwrapper.env import _MPS_ENABLED, _ONNX_RUNTIME, _QUANTIZATION_ENABLED
-from lmwrapper.HuggingfacePredictor import HuggingfacePredictor
+from lmwrapper.huggingface_wrapper.predictor import HuggingFacePredictor
 from lmwrapper.prompt_trimming import PromptTrimmer
 from lmwrapper.runtime import Runtime
 from lmwrapper.structs import LmPrompt
@@ -182,7 +182,7 @@ def get_huggingface_lm(
     allow_patch_model_forward: bool = True,
     prompt_trimmer: PromptTrimmer = None,
     device: torch.device | str = None,
-) -> HuggingfacePredictor:
+) -> HuggingFacePredictor:
     """
     Initialize and return a Hugging Face language model for prediction.
 
@@ -213,7 +213,7 @@ def get_huggingface_lm(
 
     Returns
     -------
-    HuggingfacePredictor
+    HuggingFacePredictor
         An initialized Hugging Face model ready for prediction.
 
     Raises
@@ -432,9 +432,9 @@ def get_huggingface_predictor(
     runtime: Runtime = Runtime.PYTORCH,
     allow_patch_model_forward: bool = False,
     prompt_trimmer: PromptTrimmer | None = None,
-) -> HuggingfacePredictor:
+) -> HuggingFacePredictor:
     """
-    Creates and returns a HuggingfacePredictor object configured with the specified parameters.
+    Creates and returns a HuggingFacePredictor object configured with the specified parameters.
 
     Parameters
     ----------
@@ -458,17 +458,17 @@ def get_huggingface_predictor(
 
     Returns
     -------
-    HuggingfacePredictor
-        Configured instance of HuggingfacePredictor.
+    HuggingFacePredictor
+        Configured instance of HuggingFacePredictor.
 
     Examples
     --------
     >>> predictor = get_huggingface_predictor(tokenizer, model, device=torch.device('cuda'))
     >>> type(predictor)
-    <class 'HuggingfacePredictor'>
+    <class 'HuggingFacePredictor'>
 
     """
-    return HuggingfacePredictor(
+    return HuggingFacePredictor(
         tokenizer,
         model,
         device=device,
@@ -488,7 +488,7 @@ def _initialize_hf_model(
     prompt_trimmer: PromptTrimmer = None,
     device: torch.device = None,
     _kwargs: dict = {},
-) -> HuggingfacePredictor:
+) -> HuggingFacePredictor:
     """
     Initialize a Hugging Face model for prediction based on various configurations.
 
@@ -523,7 +523,7 @@ def _initialize_hf_model(
 
     Returns
     -------
-    HuggingfacePredictor
+    HuggingFacePredictor
         Configured Huggingface Predictor instance.
 
     Raises
@@ -705,7 +705,7 @@ def _initialize_hf_model(
     return predictor
 
 
-def _warmup_model(predictor: HuggingfacePredictor):
+def _warmup_model(predictor: HuggingFacePredictor):
     """
     Warms up a given Huggingface predictor model by running predictions.
     The purpose of this is primarily to build TensorRT kernels for various
@@ -714,7 +714,7 @@ def _warmup_model(predictor: HuggingfacePredictor):
 
     Parameters
     ----------
-    predictor : HuggingfacePredictor
+    predictor : HuggingFacePredictor
         Instance of a Huggingface predictor class.
 
     Notes

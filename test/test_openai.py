@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from lmwrapper.caching import clear_cache_dir
-from lmwrapper.openai_wrapper import (
+from lmwrapper.openai_wrapper.wrapper import (
     OpenAiInstantiationHook,
     OpenAiModelNames,
     OpenAIPredictor,

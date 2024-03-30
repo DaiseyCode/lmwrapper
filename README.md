@@ -51,11 +51,11 @@ from lmwrapper.structs import LmPrompt
 
 lm = get_open_ai_lm(
     model_name=OpenAiModelNames.gpt_3_5_turbo_instruct,
-    api_key_secret=None, # By default, this will read from the OPENAI_API_KEY environment variable.
-                         # If that isn't set, it will try the file ~/oai_key.txt
-                         # You need to place the key in one of these places,
-                         # or pass in a different location. You can get an API
-                         # key at (https://platform.openai.com/account/api-keys)
+    api_key_secret=None,  # By default, this will read from the OPENAI_API_KEY environment variable.
+    # If that isn't set, it will try the file ~/oai_key.txt
+    # You need to place the key in one of these places,
+    # or pass in a different location. You can get an API
+    # key at (https://platform.openai.com/account/api-keys)
 )
 
 prediction = lm.predict(
@@ -73,6 +73,7 @@ print(prediction.completion_text)
 ```python
 from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
 from lmwrapper.structs import LmPrompt, LmChatTurn
+
 lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo)
 
 # Single user utterance
@@ -83,17 +84,17 @@ print(pred.completion_text)  # "2+2 is equal to 4."
 pred = lm.predict(LmPrompt(
     [
         "What is 2+2?",  # user turn
-        "4",             # assistant turn
-        "What is 5+3?"   # user turn
-        "8",             # assistant turn
-        "What is 4+4?"   # user turn
+        "4",  # assistant turn
+        "What is 5+3?"  # user turn
+        "8",  # assistant turn
+        "What is 4+4?"  # user turn
         # We use few-shot turns to encourage the answer to be our desired format.
         #   If you don't give example turns you might get something like
         #   "The answer is 8." instead of just "8".
     ],
     max_tokens=10,
 ))
-print(pred.completion_text) # "8"
+print(pred.completion_text)  # "8"
 
 # If you want things like the system message, you can use LmChatTurn objects
 pred = lm.predict(LmPrompt(
@@ -116,6 +117,7 @@ OpenAI models.
 ```python
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
 from lmwrapper.structs import LmPrompt
+
 lm = get_huggingface_lm("gpt2")  # The smallest 124M parameter model
 
 prediction = lm.predict(LmPrompt(
@@ -145,8 +147,9 @@ amount of seconds in the error before retrying.
 
 ```python
 from lmwrapper.openai_wrapper import *
+
 lm = get_open_ai_lm(
-    OpenAiModelNames.gpt_3_5_turbo_instruct, 
+    OpenAiModelNames.gpt_3_5_turbo_instruct,
     retry_on_rate_limit=True
 )
 ```
@@ -157,17 +160,14 @@ lm = get_open_ai_lm(
 
 ```python
 from lmwrapper.openai_wrapper import *
+from lmwrapper.structs import LmPrompt
+
 lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct)
 assert lm.estimate_tokens_in_prompt(
     LmPrompt("My name is Spingldorph", max_tokens=10)) == 7
 assert not lm.could_completion_go_over_token_limit(LmPrompt(
     "My name is Spingldorph", max_tokens=1000))
 ```
-
-### Comprehensive OpenAI emulation
-We focus on emulating the behaviour of OpenAI endpoints across platforms as
-best as possible. This includes coverage of arguments like `stop`,
-`logprobs` (>1), which can be missing or implemented differently.
 
 ## TODOs
 

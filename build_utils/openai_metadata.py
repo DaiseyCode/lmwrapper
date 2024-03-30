@@ -3,7 +3,7 @@ import ast
 
 import requests
 
-from lmwrapper.openai_wrapper import OpenAiModelNames, get_open_ai_lm
+from lmwrapper.openai_wrapper.openai_wrapper import OpenAiModelNames, get_open_ai_lm
 
 
 def get_github_file_var(url, var_name):

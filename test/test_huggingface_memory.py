@@ -6,7 +6,7 @@ from test.test_huggingface import Models
 import pytest
 import torch
 
-from lmwrapper.huggingface_wrapper import get_huggingface_lm
+from lmwrapper.huggingface_wrapper.wrapper import get_huggingface_lm
 from lmwrapper.runtime import Runtime
 from lmwrapper.structs import LmPrompt
 

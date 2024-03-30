@@ -5,7 +5,7 @@ import torch
 from transformers import AutoTokenizer
 
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
-from lmwrapper.HuggingfacePredictor import (
+from lmwrapper.huggingface_wrapper.predictor import (
     _check_tokenizer_to_see_if_adds_bos,
     _expand_offsets_to_a_token_index_for_every_text_index,
     _get_token_offsets,

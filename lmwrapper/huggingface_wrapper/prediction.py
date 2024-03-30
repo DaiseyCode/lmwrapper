@@ -5,7 +5,7 @@ from lmwrapper.structs import LmPrediction
 
 
 @dataclass
-class HuggingfacePrediction(LmPrediction):
+class HuggingFacePrediction(LmPrediction):
     _prompt_encoding: Any
     _tokens: Any
     _log_probs: Any

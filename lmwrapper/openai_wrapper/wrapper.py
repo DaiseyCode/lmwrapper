@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 
 import tiktoken
+
 from openai import OpenAI, RateLimitError
 from openai.types.completion_choice import Logprobs
 from openai.types.chat.chat_completion_token_logprob import TopLogprob
