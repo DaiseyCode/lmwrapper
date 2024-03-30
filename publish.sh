@@ -41,11 +41,13 @@ if [ -n "$(python3 -m twine search -v $VERSION)" ]; then
   exit 1
 fi
 
+
 # Verify that the current version is tagged
 if [ -z "$(git tag --points-at HEAD)" ]; then
   echo "Current version is not tagged. Abort."
   exit 1
 fi
+
 
 # Build
 ./build.sh
@@ -60,6 +62,7 @@ if [ $? -ne 0 ]; then
   echo "Tests failed. Abort."
   exit 1
 fi
+
 
 # Hacky ask the user to check whether has passed CI. Works for now 🤷
 read -p "Please ensure that CI has passed. Type 'green' to confirm: " -n 1 -r
