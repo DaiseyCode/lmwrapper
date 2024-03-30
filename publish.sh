@@ -11,6 +11,7 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 # Verify that the current branch is up-to-date with the remote
+echo "Verifying that the current branch is up-to-date with the remote..."
 git fetch
 LOCAL=$(git rev-parse @)
 REMOTE=$(git rev-parse @{u})
