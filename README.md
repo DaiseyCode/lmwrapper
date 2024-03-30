@@ -27,17 +27,13 @@ For development dependencies:
 pip install "lmwrapper[dev] @ git+https://github.com/DNGros/lmwrapper.git"
 ```
 
-Additionally, if you wish to use the latest version of `transformers` from GitHub:
-
-```bash
-pip install "lmwrapper[hf-dev] @ git+https://github.com/DNGros/lmwrapper.git"
-```
-
+<!---
 If you prefer using `conda`/`mamba` to manage your environments, you may edit the `environment.yml` file to your liking & setup and create a new environment based on it:
 
 ```bash
 mamba env create -f environment.yml
 ```
+-->
 
 Please note that this method is for development and not supported.
 

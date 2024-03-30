@@ -34,10 +34,10 @@ hf = ["torch~=2.1.0", "transformers~=4.34.1"]
 # Torch nightlies can be installed as follows:
 # CPU: pip3 install --pre torch --index-url https://download.pytorch.org/whl/nightly/cpu
 # CUDA: pip3 install --pre torch --index-url https://download.pytorch.org/whl/nightly/cu121
-hf-dev = [
-    "torch>=2.1.0",
-    "transformers @ git+https://github.com/huggingface/transformers",
-]
+#hf-dev = [
+#    "torch>=2.1.0",
+#    "transformers @ git+https://github.com/huggingface/transformers",
+#]
 accelerate = ["accelerate~=0.23.0"]
 xformers = ["xformers~=0.0.22"]
 flash-attn = [ "flash_attn~=2.3.2"]
