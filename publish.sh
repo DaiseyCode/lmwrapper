@@ -30,18 +30,6 @@ else
 fi
 
 
-# Verify that the version in pyproject.toml is not already on PyPI
-VERSION=$(grep "version" pyproject.toml | cut -d '"' -f 2)
-if [ -z "$VERSION" ]; then
-  echo "Could not find version in pyproject.toml. Abort."
-  exit 1
-fi
-if [ -n "$(python3 -m twine search -v $VERSION)" ]; then
-  echo "Version $VERSION is already on PyPI. Abort."
-  exit 1
-fi
-
-
 # Verify that the current version is tagged
 if [ -z "$(git tag --points-at HEAD)" ]; then
   echo "Current version is not tagged. Abort."
