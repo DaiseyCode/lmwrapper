@@ -8,7 +8,7 @@ packages = ["lmwrapper"]
 
 [project]
 name = "lmwrapper"
-version = "0.8.7.2"
+version = "0.8.7.3"
 authors = [
     { name = "David Gros", email = "DNGros@users.noreply.github.com" },
     { name = "Claudio Spiess", email = "claudiosv@users.noreply.github.com" },
