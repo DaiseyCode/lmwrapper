@@ -33,6 +33,7 @@ fi
 # Verify that the current version is tagged
 if [ -z "$(git tag --points-at HEAD)" ]; then
   echo "Current version is not tagged. Abort."
+  echo "git tag -a vX.X.X -m 'Version X.X.X'"
   exit 1
 fi
 
@@ -59,6 +60,8 @@ if [[ ! $REPLY =~ ^[Gg][Rr][Ee][Ee][Nn]$ ]]; then
   echo "CI has not passed. Abort."
   exit 1
 fi
+
+# TODO switch user to manage and store the key
 
 # Publish to PyPI test unless the --prod flag is passed
 if [ "$1" == "--prod" ]; then
