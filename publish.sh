@@ -54,7 +54,7 @@ fi
 
 
 # Hacky ask the user to check whether has passed CI. Works for now 🤷
-read -p "Please ensure that CI has passed. Type 'green' to confirm: " -n 1 -r
+read -p "Please ensure that CI has passed. Type 'green' to confirm: " -r
 echo
 if [[ ! $REPLY =~ ^[Gg][Rr][Ee][Ee][Nn]$ ]]; then
   echo "CI has not passed. Abort."
