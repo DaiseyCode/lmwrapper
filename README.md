@@ -12,19 +12,19 @@ you to switch inbetween OpenAI endpoints and local models with minimal changes.
 For usage with just OpenAI models:
 
 ```bash
-pip install "lmwrapper @ git+https://github.com/DNGros/lmwrapper.git"
+pip install lmwrapper
 ```
 
 For usage with HuggingFace models as well:
 
 ```bash
-pip install "lmwrapper[hf] @ git+https://github.com/DNGros/lmwrapper.git"
+pip install lmwrapper[hf]
 ```
 
 For development dependencies:
 
 ```bash
-pip install "lmwrapper[dev] @ git+https://github.com/DNGros/lmwrapper.git"
+pip install lmwrapper[dev]
 ```
 
 <!---
