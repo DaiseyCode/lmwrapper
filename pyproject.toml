@@ -3,12 +3,17 @@ requires = ["setuptools>=68.2.2"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = [
-    "lmwrapper",
-    "lmwrapper.huggingface_wrapper",
-    "lmwrapper.openai_wrapper",
-]
+# Auto discover
+#packages = [
+#    "lmwrapper",
+#    "lmwrapper.huggingface_wrapper",
+#    "lmwrapper.openai_wrapper",
+#]
 #py-modules = ["lmwrapper"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["lmwrapper*"]
 
 [project]
 name = "lmwrapper"
