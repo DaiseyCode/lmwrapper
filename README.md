@@ -18,13 +18,13 @@ pip install lmwrapper
 For usage with HuggingFace models as well:
 
 ```bash
-pip install lmwrapper[hf]
+pip install 'lmwrapper[hf]'
 ```
 
 For development dependencies:
 
 ```bash
-pip install lmwrapper[dev]
+pip install 'lmwrapper[dev]'
 ```
 
 <!---
