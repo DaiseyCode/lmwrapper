@@ -1,10 +1,6 @@
 # backport str enum(https://github.com/clbarnes/backports.strenum/blob/main/backports/strenum/strenum.py)
-import logging
 from enum import Enum
 from typing import Any, TypeVar
-
-import torch
-from humanize import naturalsize
 
 _S = TypeVar("_S", bound="StrEnum")
 
@@ -46,15 +42,6 @@ class StrEnum(str, Enum):
     ) -> str:
         """Return the lower-cased version of the member name."""
         return name.lower()
-
-
-def log_cuda_mem():
-    if torch.cuda.is_available():
-        logging.debug(
-            "Allocated/Reserved: %s / %s",
-            naturalsize(torch.cuda.memory_allocated()),
-            naturalsize(torch.cuda.memory_reserved()),
-        )
 
 
 def flatten_dict(

@@ -10,7 +10,7 @@ from lmwrapper.huggingface_wrapper.predictor import HuggingFacePredictor
 from lmwrapper.prompt_trimming import PromptTrimmer
 from lmwrapper.runtime import Runtime
 from lmwrapper.structs import LmPrompt
-from lmwrapper.utils import log_cuda_mem
+from lmwrapper.huggingface_wrapper.utilstorch import log_cuda_mem
 
 try:
     import torch
