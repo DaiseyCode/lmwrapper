@@ -46,10 +46,7 @@ class HuggingFacePredictor(LmPredictor):
             "name_or_path": self._model.name_or_path,
         }
 
-    def _predict_hf(
-        self,
-        prompt: LmPrompt,
-    ) -> LmPrediction | list[LmPrediction]:
+    def _verify_initial_prompt(self, prompt: LmPrompt):
         if not isinstance(prompt.text, str) and len(prompt.text) != 1:
             msg = "Prompt batches other than size 1 are not supported."
             raise NotImplementedError(
@@ -63,23 +60,6 @@ class HuggingFacePredictor(LmPredictor):
             raise NotImplementedError(
                 msg,
             )
-
-        patch_model_forward = False
-        if self.allow_patch_model_forward:
-            patch_model_forward = prompt.echo
-
-        is_encoder_decoder = self._model.config.is_encoder_decoder
-
-        will_add_bos = prompt.add_bos_token or (
-            prompt.add_bos_token is None
-            and self._tokenizer.bos_token
-            and not is_encoder_decoder
-            and not self._does_this_tokenizer_seem_add_a_bos(prompt.add_special_tokens)
-        )
-        will_have_bos = will_add_bos or self._does_this_tokenizer_seem_add_a_bos(
-            prompt.add_special_tokens,
-        )
-
         if prompt.logprobs > 1:
             msg = (
                 "Retrieving more than 1 logprob is not yet supported for HuggingFace"
@@ -88,7 +68,6 @@ class HuggingFacePredictor(LmPredictor):
             raise NotImplementedError(
                 msg,
             )
-
         if prompt.logprobs and prompt.top_p != 1.0:
             logging.warning("Logprobs may not be correct if top_p != 1.0")
 
@@ -96,17 +75,49 @@ class HuggingFacePredictor(LmPredictor):
             msg = "Presence penalty not implemented"
             raise NotImplementedError(msg)
 
+    def _will_add_and_have_bos(self, prompt: LmPrompt):
+        will_add_bos = prompt.add_bos_token or (
+                prompt.add_bos_token is None
+                and self._tokenizer.bos_token
+                and not self.is_encoder_decoder
+                and not self._does_this_tokenizer_seem_add_a_bos(prompt.add_special_tokens)
+        )
+        will_have_bos = will_add_bos or self._does_this_tokenizer_seem_add_a_bos(
+            prompt.add_special_tokens,
+        )
         if prompt.text == "" and not will_have_bos:
             msg = "Cannot do unconditional generation without `add_bos_token`."
             raise Exception(
                 msg,
             )
 
-        if is_encoder_decoder and will_add_bos:
+        if self.is_encoder_decoder and will_add_bos:
             msg = "Encoder/decoder models should not have bos tokens added manually."
             raise Exception(
                 msg,
             )
+        return will_add_bos, will_have_bos
+
+    @property
+    def is_encoder_decoder(self) -> bool:
+        return self._model.config.is_encoder_decoder
+
+    def _optional_args_for_internals(self, prompt: LmPrompt):
+        if prompt.model_internals_request is None:
+            return {}
+        return {}
+
+    def _predict_hf(
+        self,
+        prompt: LmPrompt,
+    ) -> LmPrediction | list[LmPrediction]:
+        self._verify_initial_prompt(prompt)
+
+        patch_model_forward = False
+        if self.allow_patch_model_forward:
+            patch_model_forward = prompt.echo
+
+        will_add_bos, will_have_bos = self._will_add_and_have_bos(prompt)
 
         if will_add_bos:
             assert self._tokenizer.bos_token
@@ -142,7 +153,7 @@ class HuggingFacePredictor(LmPredictor):
                     msg,
                 )
 
-        if is_encoder_decoder:
+        if self.is_encoder_decoder:
             encoded_input["decoder_input_ids"] = encoded_input["input_ids"].clone()
 
         logging.debug("Pre moving encoded tokens")
@@ -262,7 +273,7 @@ class HuggingFacePredictor(LmPredictor):
         # we add 2 to consider the </s> at the end of the prompt and the first <s> as input
         input_length = (
             encoded_input.input_ids.shape[1] + 2
-            if is_encoder_decoder
+            if self.is_encoder_decoder
             else encoded_input.input_ids.shape[1]
         )
         if prompt.stop:
@@ -370,7 +381,7 @@ class HuggingFacePredictor(LmPredictor):
         if need_log_prob:
             if patch_model_forward:
                 assert prompt.echo
-                assert not is_encoder_decoder
+                assert not self.is_encoder_decoder
 
                 assert cached_logits.shape[0] == 1  # batch
                 assert cached_logits.shape[1] == len(model_output_sequence[1:])
@@ -401,7 +412,7 @@ class HuggingFacePredictor(LmPredictor):
                 # Free memory
                 del output_logprobs
 
-                if is_encoder_decoder:
+                if self.is_encoder_decoder:
                     # we need to chop off the <s> first token
                     # as its probability will throw off uncertainty estimates
                     if stop_token_idx_generated:
