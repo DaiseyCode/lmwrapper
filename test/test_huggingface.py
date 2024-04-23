@@ -19,6 +19,7 @@ from lmwrapper.utils import StrEnum
 class Models(StrEnum):
     CodeT5plus_220M = "Salesforce/codet5p-220m"
     CodeT5plus_6B = "Salesforce/codet5p-6b"
+    CodeGen_350M = "Salesforce/codegen-350M-mono"
     CodeGen2_1B = "Salesforce/codegen2-1B"
     CodeGen2_3_7B = "Salesforce/codegen2-3_7B"
     InstructCodeT5plus_16B = "Salesforce/instructcodet5p-16b"
@@ -38,9 +39,9 @@ except RuntimeError:
     SMALL_GPU = True
 
 SEQ2SEQ_MODELS = {Models.CodeT5plus_220M}
-CAUSAL_MODELS = {Models.DistilGPT2, Models.GPT2, Models.CodeGen2_1B}
+CAUSAL_MODELS = {Models.DistilGPT2, Models.GPT2}
 BIG_SEQ2SEQ_MODELS = {Models.CodeT5plus_6B, Models.InstructCodeT5plus_16B}
-BIG_CAUSAL_MODELS = {Models.CodeGen2_3_7B, Models.Mistral_7B}
+BIG_CAUSAL_MODELS = {Models.CodeGen2_1B, Models.CodeGen2_3_7B, Models.Mistral_7B}
 BIG_MODELS = BIG_SEQ2SEQ_MODELS | BIG_CAUSAL_MODELS
 ALL_MODELS = SEQ2SEQ_MODELS | CAUSAL_MODELS | BIG_MODELS
 

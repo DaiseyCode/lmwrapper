@@ -265,9 +265,6 @@ class OpenAIPredictor(LmPredictor):
             val = len(self._tokenizer.encode(prompt.get_text_as_string_default_form()))
         return val
 
-
-
-
     def _predict_maybe_cached(
         self,
         prompt: LmPrompt,
@@ -347,6 +344,7 @@ class OpenAIPredictor(LmPredictor):
                 get_completion_text(get_text_from_choice(choice)),
                 prompt,
                 choice,
+                internals=None,
             )
             for choice in choices
         ]
