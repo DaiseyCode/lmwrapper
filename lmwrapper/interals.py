@@ -43,21 +43,35 @@ class ModelInternalsRequest:
             msg = "Cannot specify both hidden_layer_indexes and hidden_layer_fractions."
             raise ValueError(msg)
 
-    def select_layer_sequence(
-        self,
-        layerwise_sequence: Sequence[Any],
-    ):
-        """Given some sequence with something per layer (like hidden states), selects
-        the desired ones for a give"""
+    def get_effective_selected_layers_idxs(self, num_layers) -> Sequence[int]:
         if self.hidden_layer_indexes is not None:
-            return [layerwise_sequence[i] for i in self.hidden_layer_indexes]
+            return self.hidden_layer_indexes
         if self.hidden_layer_fractions is not None:
-            num_layers = len(layerwise_sequence)
             selected_layers = [
-                layerwise_sequence[round((num_layers - 1) * f)]
+                round((num_layers - 1) * f)
                 for f in self.hidden_layer_fractions
             ]
             return selected_layers
+        return tuple(range(num_layers))
+
+    def select_layer_sequence(
+        self,
+        layerwise_sequence: Sequence[Any] | np.ndarray,
+    ):
+        """Given some sequence with something per layer (like hidden states), selects
+        the desired ones for a give"""
+        if (
+            self.hidden_layer_indexes is not None
+            or self.hidden_layer_fractions is not None
+        ):
+            if isinstance(layerwise_sequence, np.ndarray):
+                return layerwise_sequence[
+                    self.get_effective_selected_layers_idxs(layerwise_sequence.shape[0])]
+            else:
+                return [
+                    layerwise_sequence[i]
+                    for i in self.get_effective_selected_layers_idxs(len(layerwise_sequence))
+                ]
         return layerwise_sequence
 
 

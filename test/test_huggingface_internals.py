@@ -99,3 +99,22 @@ def test_get_internals_hidden_states(pytestconfig, model_name_layers_hidden):
     assert pred.internals.has_a_bos
 
 
+    pred_sub = model.predict(dataclasses.replace(
+        prompt,
+        model_internals_request=ModelInternalsRequest(
+            return_hidden_states=True,
+            return_attentions=True,
+            hidden_layer_indexes=[0, 5, -1],
+        ),
+    ))
+    assert pred_sub.internals.attentions is not None
+    attn_layer, attn_head, attn_seq, attn_seq2 = pred_sub.internals.attentions.shape
+    assert attn_layer == 3
+    assert attn_seq == num_expected_tokens == attn_seq2
+    assert pred_sub.internals.attentions[0, 0, 0, 0] == 1.0
+    assert pred_sub.internals.attentions[0, 0, 0, 1] == 0.0
+    assert np.allclose(pred_sub.internals.attentions[0], pred.internals.attentions[0])
+    assert np.allclose(pred_sub.internals.attentions[1], pred.internals.attentions[5])
+    assert np.allclose(pred_sub.internals.attentions[2], pred.internals.attentions[-1])
+
+
