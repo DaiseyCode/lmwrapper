@@ -13,8 +13,8 @@ IS_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
 @pytest.mark.parametrize(
     "model_name_layers_hidden", [
         (Models.GPT2, 12, 768),
-        #(Models.CodeGen_350M, 20, 64 * 16),
-        #(Models.CodeGen2_1B, 16, 2048),
+        (Models.CodeGen_350M, 20, 64 * 16),
+        (Models.CodeGen2_1B, 16, 2048),
         # ^ Important to run since it doesn't use the same attentions value
     ]
 )
