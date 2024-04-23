@@ -522,14 +522,88 @@ class HuggingFacePredictor(LmPredictor):
                 generation_output.hidden_states, output_tokens,)
             hidden_states = request.select_layer_sequence(hidden_states)
             internal_args["hidden_states"] = hidden_states
+        if request.return_attentions:
+            attentions = self._get_attentions_combined(
+                generation_output.attentions, output_tokens)
+            attentions = request.select_layer_sequence(attentions)
+            internal_args["attentions"] = attentions
+        internal_args['has_a_bos'] = will_have_bos
+
         return ModelInternalsResults(**internal_args)
+
+
+    def _get_attentions_combined(
+        self,
+        attentions,
+        output_tokens,
+    ):
+        """Attentions is a tuple
+        (token_output: tuple, layers: tuple, (batch, head, seq, seq_prompt): tensor).
+        We want to transform a single to (layers, head, seq, seq_prompt): ndarray
+        with the future tokens appropriately masked out.
+
+        Note: that this precludes some more weird schemes such as a different
+        number of heads per layer or some weird sparse attentions where each
+        token_output has different dimensions. We will have to potentially
+        handle those latter.
+        """
+        if len(output_tokens) == 0:
+            return None
+        last_token_attentions = attentions[-1]
+        seems_to_be_token_by_token = last_token_attentions[1].shape[2] == 1
+        if seems_to_be_token_by_token and len(attentions) > 1:
+            # We have something like
+            # ( for each token gen
+            #   (layers, (batch, head, seq_prompt, seq_prompt)),
+            #   (layers, (batch, head, 1, seq_prompt + 1)),
+            #   (layers, (batch, head, 1, seq_prompt + 2)),
+            #   ...
+            # )
+            # We need to combine these and fill any of the added tokens with zeros
+            num_layers = len(attentions[0])
+            num_heads = attentions[0][1].shape[1]
+            total_seq_length = sum(
+                att[1].shape[2] for att in attentions)  # Total sequence length including prompt
+            seq_prompt_length = attentions[0][1].shape[3]  # Sequence length of the prompt
+
+            # Initialize a tensor to hold the combined attentions for all layers
+            combined_attentions = torch.zeros(
+                (num_layers, num_heads, total_seq_length, total_seq_length)
+            )
+
+            # Fill in the combined attentions tensor
+            seq_offset = 0
+            for tok_gen_i, tok_gen_atten in enumerate(attentions):
+                for layer_idx, att_tensor in enumerate(tok_gen_atten):
+                    batch, head, seq_length_in_this_generation, seq_attend = att_tensor.shape
+                    assert batch == 1
+                    assert head == num_heads
+                    combined_attentions[
+                        layer_idx, :, seq_offset:seq_offset + seq_length_in_this_generation, :seq_attend
+                    ] = att_tensor[0, :, :, :]
+
+                seq_offset += seq_length_in_this_generation
+
+            return combined_attentions.cpu().numpy()
+        else:
+            # The last token should have everything
+            # So last token should be (layers [tuple], (batch, head, seq, seq_prompt) [tensor])
+            # We want to be (layers, head, seq, seq_prompt)
+            layers = [
+                layer.squeeze(0).cpu().numpy()
+                for layer in last_token_attentions
+            ]
+            # combine the layers
+            return np.stack(layers, axis=0)
+
 
     def _get_hidden_states_combined(
         self,
         hidden_states,
         output_tokens,
-    ):
+    ) -> tuple[np.ndarray, ...] | None:
         """Different models seem to treat the hidden states differently.
+        Try to parse that out and return (layers: tuple, (seq, hidden): ndarray)
         """
         if len(output_tokens) == 0:
             return None

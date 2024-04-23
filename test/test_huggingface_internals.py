@@ -3,7 +3,7 @@ import dataclasses
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
 import pytest
 import numpy as np
-from lmwrapper.structs import LmPrompt
+from lmwrapper.structs import LmPrompt, LmPrediction
 from lmwrapper.interals import ModelInternalsRequest
 from test.test_huggingface import Models, BIG_MODELS
 import os
@@ -12,9 +12,9 @@ IS_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
 
 @pytest.mark.parametrize(
     "model_name_layers_hidden", [
-        (Models.GPT2, 1 + 12, 768),
-        #(Models.CodeGen_350M, 1 + 20, 64 * 16),
-        #(Models.CodeGen2_1B, 1 + 16, 2048),
+        (Models.GPT2, 12, 768),
+        #(Models.CodeGen_350M, 20, 64 * 16),
+        #(Models.CodeGen2_1B, 16, 2048),
         # ^ Important to run since it doesn't use the same attentions value
     ]
 )
@@ -39,7 +39,7 @@ def test_get_internals_hidden_states(pytestconfig, model_name_layers_hidden):
     pred = model.predict(prompt)
     assert pred.internals.hidden_states is not None
     assert isinstance(pred.internals.hidden_states, tuple)
-    assert len(pred.internals.hidden_states) == num_layers
+    assert len(pred.internals.hidden_states) == 1 + num_layers # has embedding layer
     assert all(isinstance(x, np.ndarray) for x in pred.internals.hidden_states)
     assert all(x.shape == (
         num_expected_tokens, hidden_size)
@@ -75,9 +75,27 @@ def test_get_internals_hidden_states(pytestconfig, model_name_layers_hidden):
     new_hidden = new_pred.internals.hidden_states
     assert len(new_hidden) == 3
     assert np.allclose(new_hidden[0], pred.internals.hidden_states[0])
-    assert np.allclose(new_hidden[1], pred.internals.hidden_states[round(num_layers / 2)])
+    assert np.allclose(new_hidden[1], pred.internals.hidden_states[round((1 + num_layers) / 2)])
     assert np.allclose(new_hidden[2], pred.internals.hidden_states[-1])
 
 
+    ### Attentions
+    # (we are packing a lot into one test to still parameterize but no reload model)
+    prompt = dataclasses.replace(
+        prompt,
+        model_internals_request=ModelInternalsRequest(
+            return_hidden_states=True,
+            return_attentions=True,
+        ),
+    )
+    pred = model.predict(prompt)
+    assert pred.internals.attentions is not None
+    attn_layer, attn_head, attn_seq, attn_seq2 = pred.internals.attentions.shape
+    assert attn_layer == num_layers
+    assert attn_seq == num_expected_tokens == attn_seq2
+    assert pred.internals.attentions[0, 0, 0, 0] == 1.0
+    assert pred.internals.attentions[0, 0, 0, 1] == 0.0
+
+    assert pred.internals.has_a_bos
 
 

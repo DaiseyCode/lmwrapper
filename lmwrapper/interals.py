@@ -64,4 +64,8 @@ class ModelInternalsRequest:
 @dataclass
 class ModelInternalsResults:
     hidden_states: tuple[np.typing.NDArray, ...] = None
+    """A tuple of (seq, hidden) numpy arrays for each hidden layer.
+    Some models will have an embedding layer as the first layer."""
     attentions: np.typing.NDArray = None
+    """(layer, head, seq_gen, seq_prompt) numpy array of attentions."""
+    has_a_bos: bool = True
