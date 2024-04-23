@@ -1,10 +1,10 @@
 import inspect
-import numpy as np
 import logging
 from collections.abc import Sequence
 from functools import cached_property
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 from transformers import GenerationConfig, PreTrainedModel, PreTrainedTokenizerFast
 from transformers.utils.generic import TensorType
@@ -12,11 +12,11 @@ from transformers.utils.generic import TensorType
 from lmwrapper._TokenStoppingCriteria import _TokenStoppingCriteria
 from lmwrapper.abstract_predictor import LmPredictor
 from lmwrapper.huggingface_wrapper.prediction import HuggingFacePrediction
+from lmwrapper.huggingface_wrapper.utilstorch import log_cuda_mem
 from lmwrapper.interals import ModelInternalsRequest, ModelInternalsResults
 from lmwrapper.prompt_trimming import PromptTrimmer
 from lmwrapper.runtime import Runtime
 from lmwrapper.structs import LmPrediction, LmPrompt
-from lmwrapper.huggingface_wrapper.utilstorch import log_cuda_mem
 
 if TYPE_CHECKING:
     from transformers.generation.utils import GenerateOutput
@@ -79,10 +79,10 @@ class HuggingFacePredictor(LmPredictor):
 
     def _will_add_and_have_bos(self, prompt: LmPrompt):
         will_add_bos = prompt.add_bos_token or (
-                prompt.add_bos_token is None
-                and self._tokenizer.bos_token
-                and not self.is_encoder_decoder
-                and not self._does_this_tokenizer_seem_add_a_bos(prompt.add_special_tokens)
+            prompt.add_bos_token is None
+            and self._tokenizer.bos_token
+            and not self.is_encoder_decoder
+            and not self._does_this_tokenizer_seem_add_a_bos(prompt.add_special_tokens)
         )
         will_have_bos = will_add_bos or self._does_this_tokenizer_seem_add_a_bos(
             prompt.add_special_tokens,
@@ -256,12 +256,15 @@ class HuggingFacePredictor(LmPredictor):
             cached_logits = torch.zeros(0)
 
             if model_requires_attention_mask:
+
                 def new_call(attention_mask, *args, **kwargs):
                     nonlocal cached_logits
                     val = old_forward(attention_mask=attention_mask, *args, **kwargs)
                     cached_logits = val.logits
                     return val
+
             else:
+
                 def new_call(*args, **kwargs):
                     nonlocal cached_logits
                     val = old_forward(*args, **kwargs)
@@ -484,7 +487,11 @@ class HuggingFacePredictor(LmPredictor):
             updated_output[key] = numpy_tuple(value)
 
         internals = self._parse_model_internals_results(
-            prompt, generation_output, will_have_bos, output_tokens)
+            prompt,
+            generation_output,
+            will_have_bos,
+            output_tokens,
+        )
 
         del generation_output
         del logprobs
@@ -519,25 +526,29 @@ class HuggingFacePredictor(LmPredictor):
         internal_args = {}
         if request.return_hidden_states:
             hidden_states = self._get_hidden_states_combined(
-                generation_output.hidden_states, output_tokens,)
+                generation_output.hidden_states,
+                output_tokens,
+            )
             hidden_states = request.select_layer_sequence(hidden_states)
             internal_args["hidden_states"] = hidden_states
         if request.return_attentions:
             attentions = self._get_attentions_combined(
-                generation_output.attentions, output_tokens)
+                generation_output.attentions,
+                output_tokens,
+            )
             attentions = request.select_layer_sequence(attentions)
             internal_args["attentions"] = attentions
-        internal_args['has_a_bos'] = will_have_bos
+        internal_args["has_a_bos"] = will_have_bos
 
         return ModelInternalsResults(**internal_args)
-
 
     def _get_attentions_combined(
         self,
         attentions,
         output_tokens,
     ):
-        """Attentions is a tuple
+        """
+        Attentions is a tuple
         (token_output: tuple, layers: tuple, (batch, head, seq, seq_prompt): tensor).
         We want to transform a single to (layers, head, seq, seq_prompt): ndarray
         with the future tokens appropriately masked out.
@@ -563,23 +574,31 @@ class HuggingFacePredictor(LmPredictor):
             num_layers = len(attentions[0])
             num_heads = attentions[0][1].shape[1]
             total_seq_length = sum(
-                att[1].shape[2] for att in attentions)  # Total sequence length including prompt
-            seq_prompt_length = attentions[0][1].shape[3]  # Sequence length of the prompt
+                att[1].shape[2] for att in attentions
+            )  # Total sequence length including prompt
+            seq_prompt_length = attentions[0][1].shape[
+                3
+            ]  # Sequence length of the prompt
 
             # Initialize a tensor to hold the combined attentions for all layers
             combined_attentions = torch.zeros(
-                (num_layers, num_heads, total_seq_length, total_seq_length)
+                (num_layers, num_heads, total_seq_length, total_seq_length),
             )
 
             # Fill in the combined attentions tensor
             seq_offset = 0
             for tok_gen_i, tok_gen_atten in enumerate(attentions):
                 for layer_idx, att_tensor in enumerate(tok_gen_atten):
-                    batch, head, seq_length_in_this_generation, seq_attend = att_tensor.shape
+                    batch, head, seq_length_in_this_generation, seq_attend = (
+                        att_tensor.shape
+                    )
                     assert batch == 1
                     assert head == num_heads
                     combined_attentions[
-                        layer_idx, :, seq_offset:seq_offset + seq_length_in_this_generation, :seq_attend
+                        layer_idx,
+                        :,
+                        seq_offset : seq_offset + seq_length_in_this_generation,
+                        :seq_attend,
                     ] = att_tensor[0, :, :, :]
 
                 seq_offset += seq_length_in_this_generation
@@ -589,20 +608,17 @@ class HuggingFacePredictor(LmPredictor):
             # The last token should have everything
             # So last token should be (layers [tuple], (batch, head, seq, seq_prompt) [tensor])
             # We want to be (layers, head, seq, seq_prompt)
-            layers = [
-                layer.squeeze(0).cpu().numpy()
-                for layer in last_token_attentions
-            ]
+            layers = [layer.squeeze(0).cpu().numpy() for layer in last_token_attentions]
             # combine the layers
             return np.stack(layers, axis=0)
-
 
     def _get_hidden_states_combined(
         self,
         hidden_states,
         output_tokens,
     ) -> tuple[np.ndarray, ...] | None:
-        """Different models seem to treat the hidden states differently.
+        """
+        Different models seem to treat the hidden states differently.
         Try to parse that out and return (layers: tuple, (seq, hidden): ndarray)
         """
         if len(output_tokens) == 0:
@@ -622,18 +638,14 @@ class HuggingFacePredictor(LmPredictor):
                 for i, layer in enumerate(range(num_layers)):
                     layers_tokens_array[i].append(token[layer].squeeze(0))
             layers = [
-                torch.cat(layer, dim=0).cpu().numpy()
-                for layer in layers_tokens_array
+                torch.cat(layer, dim=0).cpu().numpy() for layer in layers_tokens_array
             ]
             return tuple(layers)
         else:
             # The last token should have everything
             # So last token should be (layers [tuple], (batch, seq, hidden) [tensor])
             # We want to be (layers [tuple], (seq, hidden) [ndarray])
-            layers = [
-                layer.squeeze(0).cpu().numpy()
-                for layer in last_token_states
-            ]
+            layers = [layer.squeeze(0).cpu().numpy() for layer in last_token_states]
             return tuple(layers)
 
     def _predict_maybe_cached(

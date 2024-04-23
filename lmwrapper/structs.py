@@ -1,7 +1,7 @@
 import contextlib
 import statistics
 from dataclasses import dataclass
-from typing import Any, Union, Optional
+from typing import Any, Optional, Union
 
 from lmwrapper.interals import ModelInternalsResults
 from lmwrapper.utils import StrEnum
@@ -359,13 +359,11 @@ class LmPrediction:
             #   logprob property into a list of dictionaries. This allows
             #   partial support for implementations that support only that.
             return [
-                {
-                    token: float(logprob)
-                }
+                {token: float(logprob)}
                 for token, logprob in zip(
                     self.completion_tokens,
                     self.completion_logprobs,
-                    strict=True
+                    strict=True,
                 )
             ]
         msg = "This version of prediction does not support top token logprobs"

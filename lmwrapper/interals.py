@@ -1,6 +1,6 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
-import math
-from typing import Sequence, Any
+from typing import Any
 
 import numpy as np
 import numpy.typing
@@ -37,9 +37,15 @@ class ModelInternalsRequest:
                 msg = "The hidden_layer_fractions parameter should be a list of floats."
                 raise ValueError(msg)
             if not all(0.0 <= x <= 1.0 for x in self.hidden_layer_fractions):
-                msg = "The hidden_layer_fractions parameter should be a list of floats between 0 and 1."
+                msg = (
+                    "The hidden_layer_fractions parameter should be a list of floats"
+                    " between 0 and 1."
+                )
                 raise ValueError(msg)
-        if self.hidden_layer_indexes is not None and self.hidden_layer_fractions is not None:
+        if (
+            self.hidden_layer_indexes is not None
+            and self.hidden_layer_fractions is not None
+        ):
             msg = "Cannot specify both hidden_layer_indexes and hidden_layer_fractions."
             raise ValueError(msg)
 
@@ -48,8 +54,7 @@ class ModelInternalsRequest:
             return self.hidden_layer_indexes
         if self.hidden_layer_fractions is not None:
             selected_layers = [
-                round((num_layers - 1) * f)
-                for f in self.hidden_layer_fractions
+                round((num_layers - 1) * f) for f in self.hidden_layer_fractions
             ]
             return selected_layers
         return tuple(range(num_layers))
@@ -58,19 +63,24 @@ class ModelInternalsRequest:
         self,
         layerwise_sequence: Sequence[Any] | np.ndarray,
     ):
-        """Given some sequence with something per layer (like hidden states), selects
-        the desired ones for a give"""
+        """
+        Given some sequence with something per layer (like hidden states), selects
+        the desired ones for a give
+        """
         if (
             self.hidden_layer_indexes is not None
             or self.hidden_layer_fractions is not None
         ):
             if isinstance(layerwise_sequence, np.ndarray):
                 return layerwise_sequence[
-                    self.get_effective_selected_layers_idxs(layerwise_sequence.shape[0])]
+                    self.get_effective_selected_layers_idxs(layerwise_sequence.shape[0])
+                ]
             else:
                 return [
                     layerwise_sequence[i]
-                    for i in self.get_effective_selected_layers_idxs(len(layerwise_sequence))
+                    for i in self.get_effective_selected_layers_idxs(
+                        len(layerwise_sequence),
+                    )
                 ]
         return layerwise_sequence
 
