@@ -520,6 +520,7 @@ class HuggingFacePredictor(LmPredictor):
         if request.return_hidden_states:
             hidden_states = self._get_hidden_states_combined(
                 generation_output.hidden_states, output_tokens,)
+            hidden_states = request.select_layer_sequence(hidden_states)
             internal_args["hidden_states"] = hidden_states
         return ModelInternalsResults(**internal_args)
 

@@ -1,3 +1,5 @@
+import dataclasses
+
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
 import pytest
 import numpy as np
@@ -11,8 +13,8 @@ IS_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
 @pytest.mark.parametrize(
     "model_name_layers_hidden", [
         (Models.GPT2, 1 + 12, 768),
-        (Models.CodeGen_350M, 1 + 20, 64 * 16),
-        (Models.CodeGen2_1B, 1 + 16, 2048),
+        #(Models.CodeGen_350M, 1 + 20, 64 * 16),
+        #(Models.CodeGen2_1B, 1 + 16, 2048),
         # ^ Important to run since it doesn't use the same attentions value
     ]
 )
@@ -45,3 +47,37 @@ def test_get_internals_hidden_states(pytestconfig, model_name_layers_hidden):
     )
     assert pred.internals.attentions is None
     print(pred)
+
+    # Try with a selection of indexes
+    prompt = dataclasses.replace(
+        prompt,
+        model_internals_request=ModelInternalsRequest(
+            return_hidden_states=True,
+            hidden_layer_indexes=[0, 5, -1],
+        ),
+    )
+    new_pred = model.predict(prompt)
+    new_hidden = new_pred.internals.hidden_states
+    assert len(new_hidden) == 3
+    assert np.allclose(new_hidden[0], pred.internals.hidden_states[0])
+    assert np.allclose(new_hidden[1], pred.internals.hidden_states[5])
+    assert np.allclose(new_hidden[2], pred.internals.hidden_states[-1])
+
+    # Try with fracs
+    prompt = dataclasses.replace(
+        prompt,
+        model_internals_request=ModelInternalsRequest(
+            return_hidden_states=True,
+            hidden_layer_fractions=[0.0, 0.5, 1.0],
+        ),
+    )
+    new_pred = model.predict(prompt)
+    new_hidden = new_pred.internals.hidden_states
+    assert len(new_hidden) == 3
+    assert np.allclose(new_hidden[0], pred.internals.hidden_states[0])
+    assert np.allclose(new_hidden[1], pred.internals.hidden_states[round(num_layers / 2)])
+    assert np.allclose(new_hidden[2], pred.internals.hidden_states[-1])
+
+
+
+

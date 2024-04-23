@@ -23,6 +23,8 @@ class LmPredictor:
     ) -> LmPrediction:
         prompt = self._cast_prompt(prompt)
         should_cache = self._cache_default if prompt.cache is None else prompt.cache
+        if should_cache and prompt.model_internals_request is not None:
+            raise NotImplementedError("Cannot yet cache predictions with model internals request")
         self._validate_prompt(prompt, raise_on_invalid=True)
         if should_cache:
             cache_key = (prompt, self._get_cache_key_metadata())
