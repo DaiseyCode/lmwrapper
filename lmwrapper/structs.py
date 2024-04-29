@@ -1,8 +1,9 @@
 import contextlib
 import statistics
 from dataclasses import dataclass
-from typing import Any, Union
+from typing import Any, Optional, Union
 
+from lmwrapper.interals import ModelInternalsResults
 from lmwrapper.utils import StrEnum
 
 LM_CHAT_DIALOG_COERCIBLE_TYPES = Union[
@@ -94,6 +95,8 @@ class LmPrompt:
     """
     add_special_tokens: bool = True
     """Whether or not to add special tokens when encoding the prompt."""
+    model_internals_request: Optional["ModelInternalsRequest"] = None
+    """Used to attempt to get hidden states and attentions from the model."""
 
     # TODO: make a auto_reduce_max_tokens to reduce when might go over.
 
@@ -268,6 +271,7 @@ class LmPrediction:
     completion_text: str
     prompt: LmPrompt
     metad: Any
+    internals: ModelInternalsResults | None
 
     def __post_init__(self):
         self._was_cached = False
@@ -355,13 +359,11 @@ class LmPrediction:
             #   logprob property into a list of dictionaries. This allows
             #   partial support for implementations that support only that.
             return [
-                {
-                    token: float(logprob)
-                }
+                {token: float(logprob)}
                 for token, logprob in zip(
                     self.completion_tokens,
                     self.completion_logprobs,
-                    strict=True
+                    strict=True,
                 )
             ]
         msg = "This version of prediction does not support top token logprobs"

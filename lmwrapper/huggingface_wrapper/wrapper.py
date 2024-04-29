@@ -7,10 +7,10 @@ from packaging import version
 
 from lmwrapper.env import _MPS_ENABLED, _ONNX_RUNTIME, _QUANTIZATION_ENABLED
 from lmwrapper.huggingface_wrapper.predictor import HuggingFacePredictor
+from lmwrapper.huggingface_wrapper.utilstorch import log_cuda_mem
 from lmwrapper.prompt_trimming import PromptTrimmer
 from lmwrapper.runtime import Runtime
 from lmwrapper.structs import LmPrompt
-from lmwrapper.huggingface_wrapper.utilstorch import log_cuda_mem
 
 try:
     import torch
@@ -371,12 +371,11 @@ def _configure_model(
         # T5 class does not support this arg,
         # only autoclasses do
         _kwargs.pop("trust_remote_code", None)
-    elif model.startswith("Salesforce/codet5p-") and model.endswith("b"):
-        model_class = AutoModelForSeq2SeqLM
-        _kwargs |= {
-            "low_cpu_mem_usage": True,
-        }
-    elif model == "Salesforce/instructcodet5p-16b":
+    elif (
+        model.startswith("Salesforce/codet5p-")
+        and model.endswith("b")
+        or model == "Salesforce/instructcodet5p-16b"
+    ):
         model_class = AutoModelForSeq2SeqLM
         _kwargs |= {
             "low_cpu_mem_usage": True,

@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from functools import cached_property
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 from transformers import GenerationConfig, PreTrainedModel, PreTrainedTokenizerFast
 from transformers.utils.generic import TensorType
@@ -11,10 +12,11 @@ from transformers.utils.generic import TensorType
 from lmwrapper._TokenStoppingCriteria import _TokenStoppingCriteria
 from lmwrapper.abstract_predictor import LmPredictor
 from lmwrapper.huggingface_wrapper.prediction import HuggingFacePrediction
+from lmwrapper.huggingface_wrapper.utilstorch import log_cuda_mem
+from lmwrapper.interals import ModelInternalsRequest, ModelInternalsResults
 from lmwrapper.prompt_trimming import PromptTrimmer
 from lmwrapper.runtime import Runtime
 from lmwrapper.structs import LmPrediction, LmPrompt
-from lmwrapper.huggingface_wrapper.utilstorch import log_cuda_mem
 
 if TYPE_CHECKING:
     from transformers.generation.utils import GenerateOutput
@@ -46,10 +48,7 @@ class HuggingFacePredictor(LmPredictor):
             "name_or_path": self._model.name_or_path,
         }
 
-    def _predict_hf(
-        self,
-        prompt: LmPrompt,
-    ) -> LmPrediction | list[LmPrediction]:
+    def _verify_initial_prompt(self, prompt: LmPrompt):
         if not isinstance(prompt.text, str) and len(prompt.text) != 1:
             msg = "Prompt batches other than size 1 are not supported."
             raise NotImplementedError(
@@ -63,23 +62,6 @@ class HuggingFacePredictor(LmPredictor):
             raise NotImplementedError(
                 msg,
             )
-
-        patch_model_forward = False
-        if self.allow_patch_model_forward:
-            patch_model_forward = prompt.echo
-
-        is_encoder_decoder = self._model.config.is_encoder_decoder
-
-        will_add_bos = prompt.add_bos_token or (
-            prompt.add_bos_token is None
-            and self._tokenizer.bos_token
-            and not is_encoder_decoder
-            and not self._does_this_tokenizer_seem_add_a_bos(prompt.add_special_tokens)
-        )
-        will_have_bos = will_add_bos or self._does_this_tokenizer_seem_add_a_bos(
-            prompt.add_special_tokens,
-        )
-
         if prompt.logprobs > 1:
             msg = (
                 "Retrieving more than 1 logprob is not yet supported for HuggingFace"
@@ -88,7 +70,6 @@ class HuggingFacePredictor(LmPredictor):
             raise NotImplementedError(
                 msg,
             )
-
         if prompt.logprobs and prompt.top_p != 1.0:
             logging.warning("Logprobs may not be correct if top_p != 1.0")
 
@@ -96,17 +77,54 @@ class HuggingFacePredictor(LmPredictor):
             msg = "Presence penalty not implemented"
             raise NotImplementedError(msg)
 
+    def _will_add_and_have_bos(self, prompt: LmPrompt):
+        will_add_bos = prompt.add_bos_token or (
+            prompt.add_bos_token is None
+            and self._tokenizer.bos_token
+            and not self.is_encoder_decoder
+            and not self._does_this_tokenizer_seem_add_a_bos(prompt.add_special_tokens)
+        )
+        will_have_bos = will_add_bos or self._does_this_tokenizer_seem_add_a_bos(
+            prompt.add_special_tokens,
+        )
         if prompt.text == "" and not will_have_bos:
             msg = "Cannot do unconditional generation without `add_bos_token`."
             raise Exception(
                 msg,
             )
 
-        if is_encoder_decoder and will_add_bos:
+        if self.is_encoder_decoder and will_add_bos:
             msg = "Encoder/decoder models should not have bos tokens added manually."
             raise Exception(
                 msg,
             )
+        return will_add_bos, will_have_bos
+
+    @property
+    def is_encoder_decoder(self) -> bool:
+        return self._model.config.is_encoder_decoder
+
+    def _optional_args_for_internals(self, prompt: LmPrompt):
+        args = {}
+        if prompt.model_internals_request is None:
+            return args
+        if prompt.model_internals_request.return_hidden_states:
+            args["output_hidden_states"] = True
+        if prompt.model_internals_request.return_attentions:
+            args["output_attentions"] = True
+        return args
+
+    def _predict_hf(
+        self,
+        prompt: LmPrompt,
+    ) -> LmPrediction | list[LmPrediction]:
+        self._verify_initial_prompt(prompt)
+
+        patch_model_forward = False
+        if self.allow_patch_model_forward:
+            patch_model_forward = prompt.echo
+
+        will_add_bos, will_have_bos = self._will_add_and_have_bos(prompt)
 
         if will_add_bos:
             assert self._tokenizer.bos_token
@@ -142,7 +160,7 @@ class HuggingFacePredictor(LmPredictor):
                     msg,
                 )
 
-        if is_encoder_decoder:
+        if self.is_encoder_decoder:
             encoded_input["decoder_input_ids"] = encoded_input["input_ids"].clone()
 
         logging.debug("Pre moving encoded tokens")
@@ -213,6 +231,8 @@ class HuggingFacePredictor(LmPredictor):
         else:
             logging.info("Unable to predict decoding strategy!")
 
+        optional_generation_kwargs |= self._optional_args_for_internals(prompt)
+
         # Ref https://gist.github.com/kinoc/8a042d8c5683725aa8c372274c02ea2f
         gen_config = GenerationConfig(
             max_new_tokens=(
@@ -262,7 +282,7 @@ class HuggingFacePredictor(LmPredictor):
         # we add 2 to consider the </s> at the end of the prompt and the first <s> as input
         input_length = (
             encoded_input.input_ids.shape[1] + 2
-            if is_encoder_decoder
+            if self.is_encoder_decoder
             else encoded_input.input_ids.shape[1]
         )
         if prompt.stop:
@@ -370,7 +390,7 @@ class HuggingFacePredictor(LmPredictor):
         if need_log_prob:
             if patch_model_forward:
                 assert prompt.echo
-                assert not is_encoder_decoder
+                assert not self.is_encoder_decoder
 
                 assert cached_logits.shape[0] == 1  # batch
                 assert cached_logits.shape[1] == len(model_output_sequence[1:])
@@ -401,7 +421,7 @@ class HuggingFacePredictor(LmPredictor):
                 # Free memory
                 del output_logprobs
 
-                if is_encoder_decoder:
+                if self.is_encoder_decoder:
                     # we need to chop off the <s> first token
                     # as its probability will throw off uncertainty estimates
                     if stop_token_idx_generated:
@@ -466,6 +486,13 @@ class HuggingFacePredictor(LmPredictor):
         for key, value in generation_output.items():
             updated_output[key] = numpy_tuple(value)
 
+        internals = self._parse_model_internals_results(
+            prompt,
+            generation_output,
+            will_have_bos,
+            output_tokens,
+        )
+
         del generation_output
         del logprobs
         del encoded_input
@@ -477,6 +504,7 @@ class HuggingFacePredictor(LmPredictor):
             completion_text=clean_generated_text,
             prompt=prompt,
             metad=updated_output,
+            internals=internals,
             _completion_with_special_tok=generated_text,
             _num_prompt_tokens=(int(input_length) - (1 if will_have_bos else 0)),
             _prompt_encoding=np_encoded_input,
@@ -484,6 +512,141 @@ class HuggingFacePredictor(LmPredictor):
             _log_probs=np_logprobs,
             _logprobs_dict=logprobs_dicts,
         )
+
+    def _parse_model_internals_results(
+        self,
+        prompt: LmPrompt,
+        generation_output,
+        will_have_bos,
+        output_tokens,
+    ):
+        if prompt.model_internals_request is None:
+            return None
+        request: ModelInternalsRequest = prompt.model_internals_request
+        internal_args = {}
+        if request.return_hidden_states:
+            hidden_states = self._get_hidden_states_combined(
+                generation_output.hidden_states,
+                output_tokens,
+            )
+            hidden_states = request.select_layer_sequence(hidden_states)
+            internal_args["hidden_states"] = hidden_states
+        if request.return_attentions:
+            attentions = self._get_attentions_combined(
+                generation_output.attentions,
+                output_tokens,
+            )
+            attentions = request.select_layer_sequence(attentions)
+            internal_args["attentions"] = attentions
+        internal_args["has_a_bos"] = will_have_bos
+
+        return ModelInternalsResults(**internal_args)
+
+    def _get_attentions_combined(
+        self,
+        attentions,
+        output_tokens,
+    ):
+        """
+        Attentions is a tuple
+        (token_output: tuple, layers: tuple, (batch, head, seq, seq_prompt): tensor).
+        We want to transform a single to (layers, head, seq, seq_prompt): ndarray
+        with the future tokens appropriately masked out.
+
+        Note: that this precludes some more weird schemes such as a different
+        number of heads per layer or some weird sparse attentions where each
+        token_output has different dimensions. We will have to potentially
+        handle those latter.
+        """
+        if len(output_tokens) == 0:
+            return None
+        last_token_attentions = attentions[-1]
+        seems_to_be_token_by_token = last_token_attentions[1].shape[2] == 1
+        if seems_to_be_token_by_token and len(attentions) > 1:
+            # We have something like
+            # ( for each token gen
+            #   (layers, (batch, head, seq_prompt, seq_prompt)),
+            #   (layers, (batch, head, 1, seq_prompt + 1)),
+            #   (layers, (batch, head, 1, seq_prompt + 2)),
+            #   ...
+            # )
+            # We need to combine these and fill any of the added tokens with zeros
+            num_layers = len(attentions[0])
+            num_heads = attentions[0][1].shape[1]
+            total_seq_length = sum(
+                att[1].shape[2] for att in attentions
+            )  # Total sequence length including prompt
+            seq_prompt_length = attentions[0][1].shape[
+                3
+            ]  # Sequence length of the prompt
+
+            # Initialize a tensor to hold the combined attentions for all layers
+            combined_attentions = torch.zeros(
+                (num_layers, num_heads, total_seq_length, total_seq_length),
+            )
+
+            # Fill in the combined attentions tensor
+            seq_offset = 0
+            for tok_gen_i, tok_gen_atten in enumerate(attentions):
+                for layer_idx, att_tensor in enumerate(tok_gen_atten):
+                    batch, head, seq_length_in_this_generation, seq_attend = (
+                        att_tensor.shape
+                    )
+                    assert batch == 1
+                    assert head == num_heads
+                    combined_attentions[
+                        layer_idx,
+                        :,
+                        seq_offset : seq_offset + seq_length_in_this_generation,
+                        :seq_attend,
+                    ] = att_tensor[0, :, :, :]
+
+                seq_offset += seq_length_in_this_generation
+
+            return combined_attentions.cpu().numpy()
+        else:
+            # The last token should have everything
+            # So last token should be (layers [tuple], (batch, head, seq, seq_prompt) [tensor])
+            # We want to be (layers, head, seq, seq_prompt)
+            layers = [layer.squeeze(0).cpu().numpy() for layer in last_token_attentions]
+            # combine the layers
+            return np.stack(layers, axis=0)
+
+    def _get_hidden_states_combined(
+        self,
+        hidden_states,
+        output_tokens,
+    ) -> tuple[np.ndarray, ...] | None:
+        """
+        Different models seem to treat the hidden states differently.
+        Try to parse that out and return (layers: tuple, (seq, hidden): ndarray)
+        """
+        if len(output_tokens) == 0:
+            return None
+        last_token_states = hidden_states[-1]
+        seems_to_be_token_by_token = last_token_states[1].shape[1] == 1
+        if seems_to_be_token_by_token and len(hidden_states) > 1:
+            #  So right now it is (tokens: tuple, layers: tuple, (batch, seq, hidden): tensor)
+            #     where the first seq includes the prompt, and the rest is seq==1 for each token
+            #  We want to stack the layers to get (layers: tuple, (seq, hidden): ndarray)
+            batch_size = last_token_states[1].shape[0]
+            if batch_size != 1:
+                raise NotImplementedError("Batch size > 1 not implemented")
+            num_layers = len(hidden_states[0])
+            layers_tokens_array = [[] for _ in range(num_layers)]
+            for token in hidden_states:
+                for i, layer in enumerate(range(num_layers)):
+                    layers_tokens_array[i].append(token[layer].squeeze(0))
+            layers = [
+                torch.cat(layer, dim=0).cpu().numpy() for layer in layers_tokens_array
+            ]
+            return tuple(layers)
+        else:
+            # The last token should have everything
+            # So last token should be (layers [tuple], (batch, seq, hidden) [tensor])
+            # We want to be (layers [tuple], (seq, hidden) [ndarray])
+            layers = [layer.squeeze(0).cpu().numpy() for layer in last_token_states]
+            return tuple(layers)
 
     def _predict_maybe_cached(
         self,
