@@ -55,6 +55,8 @@ if [ "$skip_checks" = false ]; then
       echo "Tagging failed. Abort."
       exit 1
     fi
+    echo "Pushing tag"
+    git push origin "$REPLY"
   fi
 
 
