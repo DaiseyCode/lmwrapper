@@ -14,6 +14,7 @@ from lmwrapper.prompt_trimming import HfTokenTrimmer
 from lmwrapper.runtime import Runtime
 from lmwrapper.structs import LmPrompt
 from lmwrapper.utils import StrEnum
+import os
 
 
 class Models(StrEnum):
@@ -44,6 +45,8 @@ BIG_SEQ2SEQ_MODELS = {Models.CodeT5plus_6B, Models.InstructCodeT5plus_16B}
 BIG_CAUSAL_MODELS = {Models.CodeGen2_1B, Models.CodeGen2_3_7B, Models.Mistral_7B}
 BIG_MODELS = BIG_SEQ2SEQ_MODELS | BIG_CAUSAL_MODELS
 ALL_MODELS = SEQ2SEQ_MODELS | CAUSAL_MODELS | BIG_MODELS
+
+IS_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
 
 
 @pytest.mark.slow()
@@ -851,6 +854,7 @@ def test_tokenizer_offsets_code_llama():
     assert list(starts) == expected_offsets
 
 
+@pytest.mark.skipif(IS_GITHUB_ACTIONS, reason="Can't load tokenizer on GitHub Actions")
 def test_offsets_for_mistral():
     model_name = Models.Mistral_7B
     from transformers import AutoTokenizer
@@ -867,6 +871,7 @@ def test_offsets_for_mistral():
     ]
 
 
+@pytest.mark.skipif(IS_GITHUB_ACTIONS, reason="Can't load tokenizer on GitHub Actions")
 def test_offsets_for_mistral2():
     model_name = Models.Mistral_7B
     from transformers import AutoTokenizer
@@ -882,6 +887,7 @@ def test_offsets_for_mistral2():
     ]
 
 
+@pytest.mark.skipif(IS_GITHUB_ACTIONS, reason="Can't load tokenizer on GitHub Actions")
 def test_offsets_for_mistral3():
     model_name = Models.Mistral_7B
     from transformers import AutoTokenizer
@@ -1032,6 +1038,7 @@ def test_hello_world_prompt(model):
     }
 
 
+@pytest.mark.skipif(IS_GITHUB_ACTIONS, reason="Can't load tokenizer on GitHub Actions")
 def test_check_tokenizer_check():
     mistral_tokenizer = AutoTokenizer.from_pretrained(Models.Mistral_7B, use_fast=True)
     assert _check_tokenizer_to_see_if_adds_bos(mistral_tokenizer, True)
