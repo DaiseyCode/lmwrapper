@@ -1,2 +1,2 @@
 """Wrappers for openai transformers"""
-from wrapper import *
+from lmwrapper.huggingface_wrapper.wrapper import *
