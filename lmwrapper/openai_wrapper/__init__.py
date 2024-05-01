@@ -1,4 +1,4 @@
 """
 Wrappers for openai
 """
-from wrapper import *
+from lmwrapper.openai_wrapper.wrapper import *
