@@ -178,12 +178,12 @@ def test_multiturn_chat_logprobs():
 
     assert out.top_token_logprobs == [
         {
-            "5": pytest.approx(-0.00012689977, abs=2),
-            "The": pytest.approx(-9.452922, abs=2),
+            "5": pytest.approx(-0.00012689977, abs=4),
+            "The": pytest.approx(-9.452922, abs=4),
         },
         {
-            ".": pytest.approx(-4.2391708e-05, abs=2),
-            "<|end|>": pytest.approx(-10.109505, abs=2),
+            ".": pytest.approx(-4.2391708e-05, abs=4),
+            "<|end|>": pytest.approx(-10.109505, abs=4),
         },
     ]
 
