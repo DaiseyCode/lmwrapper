@@ -253,23 +253,15 @@ class HuggingFacePredictor(LmPredictor):
             #   require calling the model again https://discuss.huggingface.co/t/announcement-generation-get-probabilities-for-generated-output/30075/17
             # Instead we are going to patch the model forward to log calls
             old_forward = self._model.forward
-            cached_logits = torch.zeros(0)
+            cached_logits = []
 
-            if model_requires_attention_mask:
-
-                def new_call(attention_mask, *args, **kwargs):
-                    nonlocal cached_logits
-                    val = old_forward(attention_mask=attention_mask, *args, **kwargs)
-                    cached_logits = val.logits
-                    return val
-
-            else:
-
-                def new_call(*args, **kwargs):
-                    nonlocal cached_logits
-                    val = old_forward(*args, **kwargs)
-                    cached_logits = val.logits
-                    return val
+            def new_call(attention_mask, *args, **kwargs):
+                nonlocal cached_logits
+                if model_requires_attention_mask:
+                    kwargs["attention_mask"] = attention_mask
+                val = old_forward(*args, **kwargs)
+                cached_logits.append(val.logits.detach())
+                return val
 
             self._model.forward = new_call
 
@@ -392,10 +384,20 @@ class HuggingFacePredictor(LmPredictor):
                 assert prompt.echo
                 assert not self.is_encoder_decoder
 
-                assert cached_logits.shape[0] == 1  # batch
-                assert cached_logits.shape[1] == len(model_output_sequence[1:])
+                assert cached_logits[0].shape[0] == 1  # batch
+                if len(cached_logits) > 1 and cached_logits[-1].shape[1] == 1:
+                    combined_logits = torch.cat(cached_logits, dim=1)
+                else:
+                    combined_logits = cached_logits[-1]
+                if not (combined_logits.shape[1] == len(model_output_sequence[1:])):
+                    msg = (
+                        f"Logits shape does not match the output sequence length\n"
+                        f"Logits shape: {cached_logits.shape}\n"
+                        f"Output sequence length: {len(model_output_sequence[1:])}"
+                    )
+                    raise RuntimeError(msg)
                 output_logprobs = _gather_logprobs_from_logits(
-                    cached_logits[0],
+                    combined_logits[0],
                     model_output_sequence[1:],
                 )
 
@@ -404,6 +406,7 @@ class HuggingFacePredictor(LmPredictor):
                 # Free memory
                 del output_logprobs
                 del cached_logits
+                del combined_logits
 
                 assert len(model_output_sequence[1:]) == len(logprobs)
                 if stop_token_idx_output and stop_token_idx_output > 0:

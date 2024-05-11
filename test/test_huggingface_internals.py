@@ -46,49 +46,53 @@ def test_get_internals_hidden_states(pytestconfig, model_name_layers_hidden):
     num_expected_tokens = len(prompt_tokens) + num_gen_tokens
     assert num_expected_tokens == 12
     pred = model.predict(prompt)
-    assert pred.internals.hidden_states is not None
-    assert isinstance(pred.internals.hidden_states, tuple)
-    assert len(pred.internals.hidden_states) == 1 + num_layers  # has embedding layer
-    assert all(isinstance(x, np.ndarray) for x in pred.internals.hidden_states)
-    assert all(
-        x.shape == (num_expected_tokens, hidden_size)
-        for x in pred.internals.hidden_states
-    )
-    assert pred.internals.attentions is None
-    print(pred)
 
-    # Try with a selection of indexes
-    prompt = dataclasses.replace(
-        prompt,
-        model_internals_request=ModelInternalsRequest(
-            return_hidden_states=True,
-            hidden_layer_indexes=[0, 5, -1],
-        ),
-    )
-    new_pred = model.predict(prompt)
-    new_hidden = new_pred.internals.hidden_states
-    assert len(new_hidden) == 3
-    assert np.allclose(new_hidden[0], pred.internals.hidden_states[0])
-    assert np.allclose(new_hidden[1], pred.internals.hidden_states[5])
-    assert np.allclose(new_hidden[2], pred.internals.hidden_states[-1])
+    def check_vals(pred, prompt):
+        assert pred.internals.hidden_states is not None
+        assert isinstance(pred.internals.hidden_states, tuple)
+        assert len(pred.internals.hidden_states) == 1 + num_layers  # has embedding layer
+        assert all(isinstance(x, np.ndarray) for x in pred.internals.hidden_states)
+        assert all(
+            x.shape == (num_expected_tokens, hidden_size)
+            for x in pred.internals.hidden_states
+        )
+        assert pred.internals.attentions is None
+        print(pred)
 
-    # Try with fracs
-    prompt = dataclasses.replace(
-        prompt,
-        model_internals_request=ModelInternalsRequest(
-            return_hidden_states=True,
-            hidden_layer_fractions=[0.0, 0.5, 1.0],
-        ),
-    )
-    new_pred = model.predict(prompt)
-    new_hidden = new_pred.internals.hidden_states
-    assert len(new_hidden) == 3
-    assert np.allclose(new_hidden[0], pred.internals.hidden_states[0])
-    assert np.allclose(
-        new_hidden[1],
-        pred.internals.hidden_states[round((1 + num_layers) / 2)],
-    )
-    assert np.allclose(new_hidden[2], pred.internals.hidden_states[-1])
+        # Try with a selection of indexes
+        prompt = dataclasses.replace(
+            prompt,
+            model_internals_request=ModelInternalsRequest(
+                return_hidden_states=True,
+                hidden_layer_indexes=[0, 5, -1],
+            ),
+        )
+        new_pred = model.predict(prompt)
+        new_hidden = new_pred.internals.hidden_states
+        assert len(new_hidden) == 3
+        assert np.allclose(new_hidden[0], pred.internals.hidden_states[0])
+        assert np.allclose(new_hidden[1], pred.internals.hidden_states[5])
+        assert np.allclose(new_hidden[2], pred.internals.hidden_states[-1])
+
+        # Try with fracs
+        prompt = dataclasses.replace(
+            prompt,
+            model_internals_request=ModelInternalsRequest(
+                return_hidden_states=True,
+                hidden_layer_fractions=[0.0, 0.5, 1.0],
+            ),
+        )
+        new_pred = model.predict(prompt)
+        new_hidden = new_pred.internals.hidden_states
+        assert len(new_hidden) == 3
+        assert np.allclose(new_hidden[0], pred.internals.hidden_states[0])
+        assert np.allclose(
+            new_hidden[1],
+            pred.internals.hidden_states[round((1 + num_layers) / 2)],
+        )
+        assert np.allclose(new_hidden[2], pred.internals.hidden_states[-1])
+
+    check_vals(pred, prompt)
 
     ### Attentions
     # (we are packing a lot into one test to still parameterize but no reload model)
@@ -128,3 +132,36 @@ def test_get_internals_hidden_states(pytestconfig, model_name_layers_hidden):
     assert np.allclose(pred_sub.internals.attentions[0], pred.internals.attentions[0])
     assert np.allclose(pred_sub.internals.attentions[1], pred.internals.attentions[5])
     assert np.allclose(pred_sub.internals.attentions[2], pred.internals.attentions[-1])
+
+    ### With logprobs
+    prompt = LmPrompt(
+        text="The capital Germany is Berlin. The capital of France",
+        max_tokens=num_gen_tokens,
+        temperature=0,
+        echo=True,
+        logprobs=1,
+        model_internals_request=ModelInternalsRequest(
+            return_hidden_states=True,
+        ),
+    )
+    prompt_tokens = model.tokenize(prompt.text)
+    num_expected_tokens = len(prompt_tokens) + num_gen_tokens
+    assert num_expected_tokens == 12
+    pred = model.predict(prompt)
+    check_vals(pred, prompt)
+    assert len(pred.full_logprobs) == num_expected_tokens
+    assert len(pred.completion_logprobs) == num_gen_tokens
+
+    prompt = LmPrompt(
+        text="The capital Germany is Berlin. The capital of France",
+        max_tokens=num_gen_tokens,
+        temperature=0,
+        echo=False,
+        logprobs=1,
+        model_internals_request=ModelInternalsRequest(
+            return_hidden_states=True,
+        ),
+    )
+    pred = model.predict(prompt)
+    check_vals(pred, prompt)
+    assert len(pred.completion_logprobs) == num_gen_tokens

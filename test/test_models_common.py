@@ -659,3 +659,40 @@ def test_token_offsets(lm):
         assert isinstance(top_probs[i][expected], float)
         assert top_probs[i][expected] == pred.completion_logprobs[i]
         assert top_probs[i][expected] < 0
+
+
+@pytest.mark.parametrize("lm", ECHOABLE_MODELS)
+def test_echo_many_toks(lm):
+    out = lm.predict(
+        LmPrompt(
+            "Once upon a",
+            max_tokens=7,
+            logprobs=1,
+            cache=False,
+            num_completions=1,
+            echo=True,
+            temperature=0,
+        ),
+    )
+    assert len(out.full_logprobs) == len(out.get_full_tokens()) == 3 + 7
+    print(out.get_full_tokens())
+    print([math.exp(lp) for lp in out.full_logprobs])
+    assert math.exp(out.full_logprobs[2]) > 0.98  # "a" after "Once upon" is high prob
+    # Now try the non-echo version
+    out2 = lm.predict(
+        LmPrompt(
+            "Once upon a",
+            max_tokens=7,
+            logprobs=1,
+            cache=False,
+            num_completions=1,
+            echo=False,
+            temperature=0,
+        ),
+    )
+    assert len(out2.completion_logprobs) == len(out2.completion_tokens) == 7
+    assert np.allclose(
+        np.exp(out2.completion_logprobs),
+        np.exp(out.completion_logprobs),
+        atol=0.001
+    )

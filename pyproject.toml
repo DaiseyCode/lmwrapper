@@ -17,10 +17,10 @@ include = ["lmwrapper*"]
 
 [project]
 name = "lmwrapper"
-version = "0.9.0.2"
+version = "0.9.2.0"
 authors = [
-    { name = "David Gros", email = "DNGros@users.noreply.github.com" },
-    { name = "Claudio Spiess", email = "claudiosv@users.noreply.github.com" },
+    { name = "David Gros" },
+    { name = "Claudio Spiess" },
 ]
 description = "Wrapper around language model APIs"
 readme = "README.md"

@@ -1,6 +1,6 @@
 import contextlib
 import statistics
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Optional, Union
 
 from lmwrapper.interals import ModelInternalsResults
@@ -271,7 +271,7 @@ class LmPrediction:
     completion_text: str
     prompt: LmPrompt
     metad: Any
-    internals: ModelInternalsResults | None
+    internals: ModelInternalsResults | None = field(default=None, kw_only=True)
 
     def __post_init__(self):
         self._was_cached = False
