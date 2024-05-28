@@ -47,7 +47,14 @@ class OpenAiLmPrediction(LmPrediction):
             raise ValueError(
                 msg,
             )
-        return self.metad.logprobs.tokens
+        probably_chat = hasattr(self.metad.logprobs, "content")
+        if not probably_chat:
+            return self.metad.logprobs.tokens
+        else:
+            return [
+                lp.token
+                for lp in self.metad.logprobs.content
+            ]
 
     def _all_toks_offsets(self):
         return self.metad.logprobs.text_offset
@@ -56,7 +63,14 @@ class OpenAiLmPrediction(LmPrediction):
         if self.metad.logprobs is None:
             assert self.prompt.logprobs is None or self.prompt.logprobs == 0
             return None
-        return self.metad.logprobs.token_logprobs
+        probably_chat = hasattr(self.metad.logprobs, "content")
+        if not probably_chat:
+            return self.metad.logprobs.token_logprobs
+        else:
+            return [
+                lp.logprob
+                for lp in self.metad.logprobs.content
+            ]
 
     @property
     def completion_tokens(self):

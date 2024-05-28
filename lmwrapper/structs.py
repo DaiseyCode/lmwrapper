@@ -13,6 +13,23 @@ LM_CHAT_DIALOG_COERCIBLE_TYPES = Union[
 ]  # Defines a set of types that can be converted into a LmChatDialog
 
 
+class StopMode(StrEnum):
+    """Determines how to try to handle stop tokens"""
+    WILL_NOT_CONTAIN = "WILL_NOT_CONTAIN"
+    """This emulates the classic openai completion API. This makes
+    sure the returned sequence will not contain the stop token.
+    Even though the completion text will not include the stop sequence,
+    it is possible for the returned tokens to have it in cases where the stop sequence
+    is a prefix of the next token."""
+    ONLY_STOP_GENERATING = "ONLY_STOP_GENERATING"
+    """This is the style of the openai chat API. This stops generating once
+    the sequence is seen. However, the output might contain the stop sequence."""
+    AUTO = "AUTO"
+    """This chooses a mode that is the default for the style of model. This
+    means the behavior is somewhat undefined and unpredictable, but is more
+    likely to work for more models."""
+
+
 @dataclass(frozen=True)
 class LmPrompt:
     text: str | LM_CHAT_DIALOG_COERCIBLE_TYPES
@@ -31,10 +48,13 @@ class LmPrompt:
     The returned text will not contain the stop sequence. This sequence might span
     accross tokens and does not have to be an actual token in the vocabulary.
     For example could make a stop token of 'I like pie' even if that's not actually
-    a token. Even though the completion text will not include the stop sequence,
-    it is possible for the returned tokens to have it in cases where the stop sequence
-    is a prefix of the next token.
+    a token.
     """
+    stop_mode: StopMode = StopMode.AUTO
+    """Different models/providers handle stopping in different ways. You can
+    either leave that as-is ("auto") or try to change the mode to try
+    to emulate another mode (which may or may not work depending on
+    the model)."""
     logprobs: int = 1
     """Include the log probabilities on the logprobs most likely tokens,
     as well the chosen tokens. For example, if logprobs is 5, the

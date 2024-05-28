@@ -10,7 +10,10 @@ from lmwrapper.structs import LmPrompt
 ALL_MODELS = [
     get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct),
     get_huggingface_lm("gpt2"),
+    get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo),
 ]
+
+COMPLETION_MODELS = ALL_MODELS[:-1]
 
 
 ECHOABLE_MODELS = [
@@ -247,7 +250,7 @@ def test_no_stopping_in_prompt(lm):
     assert len(new_line.completion_tokens) == 4
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", COMPLETION_MODELS)
 def test_no_stopping_program(lm):
     prompt_text = "# Functions\ndef double(x):\n"
     resp = lm.predict(
@@ -275,6 +278,42 @@ def test_no_stopping_program(lm):
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
+def test_stopping_begin_tok_full_tok(lm):
+    val_normal = lm.predict(
+        LmPrompt(
+            capital_prompt,
+            max_tokens=4,
+            logprobs=1,
+            temperature=0,
+            cache=False,
+        ),
+    )
+    print(val_normal.completion_text)
+    assert "is the city Paris" in val_normal.completion_text
+    assert len(val_normal.completion_tokens) == 4
+    assert (
+            lm.remove_special_chars_from_tokens(val_normal.completion_tokens)[-1]
+            == " Paris"
+    )
+    val_no_pa = lm.predict(
+        LmPrompt(
+            capital_prompt,
+            max_tokens=4,
+            logprobs=1,
+            temperature=0,
+            cache=False,
+            stop=[" Paris"],
+        ),
+    )
+    print(val_no_pa.completion_text)
+    assert val_no_pa.completion_text == " is the city"
+    assert len(val_no_pa.completion_tokens) == 3
+    assert val_no_pa.completion_tokens[0] == val_normal.completion_tokens[0]
+    assert val_no_pa.completion_tokens[1] == val_normal.completion_tokens[1]
+    assert val_no_pa.completion_tokens[2] == val_normal.completion_tokens[2]
+
+
+@pytest.mark.parametrize("lm", COMPLETION_MODELS)
 def test_stopping_begin_tok(lm):
     val_normal = lm.predict(
         LmPrompt(
@@ -306,6 +345,7 @@ def test_stopping_begin_tok(lm):
     print(val_no_pa.completion_text)
     assert val_no_pa.completion_text == " is the city"
     assert len(val_no_pa.completion_tokens) == 3
+    assert val_no_pa.completion_tokens[0] == val_normal.completion_tokens[0]
     assert np.allclose(
         val_no_pa.completion_logprobs,
         val_normal.completion_logprobs[:-1],
@@ -314,7 +354,7 @@ def test_stopping_begin_tok(lm):
     )
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", COMPLETION_MODELS)
 def test_stopping_middle_tok(lm):
     val_normal = lm.predict(
         LmPrompt(
@@ -350,7 +390,7 @@ def test_stopping_middle_tok(lm):
     )
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", COMPLETION_MODELS)
 def test_stopping_end_tok(lm):
     val_normal = lm.predict(
         LmPrompt(
@@ -386,7 +426,7 @@ def test_stopping_end_tok(lm):
     )
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", COMPLETION_MODELS)
 def test_stopping_span_subtoks(lm):
     val_normal = lm.predict(
         LmPrompt(
@@ -421,7 +461,7 @@ def test_stopping_span_subtoks(lm):
     )
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", COMPLETION_MODELS)
 def test_stopping_span_subtoks2(lm):
     val_normal = lm.predict(
         LmPrompt(
@@ -456,7 +496,7 @@ def test_stopping_span_subtoks2(lm):
     )
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", COMPLETION_MODELS)
 def test_stopping_span_subtoks_multiple(lm):
     val_normal = lm.predict(
         LmPrompt(
@@ -640,7 +680,7 @@ def test_token_offsets(lm):
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
-def test_token_offsets(lm):
+def test_token_seq_probs(lm):
     prompt = "A B C D E F G H"
     pred = lm.predict(
         LmPrompt(
@@ -651,11 +691,17 @@ def test_token_offsets(lm):
             logprobs=1,
         ),
     )
-    assert pred.completion_text == " I J K"
-    assert pred.completion_tokens == [" I", " J", " K"]
+    is_chat = lm not in COMPLETION_MODELS
+    if not is_chat:
+        expected_tokens = [" I", " J", " K"]
+    else:
+        # When in chat the next turn doesn't start with a space
+        expected_tokens = ["I", " J", " K"]
+    assert pred.completion_text == "".join(expected_tokens)
+    assert pred.completion_tokens == expected_tokens
     top_probs = pred.top_token_logprobs
     assert len(top_probs) == 3
-    for i, expected in enumerate([" I", " J", " K"]):
+    for i, expected in enumerate(expected_tokens):
         assert isinstance(top_probs[i][expected], float)
         assert top_probs[i][expected] == pred.completion_logprobs[i]
         assert top_probs[i][expected] < 0
