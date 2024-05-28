@@ -465,6 +465,20 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
 
     see: https://help.openai.com/en/articles/8555510-gpt-4-turbo
     """
+    gpt_4o = OpenAiModelInfo("gpt-4o", True, 128_000)
+    """
+    GPT-4o (“o” for “omni”) is our most advanced model. 
+    It is multimodal (accepting text or image inputs and outputting text), 
+    and it has the same high intelligence as GPT-4 Turbo but 
+    is much more efficient—it generates text 2x faster and is 50% cheaper. 
+    Additionally, GPT-4o has the best vision and performance across 
+    non-English languages of any of our models. GPT-4o is available in 
+    the OpenAI API to paying customers.
+    
+    Currently points to gpt-4o-2024-05-13.
+    Up to Oct 2023
+    """
+    gpt_4o_2024_05_13 = OpenAiModelInfo("gpt-4o-2024-05-13", True, 128_000)
 
     @classmethod
     def name_to_info(cls, name: str) -> OpenAiModelInfo | None:

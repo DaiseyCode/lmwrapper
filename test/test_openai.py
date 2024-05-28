@@ -317,8 +317,15 @@ def test_instantiation_hook():
 
 
 @pytest.mark.skip("We don't need to do this usually")
-def test_simple_chat_mode_multiturn_4turbo():
-    lm = get_open_ai_lm(OpenAiModelNames.gpt_4_turbo)
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        OpenAiModelNames.gpt_4_turbo,
+        OpenAiModelNames.gpt_4o,
+    ],
+)
+def test_simple_chat_mode_multiturn_4turbo(model_name):
+    lm = get_open_ai_lm(model_name)
     prompt = [
         "What is 2+2? Answer with just one number.",
         "4",
