@@ -17,7 +17,7 @@ include = ["lmwrapper*"]
 
 [project]
 name = "lmwrapper"
-version = "0.9.4.0"
+version = "0.9.4.1"
 authors = [
     { name = "David Gros" },
     { name = "Claudio Spiess" },

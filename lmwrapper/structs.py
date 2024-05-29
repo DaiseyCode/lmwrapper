@@ -163,6 +163,10 @@ class LmPrompt:
             raise ValueError(
                 msg,
             )
+        if self.stop_mode != StopMode.AUTO:
+            raise NotImplementedError(
+                "Only StopMode.AUTO is supported at this time as a temporary hack"
+            )
 
     def is_text_a_chat(self) -> bool:
         return isinstance(self.text, list)
