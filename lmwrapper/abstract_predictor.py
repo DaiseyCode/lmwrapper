@@ -15,7 +15,12 @@ class LmPredictor:
         cache_default: bool = False,
     ):
         self._cache_default = cache_default
-        self._disk_cache = get_disk_cache()
+        #self._disk_cache = get_disk_cache()
+        from lmwrapper.sqlcache import SqlBackedCache
+        self._disk_cache = SqlBackedCache(self)
+
+    def find_prediction_class(self, prompt):
+        return LmPrediction
 
     def predict(
         self,
@@ -29,7 +34,8 @@ class LmPredictor:
             )
         self._validate_prompt(prompt, raise_on_invalid=True)
         if should_cache:
-            cache_key = (prompt, self._get_cache_key_metadata())
+            #cache_key = (prompt, self._get_cache_key_metadata())
+            cache_key = prompt
             if cache_key in self._disk_cache:
                 cache_copy = self._disk_cache.get(cache_key)
                 if cache_copy:
@@ -37,7 +43,8 @@ class LmPredictor:
                 return cache_copy
             val = self._predict_maybe_cached(prompt)
             try:
-                self._disk_cache.set(cache_key, val)
+                #self._disk_cache.set(cache_key, val)
+                self._disk_cache.add(val)
             except OperationalError as e:
                 print("Failed to cache", e)
             return val

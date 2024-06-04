@@ -33,19 +33,19 @@ def _verify_looks_like_cache_dir(path: Path):
                 raise ValueError(msg)
 
 
-def _cache_dir() -> Path:
+def cache_dir() -> Path:
     if _set_cache_dir is not None:
         return _set_cache_dir
     return Path.cwd() / ".lmwrapper_cache"
 
 
 def _get_disk_cache_joblib() -> Memory:
-    return Memory(_cache_dir(), verbose=0)
+    return Memory(cache_dir(), verbose=0)
 
 
 def _get_disk_cache_diskcache() -> diskcache.FanoutCache:
     return diskcache.FanoutCache(
-        str(_cache_dir()),
+        str(cache_dir()),
         timeout=int(9e9),
         size_limit=50e9,
         shards=4,
@@ -60,5 +60,4 @@ def get_disk_cache():
 
 def clear_cache_dir():
     import shutil
-
-    shutil.rmtree(_cache_dir())
+    shutil.rmtree(cache_dir())

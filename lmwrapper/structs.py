@@ -5,6 +5,8 @@ from typing import Any, Optional, Union
 
 from lmwrapper.interals import ModelInternalsResults
 from lmwrapper.utils import StrEnum
+import pickle
+import json
 
 LM_CHAT_DIALOG_COERCIBLE_TYPES = Union[
     str,
@@ -38,7 +40,7 @@ class LmPrompt:
     into a LmChatDialog."""
     max_tokens: int | None = None
     """The maximum number of tokens to generate in the completion. If `None`
-    then the model downstream model will choose some default value. This value
+    then the downstream model will choose some default value. This value
     might be a function of the prompt input length, but this behaviour is not defined.
     This means it is possible that the default max might cause errors with long prompts.
     It recommended that you specify a limit yourself to have more predictable
@@ -54,7 +56,8 @@ class LmPrompt:
     """Different models/providers handle stopping in different ways. You can
     either leave that as-is ("auto") or try to change the mode to try
     to emulate another mode (which may or may not work depending on
-    the model)."""
+    the model. Models are expected to raise an error if an incompatible
+    mode is given)."""
     logprobs: int = 1
     """Include the log probabilities on the logprobs most likely tokens,
     as well the chosen tokens. For example, if logprobs is 5, the
@@ -296,6 +299,24 @@ class LmPrediction:
     prompt: LmPrompt
     metad: Any
     internals: ModelInternalsResults | None = field(default=None, kw_only=True)
+
+    @classmethod
+    def parse_from_cache(
+        cls,
+        completion_text: str,
+        prompt: LmPrompt,
+        metad_bytes: bytes,
+    ):
+        return cls(
+            completion_text=completion_text,
+            prompt=prompt,
+            metad=pickle.loads(metad_bytes),
+        )
+
+    def serialize_metad_for_cache(
+        self
+    ) -> bytes:
+        return pickle.dumps(self.metad)
 
     def __post_init__(self):
         self._was_cached = False

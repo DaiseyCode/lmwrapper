@@ -212,6 +212,11 @@ class OpenAIPredictor(LmPredictor):
         """
         cls._instantiation_hooks.append(hook)
 
+    def find_prediction_class(self, prompt):
+        if self._chat_mode:
+            return OpenAiLmChatPrediction
+        return OpenAiLmPrediction
+
     def _validate_prompt(self, prompt: LmPrompt, raise_on_invalid: bool = True) -> bool:
         if prompt.logprobs is not None and prompt.logprobs > MAX_LOG_PROB_PARM:
             warnings.warn(

@@ -516,6 +516,9 @@ class HuggingFacePredictor(LmPredictor):
             _logprobs_dict=logprobs_dicts,
         )
 
+    def find_prediction_class(self, prompt):
+        return HuggingFacePrediction
+
     def _parse_model_internals_results(
         self,
         prompt: LmPrompt,
