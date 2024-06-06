@@ -42,11 +42,8 @@ class HuggingFacePredictor(LmPredictor):
         self.prompt_trimmer = prompt_trimmer
         self._tokenizer_already_adds_bos = {}
 
-    def _get_cache_key_metadata(self):
-        return {
-            "model": "HuggingFacePredictor",
-            "name_or_path": self._model.name_or_path,
-        }
+    def get_model_cache_key(self):
+        return self._model.name_or_path
 
     def _verify_initial_prompt(self, prompt: LmPrompt):
         if not isinstance(prompt.text, str) and len(prompt.text) != 1:

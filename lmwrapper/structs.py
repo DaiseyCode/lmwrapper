@@ -124,6 +124,9 @@ class LmPrompt:
     # TODO: make a auto_reduce_max_tokens to reduce when might go over.
 
     def __post_init__(self):
+        if isinstance(self.text, list):
+            # Convert the text into a chat dialog
+            object.__setattr__(self, "text", LmChatDialog(self.text))
         if self.max_tokens is not None and not isinstance(self.max_tokens, int):
             msg = "The max_tokens parameter should be an int."
             raise ValueError(msg)
@@ -172,7 +175,7 @@ class LmPrompt:
             )
 
     def is_text_a_chat(self) -> bool:
-        return isinstance(self.text, list)
+        return isinstance(self.text, LmChatDialog)
 
     def get_text_as_chat(self) -> "LmChatDialog":
         return LmChatDialog(self.text)

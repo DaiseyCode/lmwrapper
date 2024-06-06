@@ -25,12 +25,13 @@ class HuggingFacePrediction(LmPrediction):
         return cls(
             prompt=prompt,
             completion_text=completion_text,
-            *metad_and_params,
+            **metad_and_params,
         )
 
     def serialize_metad_for_cache(
         self
     ) -> bytes:
+        assert "prompt" not in self.metad
         return pickle.dumps({
             "metad": self.metad,
             "_prompt_encoding": self._prompt_encoding,

@@ -1,37 +1,91 @@
-import peewee
+import sqlite3
 import datetime
 import base64
 import xxhash
-from peewee import TextField
-
 from lmwrapper.abstract_predictor import LmPredictor
 from lmwrapper.caching import cache_dir
 from lmwrapper.openai_wrapper import get_open_ai_lm
 from lmwrapper.structs import LmPrediction, LmPrompt
+import os
 
-_tables_created = False
 _text_hash_len = 32
 _text_and_sample_hash_len = 48
 
-database = peewee.SqliteDatabase(cache_dir() / 'cache_db.sqlite3')
+cache_path_fn = lambda: cache_dir() / "lm_cache.db"
 
 
-class BaseModel(peewee.Model):
-    class Meta:
-        database = database
+def execute_query(
+        query: str | list[str | tuple[str, tuple[any, ...]]] | tuple[str, tuple[any, ...]],
+        fetchone=False
+):
+    with sqlite3.connect(cache_path_fn()) as conn:
+        cursor = conn.cursor()
+        if isinstance(query, str):
+            cursor.execute(query)
+        if isinstance(query, tuple):
+            assert len(query) == 2
+            cursor.execute(*query)
+        if isinstance(query, list):
+            for q in query:
+                if isinstance(q, str):
+                    cursor.execute(q)
+                elif isinstance(q, tuple):
+                    assert len(q) == 2
+                    assert isinstance(q[0], str)
+                    assert isinstance(q[1], tuple)
+                    cursor.execute(*q)
+                else:
+                    raise ValueError(f"Unexpected query type {type(q)}")
+        conn.commit()
+        if fetchone:
+            return cursor.fetchone()
+        return cursor
 
 
-class CacheLmPromptText(BaseModel):
-    text_hash = peewee.FixedCharField(
-        primary_key=True, max_length=_text_hash_len)
-    text = TextField()
+def create_tables():
+    # TODO: if the file name chances during this process probably need to re-run this
+    if cache_path_fn().exists():
+        return
+    if not os.path.exists(cache_dir()):
+        cache_dir().mkdir()
 
-    @classmethod
-    def create_from_prompt(cls, prompt: LmPrompt):
-        return cls.get_or_create(
-            text_hash=prompt_to_text_hash(prompt),
-            text=prompt.get_text_as_string_default_form()
-        )[0]
+    create_tables_sql = [
+        "BEGIN;",
+        """
+        CREATE TABLE IF NOT EXISTS CacheLmPromptText (
+            text_hash TEXT PRIMARY KEY,
+            text TEXT
+        );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS CacheLmPromptSampleParams (
+            text_hash TEXT,
+            sample_hash TEXT PRIMARY KEY,
+            model_key TEXT,
+            max_tokens INTEGER,
+            temperature REAL,
+            top_p REAL,
+            presence_penalty REAL,
+            frequency_penalty REAL,
+            add_bos_token TEXT,
+            echo INTEGER,
+            add_special_tokens INTEGER,
+            has_internals_request INTEGER,
+            stop TEXT,
+            FOREIGN KEY (text_hash) REFERENCES CacheLmPromptText (text_hash)
+        );
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS CacheLmPrediction (
+            sample_params TEXT,
+            base_class TEXT,
+            completion_text TEXT,
+            metad_bytes BLOB,
+            date_added TEXT
+        );
+        """,
+    ]
+    execute_query(create_tables_sql)
 
 
 def prompt_to_text_hash(prompt: LmPrompt) -> str:
@@ -39,37 +93,23 @@ def prompt_to_text_hash(prompt: LmPrompt) -> str:
     hasher = xxhash.xxh64()
     hasher.update(text.encode())
     text_hash = base64.b64encode(hasher.digest()).decode()
-    # Add the start and end of the text to make it the right length
-    #  this ideally also improves locality of the hash
     remaining_chars = _text_hash_len - len(text_hash)
     start_chars = text[:min(remaining_chars // 3, len(text))]
     end_chars = text[-min(remaining_chars - len(start_chars), len(text)):]
     text_hash = start_chars + end_chars[::-1] + text_hash
-    # Ensure it is the right length
     if len(text_hash) < _text_hash_len:
         text_hash += "_" * (_text_hash_len - len(text_hash))
     return text_hash
 
 
-def prompt_to_sample_hash_text(
-    prompt: LmPrompt,
-    model_key: str,
-) -> str:
-    return (
-        prompt_to_text_hash(prompt)
-        + prompt_to_sample_params_hash(prompt, model_key)
-    )
+def prompt_to_sample_hash_text(prompt: LmPrompt, model_key: str) -> str:
+    return prompt_to_text_hash(prompt) + prompt_to_sample_params_hash(prompt, model_key)
 
 
-def prompt_to_sample_params_hash(
-    prompt: LmPrompt,
-    model_key: str,
-) -> str:
+def prompt_to_sample_params_hash(prompt: LmPrompt, model_key: str) -> str:
     _target_len = _text_and_sample_hash_len - _text_hash_len
     hasher = xxhash.xxh64()
-    hasher.update(
-        str(CacheLmPromptSampleParams.prompt_to_only_sample_class_dict(prompt, model_key))
-    )
+    hasher.update(str(prompt_to_only_sample_class_dict(prompt, model_key)).encode())
     hash = base64.b64encode(hasher.digest()).decode()
     if len(hash) < _target_len:
         hash += "_" * (_target_len - len(hash))
@@ -78,130 +118,111 @@ def prompt_to_sample_params_hash(
     return hash
 
 
-class CacheLmPromptSampleParams(BaseModel):
-    text_hash = peewee.ForeignKeyField(CacheLmPromptText)
-    sample_hash = peewee.FixedCharField(
-        max_length=_text_and_sample_hash_len,
-        primary_key=True,
+def prompt_to_only_sample_class_dict(prompt: LmPrompt, model_key: str) -> dict:
+    return dict(
+        model_key=model_key,
+        max_tokens=prompt.max_tokens,
+        temperature=prompt.temperature,
+        top_p=prompt.top_p,
+        presence_penalty=prompt.presence_penalty,
+        frequency_penalty=prompt.frequency_penalty,
+        add_bos_token=str(prompt.add_bos_token),
+        echo=prompt.echo,
+        add_special_tokens=prompt.add_special_tokens,
+        has_internals_request=prompt.model_internals_request is not None,
+        stop=str(prompt.stop),
     )
-    model_key = peewee.CharField()
-    max_tokens = peewee.IntegerField(null=True)
-    temperature = peewee.FloatField()
-    top_p = peewee.FloatField()
-    presence_penalty = peewee.FloatField()
-    frequency_penalty = peewee.FloatField()
-    add_bos_token = peewee.CharField()
-    echo = peewee.BooleanField()
-    add_special_tokens = peewee.BooleanField()
-    has_internals_request = peewee.BooleanField()
-    stop = peewee.TextField()
 
-    @classmethod
-    def prompt_to_only_sample_class_dict(
-        cls,
-        prompt: LmPrompt,
-        model_key: model_key,
-    ):
-        return dict(
-            model_key=model_key,
-            max_tokens=prompt.max_tokens,
-            temperature=prompt.temperature,
-            top_p=prompt.top_p,
-            presence_penalty=prompt.presence_penalty,
-            frequency_penalty=prompt.frequency_penalty,
-            add_bos_token=str(prompt.add_bos_token),
-            echo=prompt.echo,
-            add_special_tokens=prompt.add_special_tokens,
-            has_internals_request=prompt.model_internals_request is not None,
-            stop=str(prompt.stop),
+
+def create_from_prompt_text(prompt: LmPrompt):
+    text_hash = prompt_to_text_hash(prompt)
+    text = prompt.get_text_as_string_default_form()
+    execute_query("INSERT OR IGNORE INTO CacheLmPromptText (text_hash, text) VALUES (?, ?)",
+                  (text_hash, text))
+    return text_hash
+
+
+def create_from_prompt_sample_params(prompt: LmPrompt, model_key: str):
+    text_hash = create_from_prompt_text(prompt)
+    sample_hash = prompt_to_sample_hash_text(prompt, model_key)
+    params = prompt_to_only_sample_class_dict(prompt, model_key)
+    execute_query((
+        """
+        INSERT OR IGNORE INTO CacheLmPromptSampleParams 
+        (text_hash, sample_hash, model_key, max_tokens, temperature, top_p, presence_penalty, 
+        frequency_penalty, add_bos_token, echo, add_special_tokens, has_internals_request, stop) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            text_hash, sample_hash, params['model_key'], params['max_tokens'], params['temperature'],
+            params['top_p'], params['presence_penalty'], params['frequency_penalty'], params['add_bos_token'],
+            params['echo'], params['add_special_tokens'], params['has_internals_request'], params['stop']
         )
+    ))
+    return sample_hash
 
-    @classmethod
-    def create_from_prompt(
-        cls,
-        prompt: LmPrompt,
-        model_key: str,
-    ):
-        # Get or create
-        textcache = CacheLmPromptText.create_from_prompt(prompt)
-        instance, created = cls.get_or_create(
-            text_hash=textcache.text_hash,
-            sample_hash=prompt_to_sample_hash_text(prompt, model_key),
-            **cls.prompt_to_only_sample_class_dict(prompt, model_key),
+
+def add_prediction_to_cache(prediction: LmPrediction, model_key: str):
+    create_tables()
+    sample_hash = prompt_to_sample_hash_text(prediction.prompt, model_key)
+    params = prompt_to_only_sample_class_dict(prediction.prompt, model_key)
+    text_hash = prompt_to_text_hash(prediction.prompt)
+    text = prediction.prompt.get_text_as_string_default_form()
+
+    execute_query([
+        "BEGIN;",
+        ("INSERT OR IGNORE INTO CacheLmPromptText (text_hash, text) VALUES (?, ?);", (text_hash, text)),
+        (
+            """
+            INSERT OR IGNORE INTO CacheLmPromptSampleParams 
+            (text_hash, sample_hash, model_key, max_tokens, temperature, top_p, presence_penalty, 
+            frequency_penalty, add_bos_token, echo, add_special_tokens, has_internals_request, stop) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """,
+            (
+                text_hash, sample_hash, params['model_key'], params['max_tokens'], params['temperature'],
+                params['top_p'], params['presence_penalty'], params['frequency_penalty'],
+                params['add_bos_token'],
+                params['echo'], params['add_special_tokens'], params['has_internals_request'], params['stop']
+            )
+        ),
+        (
+            """
+            INSERT INTO CacheLmPrediction 
+            (sample_params, base_class, completion_text, metad_bytes, date_added) 
+            VALUES (?, ?, ?, ?, ?);
+            """,
+            (
+                sample_hash, prediction.__class__.__name__,
+                prediction.completion_text, prediction.serialize_metad_for_cache(),
+                datetime.datetime.now().isoformat()
+            )
+        ),
+    ])
+
+
+def get_from_cache(prompt: LmPrompt, lm: LmPredictor = None) -> LmPrediction | None:
+    create_tables()
+    sample_hash = prompt_to_sample_hash_text(prompt, lm.get_model_cache_key())
+    with sqlite3.connect(cache_path_fn()) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM CacheLmPrediction WHERE sample_params = ?", (sample_hash,)
         )
-        return instance
-
-
-class CacheLmPrediction(BaseModel):
-    sample_params = peewee.FixedCharField(
-        max_length=_text_and_sample_hash_len,
-    )
-    base_class = peewee.CharField()
-    completion_text = peewee.TextField()
-    metad_bytes = peewee.BlobField()
-    date_added = peewee.DateTimeField()
-
-
-def create_tables():
-    with database:
-        database.create_tables([
-            CacheLmPromptText,
-            CacheLmPromptSampleParams, CacheLmPrediction
-        ])
-
-
-def _prep_cache():
-    global _tables_created
-    if not _tables_created:
-        create_tables()
-        _tables_created = True
-
-
-def add_prediction_to_cache(
-    prediction: LmPrediction,
-    model_key: str,
-):
-    _prep_cache()
-    sample_params = CacheLmPromptSampleParams.create_from_prompt(
-        prediction.prompt,
-        model_key,
-    )
-    print("sample_params made", sample_params.sample_hash)
-    CacheLmPrediction.create(
-        sample_params=sample_params,
-        base_class=prediction.__class__.__name__,
-        completion_text=prediction.completion_text,
-        metad_bytes=prediction.serialize_metad_for_cache(),
-        date_added=datetime.datetime.now(),
-    )
-
-
-def get_from_cache(
-    prompt: LmPrompt,
-    lm: LmPredictor = None,
-) -> LmPrediction | None:
-    _prep_cache()
-    sample_hash = prompt_to_sample_hash_text(prompt, lm.model_name())
-    res = CacheLmPrediction.select().where(
-        CacheLmPrediction.sample_params == sample_hash
-    )
-    res = list(res)
-    assert prompt.num_completions == 1
-    if not res:
-        return None
-    res = res[0]
-    return lm.find_prediction_class(prompt).parse_from_cache(
-        res.completion_text,
-        prompt,
-        res.metad_bytes,
-    )
+        ret = cursor.fetchone()
+        if not ret:
+            return None
+        assert len(ret) == 5
+        completion_text = ret[2]
+        metad_bytes = ret[3]
+    return lm.find_prediction_class(prompt).parse_from_cache(completion_text, prompt, metad_bytes)
 
 
 def main():
     create_tables()
     lm = get_open_ai_lm()
     pred = lm.predict("Once upon a time")
-    add_prediction_to_cache(pred, lm.model_name())
+    add_prediction_to_cache(pred, lm.get_model_cache_key())
 
 
 class SqlBackedCache:
@@ -216,7 +237,35 @@ class SqlBackedCache:
         return get_from_cache(prompt, self._lm)
 
     def add(self, prediction: LmPrediction):
-        add_prediction_to_cache(prediction, self._lm.model_name())
+        add_prediction_to_cache(prediction, self._lm.get_model_cache_key())
+
+    def delete(self, prompt: LmPrompt) -> bool:
+        if not isinstance(prompt, LmPrompt):
+            raise ValueError(f"Expected LmPrompt, got {type(prompt)}")
+        sample_hash = prompt_to_sample_hash_text(prompt, self._lm.get_model_cache_key())
+        with sqlite3.connect(cache_path_fn()) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM CacheLmPrediction WHERE sample_params = ?", (sample_hash,)
+            )
+            cursor.execute(
+                "DELETE FROM CacheLmPromptSampleParams WHERE sample_hash = ?", (sample_hash,)
+            )
+            conn.commit()
+            data_deleted = cursor.rowcount > 0
+            # Delete the text hash if no longer used
+            text_hash = prompt_to_text_hash(prompt)
+            cursor.execute(
+                "SELECT COUNT(*) FROM CacheLmPromptSampleParams WHERE text_hash = ?",
+                (text_hash,)
+            )
+            if cursor.fetchone()[0] == 0:
+                cursor.execute(
+                    "DELETE FROM CacheLmPromptText WHERE text_hash = ?",
+                    (text_hash,)
+                )
+                conn.commit()
+        return data_deleted
 
 
 if __name__ == "__main__":

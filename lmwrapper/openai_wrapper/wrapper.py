@@ -224,14 +224,14 @@ class OpenAIPredictor(LmPredictor):
                 " might cause unexpected behavior if you later are dependingon more"
                 " returns",
             )
+            return False
+        return True
 
     def model_name(self):
         return self._engine_name
 
-    def _get_cache_key_metadata(self):
-        return {
-            "engine": self._engine_name,
-        }
+    def get_model_cache_key(self):
+        return "OpenAI::" + self._engine_name
 
     def list_engines(self):
         return self._api.Engine.list()

@@ -51,22 +51,19 @@ class LmPredictor:
         else:
             return self._predict_maybe_cached(prompt)
 
-    def _cache_key_for_prompt(self, prompt):
-        return (prompt, self._get_cache_key_metadata())
-
     def remove_prompt_from_cache(
         self,
         prompt: str | LmPrompt,
     ) -> bool:
-        return self._disk_cache.delete(self._cache_key_for_prompt(prompt))
+        return self._disk_cache.delete(prompt)
 
     def _validate_prompt(self, prompt: LmPrompt, raise_on_invalid: bool = True) -> bool:
         """Called on prediction to make sure the prompt is valid for the model"""
         return True
 
     @abstractmethod
-    def _get_cache_key_metadata(self):
-        return {"name": type(self).__name__}
+    def get_model_cache_key(self):
+        return type(self).__name__
 
     @abstractmethod
     def _predict_maybe_cached(
