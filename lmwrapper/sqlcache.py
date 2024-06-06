@@ -9,14 +9,14 @@ from lmwrapper.structs import LmPrediction, LmPrompt
 import os
 
 _text_hash_len = 32
-_text_and_sample_hash_len = 48
+_text_and_sample_hash_len = 43
 
 cache_path_fn = lambda: cache_dir() / "lm_cache.db"
 
 
 def execute_query(
-        query: str | list[str | tuple[str, tuple[any, ...]]] | tuple[str, tuple[any, ...]],
-        fetchone=False
+    query: str | list[str | tuple[str, tuple[any, ...]]] | tuple[str, tuple[any, ...]],
+    fetchone=False
 ):
     with sqlite3.connect(cache_path_fn()) as conn:
         cursor = conn.cursor()
