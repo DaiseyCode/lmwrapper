@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68.2.2"]
+requires      = ["setuptools>=68.2.2"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
@@ -12,16 +12,13 @@ build-backend = "setuptools.build_meta"
 #py-modules = ["lmwrapper"]
 
 [tool.setuptools.packages.find]
-where = ["."]
+where   = ["."]
 include = ["lmwrapper*"]
 
 [project]
 name = "lmwrapper"
 version = "0.9.4.0"
-authors = [
-    { name = "David Gros" },
-    { name = "Claudio Spiess" },
-]
+authors = [{ name = "David Gros" }, { name = "Claudio Spiess" }]
 description = "Wrapper around language model APIs"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -37,7 +34,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["black~=23.10.0", "ruff~=0.1.1", "pytest~=7.4.2", "pytest-cov~=4.1.0"]
+dev = [
+    "black~=23.10.0",
+    "ruff~=0.1.1",
+    "pytest~=7.4.2",
+    "pytest-cov~=4.1.0",
+    "mkdocs",
+    "mkdocstrings[python]",
+    "mkdocs-material",
+]
 quant = ["bitsandbytes~=0.41.1"]
 hf = ["torch~=2.1.0", "transformers~=4.34.1"]
 # Torch nightlies can be installed as follows:
@@ -48,9 +53,9 @@ hf = ["torch~=2.1.0", "transformers~=4.34.1"]
 #    "transformers @ git+https://github.com/huggingface/transformers",
 #]
 accelerate = ["accelerate~=0.23.0"]
-xformers = ["xformers~=0.0.22"]
-flash-attn = [ "flash_attn~=2.3.2"]
-ort = ["optimum[onnxruntime]~=1.13.2"]
+xformers   = ["xformers~=0.0.22"]
+flash-attn = ["flash_attn~=2.3.2"]
+ort        = ["optimum[onnxruntime]~=1.13.2"]
 # This will also install accelerate:
 ort-gpu = ["optimum[onnxruntime-gpu]~=1.13.2"]
 
@@ -58,7 +63,7 @@ ort-gpu = ["optimum[onnxruntime-gpu]~=1.13.2"]
 "Homepage" = "https://github.com/DaiseyCode/lmwrapper"
 
 [tool.black]
-line-length = 88
+line-length    = 88
 target-version = ['py310']
 
 [tool.ruff]

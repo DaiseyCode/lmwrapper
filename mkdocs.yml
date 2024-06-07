@@ -1,0 +1,14 @@
+site_name: LMWrapper
+theme:
+  name: material
+  features:
+    - search.highlight
+    - search.suggest
+nav:
+  - Home: index.md
+  - HuggingFace: lmwrapper.md
+  - Prompt: prompt.md
+
+plugins:
+- search
+- mkdocstrings
