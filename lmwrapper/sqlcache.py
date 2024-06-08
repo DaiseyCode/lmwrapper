@@ -1,4 +1,5 @@
 import sqlite3
+import threading
 import datetime
 import base64
 import xxhash
@@ -13,33 +14,70 @@ _text_and_sample_hash_len = 43
 
 cache_path_fn = lambda: cache_dir() / "lm_cache.db"
 
+# Global variable to hold the database connection
+conn = None
+conn_lock = threading.Lock()
+
+
+thread_local = threading.local()
+
+def get_connection():
+    if not hasattr(thread_local, 'connection') or not cache_path_fn().exists():
+        #print("Making new connection")
+        thread_local.connection = sqlite3.connect(cache_path_fn(), isolation_level=None)
+    else:
+        #print("Reusing connection")
+        #print("Total changes", thread_local.connection.total_changes)
+        pass
+    return thread_local.connection
+
+
+#def get_connection():
+#    global conn
+#    if conn is None:
+#        conn = sqlite3.connect(cache_path_fn(), isolation_level=None)
+#    return conn
+
+
+def close_connection():
+    global conn
+    if conn is not None:
+        conn.close()
+
 
 def execute_query(
     query: str | list[str | tuple[str, tuple[any, ...]]] | tuple[str, tuple[any, ...]],
-    fetchone=False
+    fetchone=False,
+    conn = None
 ):
-    with sqlite3.connect(cache_path_fn()) as conn:
-        cursor = conn.cursor()
-        if isinstance(query, str):
-            cursor.execute(query)
-        if isinstance(query, tuple):
-            assert len(query) == 2
-            cursor.execute(*query)
-        if isinstance(query, list):
-            for q in query:
-                if isinstance(q, str):
-                    cursor.execute(q)
-                elif isinstance(q, tuple):
-                    assert len(q) == 2
-                    assert isinstance(q[0], str)
-                    assert isinstance(q[1], tuple)
-                    cursor.execute(*q)
-                else:
-                    raise ValueError(f"Unexpected query type {type(q)}")
-        conn.commit()
-        if fetchone:
-            return cursor.fetchone()
-        return cursor
+    if conn is None:
+        conn = get_connection()
+    cursor = conn.cursor()
+    #with sqlite3.connect(cache_path_fn()) as conn:
+    #cursor = conn.cursor()
+    if isinstance(query, str):
+        cursor.execute(query)
+    if isinstance(query, tuple):
+        assert len(query) == 2
+        cursor.execute(*query)
+    if isinstance(query, list):
+        for q in query:
+            #print("Executing query", q, "with conn", conn)
+            #print(f"Database file path: {conn.execute('PRAGMA database_list;').fetchone()}")
+
+            if isinstance(q, str):
+                cursor.execute(q)
+            elif isinstance(q, tuple):
+                assert len(q) == 2
+                assert isinstance(q[0], str)
+                assert isinstance(q[1], tuple)
+                cursor.execute(*q)
+            else:
+                raise ValueError(f"Unexpected query type {type(q)}")
+    conn.commit()
+    if fetchone:
+        return cursor.fetchone()
+    return cursor
 
 
 def create_tables():
@@ -170,7 +208,7 @@ def add_prediction_to_cache(prediction: LmPrediction, model_key: str):
     text = prediction.prompt.get_text_as_string_default_form()
 
     execute_query([
-        "BEGIN;",
+        #"BEGIN;",
         ("INSERT OR IGNORE INTO CacheLmPromptText (text_hash, text) VALUES (?, ?);", (text_hash, text)),
         (
             """
@@ -204,25 +242,19 @@ def add_prediction_to_cache(prediction: LmPrediction, model_key: str):
 def get_from_cache(prompt: LmPrompt, lm: LmPredictor = None) -> LmPrediction | None:
     create_tables()
     sample_hash = prompt_to_sample_hash_text(prompt, lm.get_model_cache_key())
-    with sqlite3.connect(cache_path_fn()) as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT * FROM CacheLmPrediction WHERE sample_params = ?", (sample_hash,)
-        )
-        ret = cursor.fetchone()
-        if not ret:
-            return None
-        assert len(ret) == 5
-        completion_text = ret[2]
-        metad_bytes = ret[3]
+    #raise ValueError()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM CacheLmPrediction WHERE sample_params = ?", (sample_hash,)
+    )
+    ret = cursor.fetchone()
+    if not ret:
+        return None
+    assert len(ret) == 5
+    completion_text = ret[2]
+    metad_bytes = ret[3]
     return lm.find_prediction_class(prompt).parse_from_cache(completion_text, prompt, metad_bytes)
-
-
-def main():
-    create_tables()
-    lm = get_open_ai_lm()
-    pred = lm.predict("Once upon a time")
-    add_prediction_to_cache(pred, lm.get_model_cache_key())
 
 
 class SqlBackedCache:
@@ -243,29 +275,37 @@ class SqlBackedCache:
         if not isinstance(prompt, LmPrompt):
             raise ValueError(f"Expected LmPrompt, got {type(prompt)}")
         sample_hash = prompt_to_sample_hash_text(prompt, self._lm.get_model_cache_key())
-        with sqlite3.connect(cache_path_fn()) as conn:
-            cursor = conn.cursor()
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM CacheLmPrediction WHERE sample_params = ?", (sample_hash,)
+        )
+        cursor.execute(
+            "DELETE FROM CacheLmPromptSampleParams WHERE sample_hash = ?", (sample_hash,)
+        )
+        conn.commit()
+        data_deleted = cursor.rowcount > 0
+        # Delete the text hash if no longer used
+        text_hash = prompt_to_text_hash(prompt)
+        cursor.execute(
+            "SELECT COUNT(*) FROM CacheLmPromptSampleParams WHERE text_hash = ?",
+            (text_hash,)
+        )
+        if cursor.fetchone()[0] == 0:
             cursor.execute(
-                "DELETE FROM CacheLmPrediction WHERE sample_params = ?", (sample_hash,)
-            )
-            cursor.execute(
-                "DELETE FROM CacheLmPromptSampleParams WHERE sample_hash = ?", (sample_hash,)
-            )
-            conn.commit()
-            data_deleted = cursor.rowcount > 0
-            # Delete the text hash if no longer used
-            text_hash = prompt_to_text_hash(prompt)
-            cursor.execute(
-                "SELECT COUNT(*) FROM CacheLmPromptSampleParams WHERE text_hash = ?",
+                "DELETE FROM CacheLmPromptText WHERE text_hash = ?",
                 (text_hash,)
             )
-            if cursor.fetchone()[0] == 0:
-                cursor.execute(
-                    "DELETE FROM CacheLmPromptText WHERE text_hash = ?",
-                    (text_hash,)
-                )
-                conn.commit()
+            conn.commit()
         return data_deleted
+
+
+def main():
+    create_tables()
+    lm = get_open_ai_lm()
+    pred = lm.predict("Once upon a time")
+    add_prediction_to_cache(pred, lm.get_model_cache_key())
+    #add_prediction_to_cache(pred, lm.get_model_cache_key())
 
 
 if __name__ == "__main__":

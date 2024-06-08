@@ -1,7 +1,11 @@
 import dataclasses
+import random
+import multiprocessing
+import time
 import tempfile
 from pathlib import Path
 
+from lmwrapper.abstract_predictor import get_mock_predictor
 from lmwrapper.caching import set_cache_dir
 from lmwrapper.huggingface_wrapper.wrapper import get_huggingface_lm
 from lmwrapper.structs import LmPrompt
@@ -33,3 +37,47 @@ def test_set_cache_dir():
         lm2 = get_huggingface_lm("gpt2")
         r4 = lm2.predict(prompt)
         assert r3.completion_text != r4.completion_text
+
+
+def test_cache_stress_random():
+    prompts = [LmPrompt(f"Prompt {i}", cache=True) for i in range(100)]
+    import random
+    lm = get_mock_predictor()
+    for _ in range(10_000):
+        prompt = random.choice(prompts)
+        lm.predict(prompt)
+
+
+def test_cache_stress_random_multithread():
+    prompts = [LmPrompt(f"Prompt {i}", cache=True) for i in range(100)]
+    import random
+    lm = get_mock_predictor()
+    import threading
+    import time
+    def worker():
+        for _ in range(1_000):
+            prompt = random.choice(prompts)
+            lm.predict(prompt)
+    threads = [threading.Thread(target=worker) for _ in range(10)]
+    for t in threads:
+        t.start()
+
+
+def _worker_multiproc():
+    lm = get_mock_predictor()
+    prompts = [LmPrompt(f"Prompt {i}", cache=True) for i in range(100)]
+    num_hits = 0
+    for _ in range(10_000):
+        prompt = random.choice(prompts)
+        pred = lm.predict(prompt)
+        if pred.was_cached:
+            num_hits += 1
+    assert num_hits > 9000
+
+
+def test_cache_stress_random_multiproc():
+    procs = [multiprocessing.Process(target=_worker_multiproc) for _ in range(5)]
+    for p in procs:
+        p.start()
+    for p in procs:
+        p.join()

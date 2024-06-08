@@ -1,3 +1,4 @@
+from lmwrapper.abstract_predictor import get_mock_predictor
 from lmwrapper.caching import clear_cache_dir
 from lmwrapper.openai_wrapper import get_open_ai_lm
 from lmwrapper.sqlcache import add_prediction_to_cache, prompt_to_text_hash, get_from_cache

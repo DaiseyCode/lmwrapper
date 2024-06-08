@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from sqlite3 import OperationalError
+from typing import Callable
 
 from ratemate import RateLimit
 
@@ -142,3 +143,23 @@ class LmPredictor:
     @property
     def default_tokens_generated(self) -> int:
         return self.token_limit // 16
+
+
+def get_mock_predictor(
+    predict_func: Callable[[LmPrompt], LmPrediction] = None,
+    is_chat_model: bool = False,
+):
+    """Gets a mock predictor. By default returns whatever the prompt txt is"""
+    class MockPredict(LmPredictor):
+        def get_model_cache_key(self):
+            return "mock_predictor"
+
+        @property
+        def is_chat_model(self) -> bool:
+            return is_chat_model
+
+        def _predict_maybe_cached(self, prompt):
+            if predict_func is None:
+                return LmPrediction(prompt.get_text_as_string_default_form(), prompt, {})
+            return predict_func(prompt)
+    return MockPredict()
