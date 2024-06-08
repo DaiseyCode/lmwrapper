@@ -57,7 +57,8 @@ def test_cache_stress_random_multithread():
     def worker():
         for _ in range(1_000):
             prompt = random.choice(prompts)
-            lm.predict(prompt)
+            pred = lm.predict(prompt)
+            assert pred.completion_text == prompt.get_text_as_string_default_form()
     threads = [threading.Thread(target=worker) for _ in range(10)]
     for t in threads:
         t.start()
@@ -70,6 +71,7 @@ def _worker_multiproc():
     for _ in range(10_000):
         prompt = random.choice(prompts)
         pred = lm.predict(prompt)
+        assert pred.completion_text == prompt.get_text_as_string_default_form()
         if pred.was_cached:
             num_hits += 1
     assert num_hits > 9000
