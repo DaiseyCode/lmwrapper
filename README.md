@@ -33,9 +33,9 @@ If you prefer using `conda`/`mamba` to manage your environments, you may edit th
 ```bash
 mamba env create -f environment.yml
 ```
--->
 
 Please note that this method is for development and not supported.
+-->
 
 ## Example usage
 
@@ -175,9 +175,10 @@ please make a Github Issue.
 - [X] Huggingface interface
 - [X] Huggingface device checking on PyTorch
 - [X] Move cache to be per project
+- [X] Redesign cache to make it easier to manage
+- [ ] OpenAI batching interface
 - [ ] Anthropic interface
-- [ ] Redesign cache to make it easier to manage
 - [ ] sort through usage of quantized models
-- [ ] async / streaming
-- [ ] Additional Huggingface runtimes (TensorRT, BetterTransformers, etc)
 - [ ] Cost estimating (so can estimate cost of a prompt before running / track total cost)
+- [ ] Additional Huggingface runtimes (TensorRT, BetterTransformers, etc)
+- [ ] async / streaming (not a top priority for research use cases)
