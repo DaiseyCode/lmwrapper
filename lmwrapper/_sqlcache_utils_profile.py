@@ -5,7 +5,7 @@ import time
 from lmwrapper.abstract_predictor import get_mock_predictor
 from lmwrapper.caching import clear_cache_dir
 from lmwrapper.sqlcache import create_tables, SqlBackedCache
-from lmwrapper.structs import LmPrompt
+from lmwrapper.structs import LmPrompt, LmPrediction
 
 
 # Helper function to generate random text
@@ -42,13 +42,23 @@ def _profile_helper_get_predictions(cache, prompts):
     return end_time - start_time
 
 
-def _profile_cache():
+def _profile_cache(heavy_objs=False):
     clear_cache_dir()
-    lm = get_mock_predictor()
+    metad_size = 100_000 if heavy_objs else 10
+    lm = get_mock_predictor(lambda prompt: LmPrediction(
+        prompt.get_text_as_string_default_form(),
+        prompt,
+        metad={
+            k: v
+            for k, v in zip(range(100_000), range(100_000))
+        }
+    ))
     cache = SqlBackedCache(lm)
 
     # Create a list of 1000 random prompts for testing
-    prompts = [LmPrompt(_profile_helper_generate_random_text(50)) for _ in range(1000)]
+    prompts = [LmPrompt(_profile_helper_generate_random_text(
+        50 if not heavy_objs else 5000
+    )) for _ in range(1000)]
 
     # Generate predictions once
     predictions = [lm.predict(prompt.get_text_as_string_default_form()) for prompt in prompts]
@@ -87,7 +97,7 @@ def _profile_cache():
 
 
 def main():
-    _profile_cache()
+    _profile_cache(heavy_objs=True)
 
 
 if __name__ == "__main__":

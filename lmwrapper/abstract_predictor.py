@@ -38,7 +38,11 @@ class LmPredictor:
             #cache_key = (prompt, self._get_cache_key_metadata())
             cache_key = prompt
             if cache_key in self._disk_cache:
-                cache_copy = self._disk_cache.get(cache_key)
+                try:
+                    cache_copy = self._disk_cache.get(cache_key)
+                except OperationalError as e:
+                    print("Failed to get from cache", e)
+                    cache_copy = None
                 if cache_copy:
                     cache_copy = cache_copy.mark_as_cached()
                 return cache_copy
