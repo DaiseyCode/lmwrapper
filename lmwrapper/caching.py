@@ -60,5 +60,6 @@ def get_disk_cache():
 
 def clear_cache_dir():
     import shutil
+
     if cache_dir().exists():
         shutil.rmtree(cache_dir())

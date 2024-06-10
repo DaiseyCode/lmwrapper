@@ -386,9 +386,9 @@ class HuggingFacePredictor(LmPredictor):
                     combined_logits = torch.cat(cached_logits, dim=1)
                 else:
                     combined_logits = cached_logits[-1]
-                if not (combined_logits.shape[1] == len(model_output_sequence[1:])):
+                if combined_logits.shape[1] != len(model_output_sequence[1:]):
                     msg = (
-                        f"Logits shape does not match the output sequence length\n"
+                        "Logits shape does not match the output sequence length\n"
                         f"Logits shape: {cached_logits.shape}\n"
                         f"Output sequence length: {len(model_output_sequence[1:])}"
                     )

@@ -1,8 +1,8 @@
+import pickle
 from dataclasses import dataclass
 from typing import Any
 
 from lmwrapper.structs import LmPrediction, LmPrompt
-import pickle
 
 
 @dataclass
@@ -20,7 +20,7 @@ class HuggingFacePrediction(LmPrediction):
         completion_text: str,
         prompt: LmPrompt,
         metad_bytes: bytes,
-    ) -> 'HuggingFacePrediction':
+    ) -> "HuggingFacePrediction":
         metad_and_params = pickle.loads(metad_bytes)
         return cls(
             prompt=prompt,
@@ -28,20 +28,19 @@ class HuggingFacePrediction(LmPrediction):
             **metad_and_params,
         )
 
-    def serialize_metad_for_cache(
-        self
-    ) -> bytes:
+    def serialize_metad_for_cache(self) -> bytes:
         assert "prompt" not in self.metad
-        return pickle.dumps({
-            "metad": self.metad,
-            "_prompt_encoding": self._prompt_encoding,
-            "_tokens": self._tokens,
-            "_log_probs": self._log_probs,
-            "_logprobs_dict": self._logprobs_dict,
-            "_num_prompt_tokens": self._num_prompt_tokens,
-            "_completion_with_special_tok": self._completion_with_special_tok,
-        })
-
+        return pickle.dumps(
+            {
+                "metad": self.metad,
+                "_prompt_encoding": self._prompt_encoding,
+                "_tokens": self._tokens,
+                "_log_probs": self._log_probs,
+                "_logprobs_dict": self._logprobs_dict,
+                "_num_prompt_tokens": self._num_prompt_tokens,
+                "_completion_with_special_tok": self._completion_with_special_tok,
+            },
+        )
 
     def __post_init__(self):
         super().__post_init__()

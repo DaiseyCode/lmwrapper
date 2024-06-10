@@ -51,10 +51,7 @@ class OpenAiLmPrediction(LmPrediction):
         if not probably_chat:
             return self.metad.logprobs.tokens
         else:
-            return [
-                lp.token
-                for lp in self.metad.logprobs.content
-            ]
+            return [lp.token for lp in self.metad.logprobs.content]
 
     def _all_toks_offsets(self):
         return self.metad.logprobs.text_offset
@@ -67,10 +64,7 @@ class OpenAiLmPrediction(LmPrediction):
         if not probably_chat:
             return self.metad.logprobs.token_logprobs
         else:
-            return [
-                lp.logprob
-                for lp in self.metad.logprobs.content
-            ]
+            return [lp.logprob for lp in self.metad.logprobs.content]
 
     @property
     def completion_tokens(self):

@@ -1,7 +1,6 @@
 import dataclasses
-import random
 import multiprocessing
-import time
+import random
 import tempfile
 from pathlib import Path
 
@@ -42,6 +41,7 @@ def test_set_cache_dir():
 def test_cache_stress_random():
     prompts = [LmPrompt(f"Prompt {i}", cache=True) for i in range(100)]
     import random
+
     lm = get_mock_predictor()
     for _ in range(10_000):
         prompt = random.choice(prompts)
@@ -51,14 +51,16 @@ def test_cache_stress_random():
 def test_cache_stress_random_multithread():
     prompts = [LmPrompt(f"Prompt {i}", cache=True) for i in range(100)]
     import random
+
     lm = get_mock_predictor()
     import threading
-    import time
+
     def worker():
         for _ in range(1_000):
             prompt = random.choice(prompts)
             pred = lm.predict(prompt)
             assert pred.completion_text == prompt.get_text_as_string_default_form()
+
     threads = [threading.Thread(target=worker) for _ in range(10)]
     for t in threads:
         t.start()

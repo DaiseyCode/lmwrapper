@@ -1,13 +1,15 @@
+import base64
+import datetime
+import os
 import sqlite3
 import threading
-import datetime
-import base64
+
 import xxhash
+
 from lmwrapper.abstract_predictor import LmPredictor
 from lmwrapper.caching import cache_dir
 from lmwrapper.openai_wrapper import get_open_ai_lm
 from lmwrapper.structs import LmPrediction, LmPrompt
-import os
 
 _text_hash_len = 32
 _text_and_sample_hash_len = 43
@@ -21,18 +23,19 @@ conn_lock = threading.Lock()
 
 thread_local = threading.local()
 
+
 def get_connection():
-    if not hasattr(thread_local, 'connection') or not cache_path_fn().exists():
-        #print("Making new connection")
+    if not hasattr(thread_local, "connection") or not cache_path_fn().exists():
+        # print("Making new connection")
         thread_local.connection = sqlite3.connect(cache_path_fn(), isolation_level=None)
     else:
-        #print("Reusing connection")
-        #print("Total changes", thread_local.connection.total_changes)
+        # print("Reusing connection")
+        # print("Total changes", thread_local.connection.total_changes)
         pass
     return thread_local.connection
 
 
-#def get_connection():
+# def get_connection():
 #    global conn
 #    if conn is None:
 #        conn = sqlite3.connect(cache_path_fn(), isolation_level=None)
@@ -48,13 +51,13 @@ def close_connection():
 def execute_query(
     query: str | list[str | tuple[str, tuple[any, ...]]] | tuple[str, tuple[any, ...]],
     fetchone=False,
-    conn = None
+    conn=None,
 ):
     if conn is None:
         conn = get_connection()
     cursor = conn.cursor()
-    #with sqlite3.connect(cache_path_fn()) as conn:
-    #cursor = conn.cursor()
+    # with sqlite3.connect(cache_path_fn()) as conn:
+    # cursor = conn.cursor()
     if isinstance(query, str):
         cursor.execute(query)
     if isinstance(query, tuple):
@@ -62,8 +65,8 @@ def execute_query(
         cursor.execute(*query)
     if isinstance(query, list):
         for q in query:
-            #print("Executing query", q, "with conn", conn)
-            #print(f"Database file path: {conn.execute('PRAGMA database_list;').fetchone()}")
+            # print("Executing query", q, "with conn", conn)
+            # print(f"Database file path: {conn.execute('PRAGMA database_list;').fetchone()}")
 
             if isinstance(q, str):
                 cursor.execute(q)
@@ -132,8 +135,8 @@ def prompt_to_text_hash(prompt: LmPrompt) -> str:
     hasher.update(text.encode())
     text_hash = base64.b64encode(hasher.digest()).decode()
     remaining_chars = _text_hash_len - len(text_hash)
-    start_chars = text[:min(remaining_chars // 3, len(text))]
-    end_chars = text[-min(remaining_chars - len(start_chars), len(text)):]
+    start_chars = text[: min(remaining_chars // 3, len(text))]
+    end_chars = text[-min(remaining_chars - len(start_chars), len(text)) :]
     text_hash = start_chars + end_chars[::-1] + text_hash
     if len(text_hash) < _text_hash_len:
         text_hash += "_" * (_text_hash_len - len(text_hash))
@@ -175,8 +178,10 @@ def prompt_to_only_sample_class_dict(prompt: LmPrompt, model_key: str) -> dict:
 def create_from_prompt_text(prompt: LmPrompt):
     text_hash = prompt_to_text_hash(prompt)
     text = prompt.get_text_as_string_default_form()
-    execute_query("INSERT OR IGNORE INTO CacheLmPromptText (text_hash, text) VALUES (?, ?)",
-                  (text_hash, text))
+    execute_query(
+        "INSERT OR IGNORE INTO CacheLmPromptText (text_hash, text) VALUES (?, ?)",
+        (text_hash, text),
+    )
     return text_hash
 
 
@@ -184,19 +189,31 @@ def create_from_prompt_sample_params(prompt: LmPrompt, model_key: str):
     text_hash = create_from_prompt_text(prompt)
     sample_hash = prompt_to_sample_hash_text(prompt, model_key)
     params = prompt_to_only_sample_class_dict(prompt, model_key)
-    execute_query((
-        """
+    execute_query(
+        (
+            """
         INSERT OR IGNORE INTO CacheLmPromptSampleParams 
         (text_hash, sample_hash, model_key, max_tokens, temperature, top_p, presence_penalty, 
         frequency_penalty, add_bos_token, echo, add_special_tokens, has_internals_request, stop) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (
-            text_hash, sample_hash, params['model_key'], params['max_tokens'], params['temperature'],
-            params['top_p'], params['presence_penalty'], params['frequency_penalty'], params['add_bos_token'],
-            params['echo'], params['add_special_tokens'], params['has_internals_request'], params['stop']
-        )
-    ))
+            (
+                text_hash,
+                sample_hash,
+                params["model_key"],
+                params["max_tokens"],
+                params["temperature"],
+                params["top_p"],
+                params["presence_penalty"],
+                params["frequency_penalty"],
+                params["add_bos_token"],
+                params["echo"],
+                params["add_special_tokens"],
+                params["has_internals_request"],
+                params["stop"],
+            ),
+        ),
+    )
     return sample_hash
 
 
@@ -207,46 +224,66 @@ def add_prediction_to_cache(prediction: LmPrediction, model_key: str):
     text_hash = prompt_to_text_hash(prediction.prompt)
     text = prediction.prompt.get_text_as_string_default_form()
 
-    execute_query([
-        #"BEGIN;",
-        ("INSERT OR IGNORE INTO CacheLmPromptText (text_hash, text) VALUES (?, ?);", (text_hash, text)),
-        (
-            """
+    execute_query(
+        [
+            # "BEGIN;",
+            (
+                (
+                    "INSERT OR IGNORE INTO CacheLmPromptText (text_hash, text) VALUES"
+                    " (?, ?);"
+                ),
+                (text_hash, text),
+            ),
+            (
+                """
             INSERT OR IGNORE INTO CacheLmPromptSampleParams 
             (text_hash, sample_hash, model_key, max_tokens, temperature, top_p, presence_penalty, 
             frequency_penalty, add_bos_token, echo, add_special_tokens, has_internals_request, stop) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """,
+                (
+                    text_hash,
+                    sample_hash,
+                    params["model_key"],
+                    params["max_tokens"],
+                    params["temperature"],
+                    params["top_p"],
+                    params["presence_penalty"],
+                    params["frequency_penalty"],
+                    params["add_bos_token"],
+                    params["echo"],
+                    params["add_special_tokens"],
+                    params["has_internals_request"],
+                    params["stop"],
+                ),
+            ),
             (
-                text_hash, sample_hash, params['model_key'], params['max_tokens'], params['temperature'],
-                params['top_p'], params['presence_penalty'], params['frequency_penalty'],
-                params['add_bos_token'],
-                params['echo'], params['add_special_tokens'], params['has_internals_request'], params['stop']
-            )
-        ),
-        (
-            """
+                """
             INSERT INTO CacheLmPrediction 
             (sample_params, base_class, completion_text, metad_bytes, date_added) 
             VALUES (?, ?, ?, ?, ?);
             """,
-            (
-                sample_hash, prediction.__class__.__name__,
-                prediction.completion_text, prediction.serialize_metad_for_cache(),
-                datetime.datetime.now().isoformat()
-            )
-        ),
-    ])
+                (
+                    sample_hash,
+                    prediction.__class__.__name__,
+                    prediction.completion_text,
+                    prediction.serialize_metad_for_cache(),
+                    datetime.datetime.now().isoformat(),
+                ),
+            ),
+        ],
+    )
 
 
 def get_from_cache(prompt: LmPrompt, lm: LmPredictor = None) -> LmPrediction | None:
     create_tables()
     sample_hash = prompt_to_sample_hash_text(prompt, lm.get_model_cache_key())
-    #raise ValueError()
+    # raise ValueError()
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT * FROM CacheLmPrediction WHERE sample_params = ?", (sample_hash,)
+        "SELECT * FROM CacheLmPrediction WHERE sample_params = ?",
+        (sample_hash,),
     )
     ret = cursor.fetchone()
     if not ret:
@@ -254,7 +291,11 @@ def get_from_cache(prompt: LmPrompt, lm: LmPredictor = None) -> LmPrediction | N
     assert len(ret) == 5
     completion_text = ret[2]
     metad_bytes = ret[3]
-    return lm.find_prediction_class(prompt).parse_from_cache(completion_text, prompt, metad_bytes)
+    return lm.find_prediction_class(prompt).parse_from_cache(
+        completion_text,
+        prompt,
+        metad_bytes,
+    )
 
 
 class SqlBackedCache:
@@ -278,10 +319,12 @@ class SqlBackedCache:
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "DELETE FROM CacheLmPrediction WHERE sample_params = ?", (sample_hash,)
+            "DELETE FROM CacheLmPrediction WHERE sample_params = ?",
+            (sample_hash,),
         )
         cursor.execute(
-            "DELETE FROM CacheLmPromptSampleParams WHERE sample_hash = ?", (sample_hash,)
+            "DELETE FROM CacheLmPromptSampleParams WHERE sample_hash = ?",
+            (sample_hash,),
         )
         conn.commit()
         data_deleted = cursor.rowcount > 0
@@ -289,12 +332,12 @@ class SqlBackedCache:
         text_hash = prompt_to_text_hash(prompt)
         cursor.execute(
             "SELECT COUNT(*) FROM CacheLmPromptSampleParams WHERE text_hash = ?",
-            (text_hash,)
+            (text_hash,),
         )
         if cursor.fetchone()[0] == 0:
             cursor.execute(
                 "DELETE FROM CacheLmPromptText WHERE text_hash = ?",
-                (text_hash,)
+                (text_hash,),
             )
             conn.commit()
         return data_deleted
@@ -305,7 +348,7 @@ def main():
     lm = get_open_ai_lm()
     pred = lm.predict("Once upon a time")
     add_prediction_to_cache(pred, lm.get_model_cache_key())
-    #add_prediction_to_cache(pred, lm.get_model_cache_key())
+    # add_prediction_to_cache(pred, lm.get_model_cache_key())
 
 
 if __name__ == "__main__":

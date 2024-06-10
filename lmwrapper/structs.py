@@ -1,12 +1,11 @@
 import contextlib
+import pickle
 import statistics
 from dataclasses import dataclass, field
 from typing import Any, Optional, Union
 
 from lmwrapper.interals import ModelInternalsResults
 from lmwrapper.utils import StrEnum
-import pickle
-import json
 
 LM_CHAT_DIALOG_COERCIBLE_TYPES = Union[
     str,
@@ -17,6 +16,7 @@ LM_CHAT_DIALOG_COERCIBLE_TYPES = Union[
 
 class StopMode(StrEnum):
     """Determines how to try to handle stop tokens"""
+
     WILL_NOT_CONTAIN = "WILL_NOT_CONTAIN"
     """This emulates the classic openai completion API. This makes
     sure the returned sequence will not contain the stop token.
@@ -171,7 +171,7 @@ class LmPrompt:
             )
         if self.stop_mode != StopMode.AUTO:
             raise NotImplementedError(
-                "Only StopMode.AUTO is supported at this time as a temporary hack"
+                "Only StopMode.AUTO is supported at this time as a temporary hack",
             )
 
     def is_text_a_chat(self) -> bool:
@@ -316,9 +316,7 @@ class LmPrediction:
             metad=pickle.loads(metad_bytes),
         )
 
-    def serialize_metad_for_cache(
-        self
-    ) -> bytes:
+    def serialize_metad_for_cache(self) -> bytes:
         return pickle.dumps(self.metad)
 
     def __post_init__(self):

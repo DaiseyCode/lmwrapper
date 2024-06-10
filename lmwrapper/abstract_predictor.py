@@ -1,10 +1,9 @@
 from abc import abstractmethod
+from collections.abc import Callable
 from sqlite3 import OperationalError
-from typing import Callable
 
 from ratemate import RateLimit
 
-from lmwrapper.caching import get_disk_cache
 from lmwrapper.structs import LmPrediction, LmPrompt
 
 
@@ -16,8 +15,9 @@ class LmPredictor:
         cache_default: bool = False,
     ):
         self._cache_default = cache_default
-        #self._disk_cache = get_disk_cache()
+        # self._disk_cache = get_disk_cache()
         from lmwrapper.sqlcache import SqlBackedCache
+
         self._disk_cache = SqlBackedCache(self)
 
     def find_prediction_class(self, prompt):
@@ -35,7 +35,7 @@ class LmPredictor:
             )
         self._validate_prompt(prompt, raise_on_invalid=True)
         if should_cache:
-            #cache_key = (prompt, self._get_cache_key_metadata())
+            # cache_key = (prompt, self._get_cache_key_metadata())
             cache_key = prompt
             if cache_key in self._disk_cache:
                 try:
@@ -48,7 +48,7 @@ class LmPredictor:
                 return cache_copy
             val = self._predict_maybe_cached(prompt)
             try:
-                #self._disk_cache.set(cache_key, val)
+                # self._disk_cache.set(cache_key, val)
                 self._disk_cache.add(val)
             except OperationalError as e:
                 print("Failed to cache", e)
@@ -154,6 +154,7 @@ def get_mock_predictor(
     is_chat_model: bool = False,
 ):
     """Gets a mock predictor. By default returns whatever the prompt txt is"""
+
     class MockPredict(LmPredictor):
         def get_model_cache_key(self):
             return "mock_predictor"
@@ -164,6 +165,11 @@ def get_mock_predictor(
 
         def _predict_maybe_cached(self, prompt):
             if predict_func is None:
-                return LmPrediction(prompt.get_text_as_string_default_form(), prompt, {})
+                return LmPrediction(
+                    prompt.get_text_as_string_default_form(),
+                    prompt,
+                    {},
+                )
             return predict_func(prompt)
+
     return MockPredict()

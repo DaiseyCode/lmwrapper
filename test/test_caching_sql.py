@@ -1,9 +1,12 @@
-from lmwrapper.abstract_predictor import get_mock_predictor
+from lmwrapper import sqlcache
 from lmwrapper.caching import clear_cache_dir
 from lmwrapper.openai_wrapper import get_open_ai_lm
-from lmwrapper.sqlcache import add_prediction_to_cache, prompt_to_text_hash, get_from_cache
+from lmwrapper.sqlcache import (
+    add_prediction_to_cache,
+    get_from_cache,
+    prompt_to_text_hash,
+)
 from lmwrapper.structs import LmPrompt
-import lmwrapper.sqlcache as sqlcache
 
 
 def test_add_cache():
@@ -38,6 +41,6 @@ def test_text_hash():
     assert hash != prompt_to_text_hash(LmPrompt("hello world!"))
     assert len(hash) == sqlcache._text_hash_len
     assert len(prompt_to_text_hash(LmPrompt(""))) == sqlcache._text_hash_len
-    assert len(prompt_to_text_hash(LmPrompt("d"*500))) == sqlcache._text_hash_len
+    assert len(prompt_to_text_hash(LmPrompt("d" * 500))) == sqlcache._text_hash_len
     assert len(prompt_to_text_hash(LmPrompt(["foo", "bar"]))) == sqlcache._text_hash_len
     print(hash)
