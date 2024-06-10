@@ -179,6 +179,7 @@ please make a Github Issue.
 - [ ] OpenAI batching interface
 - [ ] Anthropic interface
 - [ ] sort through usage of quantized models
+- [ ] Multimodal / images
 - [ ] Cost estimating (so can estimate cost of a prompt before running / track total cost)
 - [ ] Additional Huggingface runtimes (TensorRT, BetterTransformers, etc)
 - [ ] async / streaming (not a top priority for research use cases)
