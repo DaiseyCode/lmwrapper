@@ -26,6 +26,7 @@ def test_get_cache():
     add_prediction_to_cache(pred, model_key)
     ret = get_from_cache(prompt, lm)
     assert ret is not None
+    assert isinstance(ret, pred.__class__), f"{ret.__class__} != {pred.__class__}"
     assert ret.completion_text == pred.completion_text
     assert pred == ret
     prompt2 = LmPrompt("Once upon a time", cache=True)

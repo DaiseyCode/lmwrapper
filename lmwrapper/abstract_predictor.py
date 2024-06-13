@@ -1,10 +1,18 @@
 from abc import abstractmethod
 from collections.abc import Callable
 from sqlite3 import OperationalError
-
+from typing import Iterable
 from ratemate import RateLimit
 
+from lmwrapper.sqlcache import BatchPredictionShell
 from lmwrapper.structs import LmPrediction, LmPrompt
+from lmwrapper.utils import StrEnum
+
+
+class CompletionWindow(StrEnum):
+    """The """
+    ASAP = "asap"
+    BATCH_24HR = "batch_24hr"
 
 
 class LmPredictor:
@@ -44,6 +52,14 @@ class LmPredictor:
                     print("Failed to get from cache", e)
                     cache_copy = None
                 if cache_copy:
+                    if isinstance(cache_copy, BatchPredictionShell):
+                        raise NotImplementedError(
+                            "We retrieved a non-finalized batched prediction from the"
+                            "cache. This might be actually finished and we could recover"
+                            "and check to see if it is done. However, this is not yet "
+                            "implemented. For now, perhaps try to give this prompt to "
+                            "predict_many to retrieve the batch data."
+                        )
                     cache_copy = cache_copy.mark_as_cached()
                 return cache_copy
             val = self._predict_maybe_cached(prompt)
@@ -55,6 +71,15 @@ class LmPredictor:
             return val
         else:
             return self._predict_maybe_cached(prompt)
+
+    def predict_many(
+        self,
+        prompts: list[str | LmPrompt],
+        completion_window: CompletionWindow,
+        batch_name: str = None,
+    ) -> Iterable[LmPrediction]:
+        for prompt in prompts:
+            yield self.predict(prompt)
 
     def remove_prompt_from_cache(
         self,

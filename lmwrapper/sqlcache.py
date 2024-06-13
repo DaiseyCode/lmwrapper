@@ -3,6 +3,7 @@ import datetime
 import os
 import sqlite3
 import threading
+from dataclasses import dataclass
 
 import xxhash
 
@@ -101,7 +102,7 @@ def create_tables():
         """
         CREATE TABLE IF NOT EXISTS CacheLmPromptSampleParams (
             text_hash TEXT,
-            sample_hash TEXT PRIMARY KEY,
+            text_and_sample_hash TEXT PRIMARY KEY,
             model_key TEXT,
             max_tokens INTEGER,
             temperature REAL,
@@ -113,16 +114,38 @@ def create_tables():
             add_special_tokens INTEGER,
             has_internals_request INTEGER,
             stop TEXT,
-            FOREIGN KEY (text_hash) REFERENCES CacheLmPromptText (text_hash)
+            batch_id INTEGER,
+            FOREIGN KEY (text_hash) REFERENCES CacheLmPromptText (text_hash),
+            FOREIGN KEY (batch_id) REFERENCES Batches (batch_id)
         );
         """,
         """
         CREATE TABLE IF NOT EXISTS CacheLmPrediction (
-            sample_params TEXT,
+            text_and_sample_hash TEXT,
+            multi_sample_number INTEGER,
+            data_populated BOOLEAN,
             base_class TEXT,
             completion_text TEXT,
-            metad_bytes BLOB,
-            date_added TEXT
+            metad_bytes Bget_from_cacheLOB,
+            date_added TEXT,
+            batch_id INTEGER DEFAULT NULL
+        );
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS CacheLmPrediction_text_and_sample_hash_index
+        ON CacheLmPrediction (text_and_sample_hash);
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS Batches (
+            batch_id INTEGER PRIMARY KEY, /* A id we define for this batch */
+            user_batch_name TEXT, /* A name given by the user */
+            api_id TEXT, /* The id used internally by the api */
+            api_category TEXT,  /* eg "openai" */
+            status TEXT NOT NULL,
+            waiting_for_a_result BOOLEAN NOT NULL DEFAULT 1,
+            created_at TEXT,
+            total_inputs INTEGER,
+            api_json_data TEXT  /* The json-serialized data form the api about the batch */
         );
         """,
     ]
@@ -193,7 +216,7 @@ def create_from_prompt_sample_params(prompt: LmPrompt, model_key: str):
         (
             """
         INSERT OR IGNORE INTO CacheLmPromptSampleParams 
-        (text_hash, sample_hash, model_key, max_tokens, temperature, top_p, presence_penalty, 
+        (text_hash, text_and_sample_hash, model_key, max_tokens, temperature, top_p, presence_penalty, 
         frequency_penalty, add_bos_token, echo, add_special_tokens, has_internals_request, stop) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
@@ -219,7 +242,7 @@ def create_from_prompt_sample_params(prompt: LmPrompt, model_key: str):
 
 def add_prediction_to_cache(prediction: LmPrediction, model_key: str):
     create_tables()
-    sample_hash = prompt_to_sample_hash_text(prediction.prompt, model_key)
+    text_and_sample_hash = prompt_to_sample_hash_text(prediction.prompt, model_key)
     params = prompt_to_only_sample_class_dict(prediction.prompt, model_key)
     text_hash = prompt_to_text_hash(prediction.prompt)
     text = prediction.prompt.get_text_as_string_default_form()
@@ -235,15 +258,15 @@ def add_prediction_to_cache(prediction: LmPrediction, model_key: str):
                 (text_hash, text),
             ),
             (
-                """
+            """
             INSERT OR IGNORE INTO CacheLmPromptSampleParams 
-            (text_hash, sample_hash, model_key, max_tokens, temperature, top_p, presence_penalty, 
+            (text_hash, text_and_sample_hash, model_key, max_tokens, temperature, top_p, presence_penalty, 
             frequency_penalty, add_bos_token, echo, add_special_tokens, has_internals_request, stop) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """,
                 (
                     text_hash,
-                    sample_hash,
+                    text_and_sample_hash,
                     params["model_key"],
                     params["max_tokens"],
                     params["temperature"],
@@ -258,13 +281,14 @@ def add_prediction_to_cache(prediction: LmPrediction, model_key: str):
                 ),
             ),
             (
-                """
+            """
             INSERT INTO CacheLmPrediction 
-            (sample_params, base_class, completion_text, metad_bytes, date_added) 
-            VALUES (?, ?, ?, ?, ?);
+            (text_and_sample_hash, data_populated, base_class, completion_text, metad_bytes, date_added) 
+            VALUES (?, ?, ?, ?, ?, ?);
             """,
                 (
-                    sample_hash,
+                    text_and_sample_hash,
+                    True,  # data_populated
                     prediction.__class__.__name__,
                     prediction.completion_text,
                     prediction.serialize_metad_for_cache(),
@@ -275,27 +299,61 @@ def add_prediction_to_cache(prediction: LmPrediction, model_key: str):
     )
 
 
-def get_from_cache(prompt: LmPrompt, lm: LmPredictor = None) -> LmPrediction | None:
+@dataclass
+class BatchPredictionShell:
+    """Used to represent a prediction that got batched
+    but has not had its results completed or fetched yet"""
+    batch_id: int
+    text_and_sample_hash: str
+    api_id: str
+    api_category: str
+    status: str
+    waiting_for_a_result: bool
+
+
+def get_from_cache(
+    prompt: LmPrompt,
+    lm: LmPredictor = None
+) -> LmPrediction | BatchPredictionShell | None:
     create_tables()
     sample_hash = prompt_to_sample_hash_text(prompt, lm.get_model_cache_key())
-    # raise ValueError()
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT * FROM CacheLmPrediction WHERE sample_params = ?",
+        """
+        SELECT p.text_and_sample_hash, p.multi_sample_number, p.data_populated, p.base_class, 
+               p.completion_text, p.metad_bytes, p.batch_id, b.api_id, b.api_category, b.status, 
+               b.waiting_for_a_result
+        FROM CacheLmPrediction p
+        LEFT JOIN Batches b ON p.batch_id = b.batch_id
+        WHERE p.text_and_sample_hash = ?
+        """,
         (sample_hash,),
     )
     ret = cursor.fetchone()
     if not ret:
         return None
-    assert len(ret) == 5
-    completion_text = ret[2]
-    metad_bytes = ret[3]
+
+    # If the data is not populated, return a BatchPredictionShell
+    if not ret[2]:  # data_populated is False
+        return BatchPredictionShell(
+            batch_id=ret[6],
+            text_and_sample_hash=ret[0],
+            api_id=ret[7],
+            api_category=ret[8],
+            status=ret[9],
+            waiting_for_a_result=ret[10]
+        )
+
+    # Otherwise, return the LmPrediction object
+    completion_text = ret[4]
+    metad_bytes = ret[5]
     return lm.find_prediction_class(prompt).parse_from_cache(
         completion_text,
         prompt,
         metad_bytes,
     )
+
 
 
 class SqlBackedCache:
@@ -319,11 +377,11 @@ class SqlBackedCache:
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "DELETE FROM CacheLmPrediction WHERE sample_params = ?",
+            "DELETE FROM CacheLmPrediction WHERE text_and_sample_hashsample_params = ?",
             (sample_hash,),
         )
         cursor.execute(
-            "DELETE FROM CacheLmPromptSampleParams WHERE sample_hash = ?",
+            "DELETE FROM CacheLmPromptSampleParams WHERE text_and_sample_hash = ?",
             (sample_hash,),
         )
         conn.commit()
