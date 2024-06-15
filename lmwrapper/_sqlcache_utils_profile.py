@@ -28,7 +28,7 @@ def _profile_helper_setup_create_cache():
 def _profile_helper_add_predictions(cache, predictions):
     start_time = time.time()
     for pred in predictions:
-        cache.add(prediction=pred)
+        cache.add_or_set(prediction=pred)
     end_time = time.time()
     return end_time - start_time
 

@@ -10,6 +10,7 @@ import xxhash
 from lmwrapper.abstract_predictor import LmPredictor
 from lmwrapper.caching import cache_dir
 from lmwrapper.openai_wrapper import get_open_ai_lm
+from lmwrapper.sqlcache_struct import BatchPredictionPlaceholder
 from lmwrapper.structs import LmPrediction, LmPrompt
 
 _text_hash_len = 32
@@ -126,7 +127,7 @@ def create_tables():
             data_populated BOOLEAN,
             base_class TEXT,
             completion_text TEXT,
-            metad_bytes Bget_from_cacheLOB,
+            metad_bytes BLOB,
             date_added TEXT,
             batch_id INTEGER DEFAULT NULL
         );
@@ -137,7 +138,7 @@ def create_tables():
         """,
         """
         CREATE TABLE IF NOT EXISTS Batches (
-            batch_id INTEGER PRIMARY KEY, /* A id we define for this batch */
+            batch_id TEXT PRIMARY KEY, /* A id we define for this batch */
             user_batch_name TEXT, /* A name given by the user */
             api_id TEXT, /* The id used internally by the api */
             api_category TEXT,  /* eg "openai" */
@@ -240,9 +241,13 @@ def create_from_prompt_sample_params(prompt: LmPrompt, model_key: str):
     return sample_hash
 
 
-def add_prediction_to_cache(prediction: LmPrediction, model_key: str):
+def add_or_set_prediction_to_cache(
+    prediction: LmPrediction,
+    model_key: str
+):
     create_tables()
     text_and_sample_hash = prompt_to_sample_hash_text(prediction.prompt, model_key)
+    print("Adding to cache", text_and_sample_hash)
     params = prompt_to_only_sample_class_dict(prediction.prompt, model_key)
     text_hash = prompt_to_text_hash(prediction.prompt)
     text = prediction.prompt.get_text_as_string_default_form()
@@ -280,12 +285,52 @@ def add_prediction_to_cache(prediction: LmPrediction, model_key: str):
                     params["stop"],
                 ),
             ),
-            (
+            #(
+            #"""
+            #INSERT OR REPLACE INTO CacheLmPrediction
+            #(text_and_sample_hash, data_populated, base_class, completion_text, metad_bytes, date_added)
+            #VALUES (?, ?, ?, ?, ?, ?);
+            #""",
+            #    (
+            #        text_and_sample_hash,
+            #        True,  # data_populated
+            #        prediction.__class__.__name__,
+            #        prediction.completion_text,
+            #        prediction.serialize_metad_for_cache(),
+            #        datetime.datetime.now().isoformat(),
+            #    ),
+            #),
+        ],
+    )
+    # Try to update the prediction
+    updated_rows = execute_query(
+        (
             """
-            INSERT INTO CacheLmPrediction 
-            (text_and_sample_hash, data_populated, base_class, completion_text, metad_bytes, date_added) 
-            VALUES (?, ?, ?, ?, ?, ?);
+            UPDATE CacheLmPrediction 
+            SET data_populated = ?, base_class = ?, completion_text = ?, metad_bytes = ?, date_added = ?
+            WHERE text_and_sample_hash = ?;
             """,
+            (
+                True,  # data_populated
+                prediction.__class__.__name__,
+                prediction.completion_text,
+                prediction.serialize_metad_for_cache(),
+                datetime.datetime.now().isoformat(),
+                text_and_sample_hash,
+            ),
+        ),
+        conn=get_connection(),
+    ).rowcount
+
+    # If no rows were updated, insert the new prediction
+    if updated_rows == 0:
+        execute_query(
+            (
+                """
+                INSERT INTO CacheLmPrediction 
+                (text_and_sample_hash, data_populated, base_class, completion_text, metad_bytes, date_added) 
+                VALUES (?, ?, ?, ?, ?, ?);
+                """,
                 (
                     text_and_sample_hash,
                     True,  # data_populated
@@ -295,35 +340,36 @@ def add_prediction_to_cache(prediction: LmPrediction, model_key: str):
                     datetime.datetime.now().isoformat(),
                 ),
             ),
-        ],
-    )
+        )
 
 
 @dataclass
-class BatchPredictionShell:
-    """Used to represent a prediction that got batched
-    but has not had its results completed or fetched yet"""
-    batch_id: int
-    text_and_sample_hash: str
+class BatchRow:
+    batch_id: str
+    user_batch_name: str
     api_id: str
     api_category: str
     status: str
     waiting_for_a_result: bool
+    created_at: int
+    total_inputs: int
+    api_json_data: str
 
 
 def get_from_cache(
     prompt: LmPrompt,
     lm: LmPredictor = None
-) -> LmPrediction | BatchPredictionShell | None:
+) -> LmPrediction | BatchPredictionPlaceholder | None:
     create_tables()
     sample_hash = prompt_to_sample_hash_text(prompt, lm.get_model_cache_key())
+    print("Get hash", sample_hash)
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
         """
         SELECT p.text_and_sample_hash, p.multi_sample_number, p.data_populated, p.base_class, 
                p.completion_text, p.metad_bytes, p.batch_id, b.api_id, b.api_category, b.status, 
-               b.waiting_for_a_result
+               b.waiting_for_a_result, b.total_inputs
         FROM CacheLmPrediction p
         LEFT JOIN Batches b ON p.batch_id = b.batch_id
         WHERE p.text_and_sample_hash = ?
@@ -336,13 +382,15 @@ def get_from_cache(
 
     # If the data is not populated, return a BatchPredictionShell
     if not ret[2]:  # data_populated is False
-        return BatchPredictionShell(
+        print("NOT POPULATED", ret)
+        return BatchPredictionPlaceholder(
             batch_id=ret[6],
             text_and_sample_hash=ret[0],
             api_id=ret[7],
             api_category=ret[8],
             status=ret[9],
-            waiting_for_a_result=ret[10]
+            waiting_for_a_result=ret[10],
+            batch_total_inputs=ret[11],
         )
 
     # Otherwise, return the LmPrediction object
@@ -355,11 +403,14 @@ def get_from_cache(
     )
 
 
-
 class SqlBackedCache:
     def __init__(self, lm):
         create_tables()
         self._lm = lm
+
+    @property
+    def lm(self):
+        return self._lm
 
     def __contains__(self, prompt: LmPrompt):
         return get_from_cache(prompt, self._lm) is not None
@@ -367,8 +418,79 @@ class SqlBackedCache:
     def get(self, prompt: LmPrompt):
         return get_from_cache(prompt, self._lm)
 
-    def add(self, prediction: LmPrediction):
-        add_prediction_to_cache(prediction, self._lm.get_model_cache_key())
+    def add_or_set(self, prediction: LmPrediction):
+        add_or_set_prediction_to_cache(
+            prediction, self._lm.get_model_cache_key()
+        )
+
+    def update_batch_row(
+        self,
+        batch_api_id: str, status: str, waiting_for_a_result: bool
+    ):
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE Batches 
+            SET status = ?, waiting_for_a_result = ?
+            WHERE api_id = ?
+            """,
+            (
+                status,
+                waiting_for_a_result,
+                batch_api_id,
+            ),
+        )
+        conn.commit()
+
+    def put_batch_placeholders(
+        self,
+        batch_row: BatchRow,
+        prompts: list[LmPrompt],
+    ):
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO Batches (batch_id, user_batch_name, api_id, api_category, status, waiting_for_a_result, created_at, total_inputs, api_json_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                batch_row.batch_id,
+                batch_row.user_batch_name,
+                batch_row.api_id,
+                batch_row.api_category,
+                batch_row.status,
+                batch_row.waiting_for_a_result,
+                batch_row.created_at,
+                batch_row.total_inputs,
+                batch_row.api_json_data,
+            ),
+        )
+        cursor.executemany(
+            """
+            INSERT INTO CacheLmPrediction (text_and_sample_hash, data_populated, batch_id)
+            VALUES (?, ?, ?)
+            """,
+            [
+                (
+                    prompt_to_sample_hash_text(prompt, self._lm.get_model_cache_key()),
+                    False,
+                    batch_row.batch_id,
+                )
+                for prompt in prompts
+            ]
+        )
+        conn.commit()
+        return [
+            BatchPredictionPlaceholder(
+                batch_id=batch_row.batch_id,
+                text_and_sample_hash=prompt_to_sample_hash_text(prompt, self._lm.get_model_cache_key()),
+                api_id=batch_row.api_id,
+                api_category=batch_row.api_category,
+                status=batch_row.status,
+                waiting_for_a_result=batch_row.waiting_for_a_result,
+                batch_total_inputs=batch_row.total_inputs,
+            )
+            for prompt in prompts
+        ]
 
     def delete(self, prompt: LmPrompt) -> bool:
         if not isinstance(prompt, LmPrompt):
@@ -405,7 +527,7 @@ def main():
     create_tables()
     lm = get_open_ai_lm()
     pred = lm.predict("Once upon a time")
-    add_prediction_to_cache(pred, lm.get_model_cache_key())
+    add_or_set_prediction_to_cache(pred, lm.get_model_cache_key())
     # add_prediction_to_cache(pred, lm.get_model_cache_key())
 
 

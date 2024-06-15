@@ -7,8 +7,11 @@ import time
 import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
+
+import openai.types
 import tiktoken
 from openai import OpenAI, RateLimitError
+import openai.types.chat
 from openai.types.completion_choice import Logprobs
 from lmwrapper.abstract_predictor import LmPredictor
 from lmwrapper.secrets_manager import (
@@ -445,7 +448,17 @@ class OpenAIPredictor(LmPredictor):
         if not is_success_func(completion):
             raise completion
 
-        choices = completion.choices
+        preds = self.prediction_from_api_response(completion, prompt)
+        if len(preds) == 1:
+            return preds[0]
+        return preds
+
+    def prediction_from_api_response(
+        self,
+        response: openai.types.Completion | openai.types.chat.ChatCompletion,
+        prompt: LmPrompt,
+    ) -> list[LmPrediction]:
+        choices = response.choices
 
         def get_completion_text(text):
             if not prompt.echo:
@@ -455,7 +468,7 @@ class OpenAIPredictor(LmPredictor):
         def get_text_from_choice(choice):
             return choice.text if not self._chat_mode else choice.message.content
 
-        out = [
+        return [
             OpenAiLmPrediction(
                 get_completion_text(get_text_from_choice(choice)),
                 prompt,
@@ -464,9 +477,6 @@ class OpenAIPredictor(LmPredictor):
             )
             for choice in choices
         ]
-        if len(choices) == 1:
-            return out[0]
-        return out
 
     def remove_special_chars_from_tokens(self, tokens: list[str]) -> list[str]:
         return tokens

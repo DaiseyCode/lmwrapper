@@ -4,7 +4,7 @@ from sqlite3 import OperationalError
 from typing import Iterable
 from ratemate import RateLimit
 
-from lmwrapper.sqlcache import BatchPredictionShell
+from lmwrapper.sqlcache_struct import BatchPredictionPlaceholder
 from lmwrapper.structs import LmPrediction, LmPrompt
 from lmwrapper.utils import StrEnum
 
@@ -52,7 +52,7 @@ class LmPredictor:
                     print("Failed to get from cache", e)
                     cache_copy = None
                 if cache_copy:
-                    if isinstance(cache_copy, BatchPredictionShell):
+                    if isinstance(cache_copy, BatchPredictionPlaceholder):
                         raise NotImplementedError(
                             "We retrieved a non-finalized batched prediction from the"
                             "cache. This might be actually finished and we could recover"
@@ -65,7 +65,7 @@ class LmPredictor:
             val = self._predict_maybe_cached(prompt)
             try:
                 # self._disk_cache.set(cache_key, val)
-                self._disk_cache.add(val)
+                self._disk_cache.add_or_set(val)
             except OperationalError as e:
                 print("Failed to cache", e)
             return val

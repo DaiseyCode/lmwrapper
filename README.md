@@ -7,6 +7,23 @@ keys and values), your IDE can help you with things like argument and
 property names and catch certain bugs statically. Additionally, it allows
 you to switch inbetween OpenAI endpoints and local models with minimal changes.
 
+<!---
+
+Provides a wrapper around OpenAI API and Hugging Face Language models, focusing
+on being a clean and user-friendly interface. It has two main goals:
+
+A) Make it easier to use the OpenAI API
+B) Make it easy to reuse your code for other language models with minimal changes.
+
+`lmwrapper` is lightweight. It doesn't try to do extra things like RAG, CoT, etc. However, it can serve a flexible stand-in for the OpenAI API when building or researching such techniques.
+
+Because every input
+and output is object-oriented (rather than just JSON dictionaries with string
+keys and values), your IDE can help you with things like argument and
+property names and catch certain bugs statically. Additionally, it allows
+you to switch inbetween OpenAI endpoints and local models with minimal changes.
+--->
+
 ## Installation
 
 For usage with just OpenAI models:
