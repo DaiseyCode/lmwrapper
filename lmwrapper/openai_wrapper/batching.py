@@ -48,7 +48,6 @@ class OpenAiBatchManager:
         needed = []
         for i, prompt in enumerate(prompts):
             value = self._cache.get(prompt)
-            print("Lookup", i, "value", value)
             if value is None:
                 needed.append((i, prompt))
             elif isinstance(value, BatchPredictionPlaceholder):
@@ -59,6 +58,8 @@ class OpenAiBatchManager:
         return needed
 
     def _send_batch(self, prompts: list[tuple[int, LmPrompt]]):
+        if not prompts:
+            return
         jsonl = "\n".join(
             json.dumps(
                 _prompt_to_arg_dict_for_batch(prompt, self._lm, str(index))
@@ -76,7 +77,7 @@ class OpenAiBatchManager:
             status=batch_data.status,
             waiting_for_a_result=True,
             created_at=batch_data.created_at,
-            total_inputs=batch_data.request_counts.total,
+            total_inputs=len(prompts),
             api_json_data=json.dumps(batch_data.dict()),
         )
         place_holders = self._cache.put_batch_placeholders(
@@ -84,20 +85,17 @@ class OpenAiBatchManager:
         )
         for (index, prompt), place_holder in zip(prompts, place_holders):
             self._output[index] = place_holder
-        print(batch_row)
 
     def _poll_completion(
         self,
         target: BatchPredictionPlaceholder
     ):
-        print("start poll")
         start_time = time.time()
         pbar = self._pbar_for_targer(target)
         while (time_waited := time.time() - start_time) < 60 * 60 * 24:
             retrieve_data: openai.types.Batch = self._cache.lm._api.batches.retrieve(
                 target.api_id
             )
-            print("retrieved_data", retrieve_data)
             waiting_for_results = retrieve_data.status in (
                 "validating",
                 "in_progress",
@@ -114,6 +112,7 @@ class OpenAiBatchManager:
             # Update description with failure count
             desc = f"Waiting for batch {target.api_id} completion."
             if retrieve_data.request_counts.failed:
+                raise RuntimeError("Batch failed. This needs to be handled")
                 desc += f" ({retrieve_data.request_counts.failed} failed)"
             pbar.set_description(desc)
             if not waiting_for_results:
@@ -131,8 +130,6 @@ class OpenAiBatchManager:
     ):
         content = self._cache.lm._api.files.content(batch_data.output_file_id)
         content_str = content.content.decode('utf-8')
-        print("Get content")
-        print(content_str)
         for line in content_str.split("\n"):
             if not line:
                 continue
@@ -155,7 +152,6 @@ class OpenAiBatchManager:
     def _pbar_for_targer(self, target: BatchPredictionPlaceholder):
         batch_id = target.api_id
         if batch_id not in self._batch_id_to_pbar:
-            print("Pbar total", target.batch_total_inputs)
             pbar = tqdm.tqdm(
                 total=target.batch_total_inputs,
                 desc=f"Waiting for batch {batch_id} completion"
@@ -252,6 +248,8 @@ def main():
     prompts = [
         LmPrompt("hello world", cache=True),
         LmPrompt("hello world! I come", cache=True),
+        LmPrompt("goodbye", cache=True),
+        LmPrompt("Woah", cache=True),
     ]
     batch_manager = OpenAiBatchManager(prompts, lm._disk_cache)
     batch_manager.start_batch()
@@ -273,7 +271,6 @@ def main():
         file=jsonl_bytes,
         purpose="batch",
     )
-    print(batch_input_file)
     batch_data = lm._api.batches.create(
         input_file_id=batch_input_file.id,
         endpoint=(
@@ -283,11 +280,9 @@ def main():
         ),
         completion_window="24h",
     )
-    print(batch_data)
     time.sleep(1)
     for _ in range(10000):
         retrieve_data = lm._api.batches.retrieve(batch_data.id)
-        print(retrieve_data)
         if retrieve_data.status not in (
             "validating",
             "in_progress",
@@ -296,10 +291,8 @@ def main():
             break
         time.sleep(3)
     content = lm._api.files.content(retrieve_data.output_file_id)
-    print(content)
     # Decode the content into a string
     content_str = content.content.decode('utf-8')
-    print(content_str)
 
 
 if __name__ == "__main__":

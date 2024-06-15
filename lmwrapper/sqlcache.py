@@ -247,7 +247,6 @@ def add_or_set_prediction_to_cache(
 ):
     create_tables()
     text_and_sample_hash = prompt_to_sample_hash_text(prediction.prompt, model_key)
-    print("Adding to cache", text_and_sample_hash)
     params = prompt_to_only_sample_class_dict(prediction.prompt, model_key)
     text_hash = prompt_to_text_hash(prediction.prompt)
     text = prediction.prompt.get_text_as_string_default_form()
@@ -362,7 +361,6 @@ def get_from_cache(
 ) -> LmPrediction | BatchPredictionPlaceholder | None:
     create_tables()
     sample_hash = prompt_to_sample_hash_text(prompt, lm.get_model_cache_key())
-    print("Get hash", sample_hash)
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -382,7 +380,6 @@ def get_from_cache(
 
     # If the data is not populated, return a BatchPredictionShell
     if not ret[2]:  # data_populated is False
-        print("NOT POPULATED", ret)
         return BatchPredictionPlaceholder(
             batch_id=ret[6],
             text_and_sample_hash=ret[0],
