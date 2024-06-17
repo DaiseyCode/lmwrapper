@@ -241,8 +241,6 @@ def _prompt_to_arg_dict_for_batch(
     return request
 
 
-
-
 def main():
     lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo)
     prompts = [
@@ -255,44 +253,6 @@ def main():
     batch_manager.start_batch()
     for result in batch_manager.iter_results():
         print("result", result)
-    exit()
-    prompts = [
-        _prompt_to_arg_dict_for_batch(prompt, lm)
-        for prompt in [
-            LmPrompt("hello world"),
-            #LmPrompt("goodbye world"),
-        ]
-    ]
-    # Convert prompts to JSONL string
-    jsonl_str = "\n".join(json.dumps(prompt) for prompt in prompts)
-    # Convert JSONL string to bytes
-    jsonl_bytes = io.BytesIO(jsonl_str.encode('utf-8'))
-    batch_input_file = lm._api.files.create(
-        file=jsonl_bytes,
-        purpose="batch",
-    )
-    batch_data = lm._api.batches.create(
-        input_file_id=batch_input_file.id,
-        endpoint=(
-            "/v1/chat/completions"
-            if lm.is_chat_model
-            else "/v1/completions"
-        ),
-        completion_window="24h",
-    )
-    time.sleep(1)
-    for _ in range(10000):
-        retrieve_data = lm._api.batches.retrieve(batch_data.id)
-        if retrieve_data.status not in (
-            "validating",
-            "in_progress",
-            "finalizing",
-        ):
-            break
-        time.sleep(3)
-    content = lm._api.files.content(retrieve_data.output_file_id)
-    # Decode the content into a string
-    content_str = content.content.decode('utf-8')
 
 
 if __name__ == "__main__":

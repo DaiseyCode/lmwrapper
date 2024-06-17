@@ -1,6 +1,6 @@
 import bisect
 import math
-from typing import Any
+from typing import Any, Iterable
 import random
 import re
 import time
@@ -13,7 +13,7 @@ import tiktoken
 from openai import OpenAI, RateLimitError
 import openai.types.chat
 from openai.types.completion_choice import Logprobs
-from lmwrapper.abstract_predictor import LmPredictor
+from lmwrapper.abstract_predictor import LmPredictor, CompletionWindow
 from lmwrapper.secrets_manager import (
     SecretEnvVar,
     SecretFile,
@@ -478,6 +478,25 @@ class OpenAIPredictor(LmPredictor):
             for choice in choices
         ]
 
+    def predict_many(
+        self,
+        prompts: list[str | LmPrompt],
+        completion_window: CompletionWindow,
+    ) -> Iterable[LmPrediction]:
+        if completion_window == CompletionWindow.BATCH_ANY:
+            from lmwrapper.openai_wrapper import batching
+            # ^ putting this here to prevent circular import.
+            #   probably some more clever way...
+            batch_manager = batching.OpenAiBatchManager(
+                prompts=prompts,
+                cache=self._disk_cache,
+                maintain_order=True,
+            )
+            yield from batch_manager.iter_results()
+            return
+        for prompt in prompts:
+            yield self.predict(prompt)
+
     def remove_special_chars_from_tokens(self, tokens: list[str]) -> list[str]:
         return tokens
 
@@ -491,7 +510,7 @@ class OpenAiInstantiationHook(ABC):
     """
     Potentially used to add API controls on predictor instantiation.
     An example usecase is to make sure certain keys are only used with
-    certain models..
+    certain models.
     """
 
     def __init__(self):
