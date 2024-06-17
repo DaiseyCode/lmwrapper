@@ -3,6 +3,7 @@ import math
 import numpy as np
 import pytest
 
+from lmwrapper.abstract_predictor import CompletionWindow
 from lmwrapper.huggingface_wrapper.wrapper import get_huggingface_lm
 from lmwrapper.openai_wrapper.wrapper import OpenAiModelNames, get_open_ai_lm
 from lmwrapper.structs import LmPrompt
@@ -742,3 +743,28 @@ def test_echo_many_toks(lm):
         np.exp(out.completion_logprobs),
         atol=0.001,
     )
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_predict_many(lm):
+    pred = lm.predict_many(
+        [
+            LmPrompt(
+                "A B C D E F G H",
+                max_tokens=3,
+                cache=False,
+                temperature=0,
+                logprobs=1,
+            ),
+            LmPrompt(
+                "A B C D E F G H I J",
+                max_tokens=3,
+                cache=False,
+                temperature=0,
+                logprobs=1,
+            ),
+        ],
+        completion_window=CompletionWindow.ASAP,
+    )
+    resps = list(pred)
+    assert len(resps) == 2
