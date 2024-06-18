@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import diskcache
-from joblib import Memory
 
 cur_file = Path(__file__).parent.absolute()
 
@@ -33,19 +31,21 @@ def _verify_looks_like_cache_dir(path: Path):
                 raise ValueError(msg)
 
 
-def _cache_dir() -> Path:
+def cache_dir() -> Path:
     if _set_cache_dir is not None:
         return _set_cache_dir
     return Path.cwd() / ".lmwrapper_cache"
 
 
-def _get_disk_cache_joblib() -> Memory:
-    return Memory(_cache_dir(), verbose=0)
+def _get_disk_cache_joblib():
+    from joblib import Memory
+    return Memory(cache_dir(), verbose=0)
 
 
-def _get_disk_cache_diskcache() -> diskcache.FanoutCache:
+def _get_disk_cache_diskcache():
+    import diskcache
     return diskcache.FanoutCache(
-        str(_cache_dir()),
+        str(cache_dir()),
         timeout=int(9e9),
         size_limit=50e9,
         shards=4,
@@ -61,4 +61,5 @@ def get_disk_cache():
 def clear_cache_dir():
     import shutil
 
-    shutil.rmtree(_cache_dir())
+    if cache_dir().exists():
+        shutil.rmtree(cache_dir())

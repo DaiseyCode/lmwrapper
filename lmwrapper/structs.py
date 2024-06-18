@@ -1,4 +1,5 @@
 import contextlib
+import pickle
 import statistics
 from dataclasses import dataclass, field
 from typing import Any, Optional, Union
@@ -15,6 +16,7 @@ LM_CHAT_DIALOG_COERCIBLE_TYPES = Union[
 
 class StopMode(StrEnum):
     """Determines how to try to handle stop tokens"""
+
     WILL_NOT_CONTAIN = "WILL_NOT_CONTAIN"
     """This emulates the classic openai completion API. This makes
     sure the returned sequence will not contain the stop token.
@@ -38,7 +40,7 @@ class LmPrompt:
     into a LmChatDialog."""
     max_tokens: int | None = None
     """The maximum number of tokens to generate in the completion. If `None`
-    then the model downstream model will choose some default value. This value
+    then the downstream model will choose some default value. This value
     might be a function of the prompt input length, but this behaviour is not defined.
     This means it is possible that the default max might cause errors with long prompts.
     It recommended that you specify a limit yourself to have more predictable
@@ -54,7 +56,8 @@ class LmPrompt:
     """Different models/providers handle stopping in different ways. You can
     either leave that as-is ("auto") or try to change the mode to try
     to emulate another mode (which may or may not work depending on
-    the model)."""
+    the model. Models are expected to raise an error if an incompatible
+    mode is given)."""
     logprobs: int = 1
     """Include the log probabilities on the logprobs most likely tokens,
     as well the chosen tokens. For example, if logprobs is 5, the
@@ -121,6 +124,9 @@ class LmPrompt:
     # TODO: make a auto_reduce_max_tokens to reduce when might go over.
 
     def __post_init__(self):
+        if isinstance(self.text, list):
+            # Convert the text into a chat dialog
+            object.__setattr__(self, "text", LmChatDialog(self.text))
         if self.max_tokens is not None and not isinstance(self.max_tokens, int):
             msg = "The max_tokens parameter should be an int."
             raise ValueError(msg)
@@ -163,9 +169,13 @@ class LmPrompt:
             raise ValueError(
                 msg,
             )
+        if self.stop_mode != StopMode.AUTO:
+            raise NotImplementedError(
+                "Only StopMode.AUTO is supported at this time as a temporary hack",
+            )
 
     def is_text_a_chat(self) -> bool:
-        return isinstance(self.text, list)
+        return isinstance(self.text, LmChatDialog)
 
     def get_text_as_chat(self) -> "LmChatDialog":
         return LmChatDialog(self.text)
@@ -292,6 +302,22 @@ class LmPrediction:
     prompt: LmPrompt
     metad: Any
     internals: ModelInternalsResults | None = field(default=None, kw_only=True)
+
+    @classmethod
+    def parse_from_cache(
+        cls,
+        completion_text: str,
+        prompt: LmPrompt,
+        metad_bytes: bytes,
+    ):
+        return cls(
+            completion_text=completion_text,
+            prompt=prompt,
+            metad=pickle.loads(metad_bytes),
+        )
+
+    def serialize_metad_for_cache(self) -> bytes:
+        return pickle.dumps(self.metad)
 
     def __post_init__(self):
         self._was_cached = False

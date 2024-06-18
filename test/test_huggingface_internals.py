@@ -4,11 +4,11 @@ from test.test_huggingface import BIG_MODELS, Models
 
 import numpy as np
 import pytest
+import torch
 
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
 from lmwrapper.interals import ModelInternalsRequest
 from lmwrapper.structs import LmPrompt
-import torch
 
 IS_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
 
@@ -28,8 +28,10 @@ def test_get_internals_hidden_states(pytestconfig, model_name_layers_hidden):
     model_name, num_layers, hidden_size = model_name_layers_hidden
     is_run_slow = pytestconfig.getoption("--runslow")
     if IS_GITHUB_ACTIONS and model_name != Models.GPT2:
-        pytest.skip("We are only going to test gpt2 here. "
-                    "The other models are either large or use a similar attention pattern.")
+        pytest.skip(
+            "We are only going to test gpt2 here. "
+            "The other models are either large or use a similar attention pattern.",
+        )
     if IS_GITHUB_ACTIONS and model_name in BIG_MODELS:
         pytest.skip("skip big models in github actions")
     model = get_huggingface_lm(model_name, trust_remote_code=True)
@@ -50,7 +52,9 @@ def test_get_internals_hidden_states(pytestconfig, model_name_layers_hidden):
     def check_vals(pred, prompt):
         assert pred.internals.hidden_states is not None
         assert isinstance(pred.internals.hidden_states, tuple)
-        assert len(pred.internals.hidden_states) == 1 + num_layers  # has embedding layer
+        assert (
+            len(pred.internals.hidden_states) == 1 + num_layers
+        )  # has embedding layer
         assert all(isinstance(x, np.ndarray) for x in pred.internals.hidden_states)
         assert all(
             x.shape == (num_expected_tokens, hidden_size)

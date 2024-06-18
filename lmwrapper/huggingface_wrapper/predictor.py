@@ -42,11 +42,8 @@ class HuggingFacePredictor(LmPredictor):
         self.prompt_trimmer = prompt_trimmer
         self._tokenizer_already_adds_bos = {}
 
-    def _get_cache_key_metadata(self):
-        return {
-            "model": "HuggingFacePredictor",
-            "name_or_path": self._model.name_or_path,
-        }
+    def get_model_cache_key(self):
+        return self._model.name_or_path
 
     def _verify_initial_prompt(self, prompt: LmPrompt):
         if not isinstance(prompt.text, str) and len(prompt.text) != 1:
@@ -389,9 +386,9 @@ class HuggingFacePredictor(LmPredictor):
                     combined_logits = torch.cat(cached_logits, dim=1)
                 else:
                     combined_logits = cached_logits[-1]
-                if not (combined_logits.shape[1] == len(model_output_sequence[1:])):
+                if combined_logits.shape[1] != len(model_output_sequence[1:]):
                     msg = (
-                        f"Logits shape does not match the output sequence length\n"
+                        "Logits shape does not match the output sequence length\n"
                         f"Logits shape: {cached_logits.shape}\n"
                         f"Output sequence length: {len(model_output_sequence[1:])}"
                     )
@@ -515,6 +512,9 @@ class HuggingFacePredictor(LmPredictor):
             _log_probs=np_logprobs,
             _logprobs_dict=logprobs_dicts,
         )
+
+    def find_prediction_class(self, prompt):
+        return HuggingFacePrediction
 
     def _parse_model_internals_results(
         self,

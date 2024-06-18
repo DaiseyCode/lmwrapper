@@ -1,9 +1,9 @@
 from abc import abstractmethod
+from collections.abc import Callable
 from sqlite3 import OperationalError
 
 from ratemate import RateLimit
 
-from lmwrapper.caching import get_disk_cache
 from lmwrapper.structs import LmPrediction, LmPrompt
 
 
@@ -15,7 +15,13 @@ class LmPredictor:
         cache_default: bool = False,
     ):
         self._cache_default = cache_default
-        self._disk_cache = get_disk_cache()
+        # self._disk_cache = get_disk_cache()
+        from lmwrapper.sqlcache import SqlBackedCache
+
+        self._disk_cache = SqlBackedCache(self)
+
+    def find_prediction_class(self, prompt):
+        return LmPrediction
 
     def predict(
         self,
@@ -29,37 +35,40 @@ class LmPredictor:
             )
         self._validate_prompt(prompt, raise_on_invalid=True)
         if should_cache:
-            cache_key = (prompt, self._get_cache_key_metadata())
+            # cache_key = (prompt, self._get_cache_key_metadata())
+            cache_key = prompt
             if cache_key in self._disk_cache:
-                cache_copy = self._disk_cache.get(cache_key)
+                try:
+                    cache_copy = self._disk_cache.get(cache_key)
+                except OperationalError as e:
+                    print("Failed to get from cache", e)
+                    cache_copy = None
                 if cache_copy:
                     cache_copy = cache_copy.mark_as_cached()
                 return cache_copy
             val = self._predict_maybe_cached(prompt)
             try:
-                self._disk_cache.set(cache_key, val)
+                # self._disk_cache.set(cache_key, val)
+                self._disk_cache.add(val)
             except OperationalError as e:
                 print("Failed to cache", e)
             return val
         else:
             return self._predict_maybe_cached(prompt)
 
-    def _cache_key_for_prompt(self, prompt):
-        return (prompt, self._get_cache_key_metadata())
-
     def remove_prompt_from_cache(
         self,
         prompt: str | LmPrompt,
     ) -> bool:
-        return self._disk_cache.delete(self._cache_key_for_prompt(prompt))
+        return self._disk_cache.delete(prompt)
 
     def _validate_prompt(self, prompt: LmPrompt, raise_on_invalid: bool = True) -> bool:
         """Called on prediction to make sure the prompt is valid for the model"""
         return True
 
     @abstractmethod
-    def _get_cache_key_metadata(self):
-        return {"name": type(self).__name__}
+    def get_model_cache_key(self):
+        return type(self).__name__
 
     @abstractmethod
     def _predict_maybe_cached(
@@ -138,3 +147,29 @@ class LmPredictor:
     @property
     def default_tokens_generated(self) -> int:
         return self.token_limit // 16
+
+
+def get_mock_predictor(
+    predict_func: Callable[[LmPrompt], LmPrediction] = None,
+    is_chat_model: bool = False,
+):
+    """Gets a mock predictor. By default returns whatever the prompt txt is"""
+
+    class MockPredict(LmPredictor):
+        def get_model_cache_key(self):
+            return "mock_predictor"
+
+        @property
+        def is_chat_model(self) -> bool:
+            return is_chat_model
+
+        def _predict_maybe_cached(self, prompt):
+            if predict_func is None:
+                return LmPrediction(
+                    prompt.get_text_as_string_default_form(),
+                    prompt,
+                    {},
+                )
+            return predict_func(prompt)
+
+    return MockPredict()

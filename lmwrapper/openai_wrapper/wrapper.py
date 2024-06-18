@@ -51,10 +51,7 @@ class OpenAiLmPrediction(LmPrediction):
         if not probably_chat:
             return self.metad.logprobs.tokens
         else:
-            return [
-                lp.token
-                for lp in self.metad.logprobs.content
-            ]
+            return [lp.token for lp in self.metad.logprobs.content]
 
     def _all_toks_offsets(self):
         return self.metad.logprobs.text_offset
@@ -67,10 +64,7 @@ class OpenAiLmPrediction(LmPrediction):
         if not probably_chat:
             return self.metad.logprobs.token_logprobs
         else:
-            return [
-                lp.logprob
-                for lp in self.metad.logprobs.content
-            ]
+            return [lp.logprob for lp in self.metad.logprobs.content]
 
     @property
     def completion_tokens(self):
@@ -212,6 +206,11 @@ class OpenAIPredictor(LmPredictor):
         """
         cls._instantiation_hooks.append(hook)
 
+    def find_prediction_class(self, prompt):
+        if self._chat_mode:
+            return OpenAiLmChatPrediction
+        return OpenAiLmPrediction
+
     def _validate_prompt(self, prompt: LmPrompt, raise_on_invalid: bool = True) -> bool:
         if prompt.logprobs is not None and prompt.logprobs > MAX_LOG_PROB_PARM:
             warnings.warn(
@@ -219,14 +218,14 @@ class OpenAIPredictor(LmPredictor):
                 " might cause unexpected behavior if you later are dependingon more"
                 " returns",
             )
+            return False
+        return True
 
     def model_name(self):
         return self._engine_name
 
-    def _get_cache_key_metadata(self):
-        return {
-            "engine": self._engine_name,
-        }
+    def get_model_cache_key(self):
+        return "OpenAI::" + self._engine_name
 
     def list_engines(self):
         return self._api.Engine.list()

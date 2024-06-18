@@ -1,4 +1,6 @@
 # test
+import os
+
 import numpy as np
 import pytest
 import torch
@@ -14,7 +16,6 @@ from lmwrapper.prompt_trimming import HfTokenTrimmer
 from lmwrapper.runtime import Runtime
 from lmwrapper.structs import LmPrompt
 from lmwrapper.utils import StrEnum
-import os
 
 
 class Models(StrEnum):
@@ -854,7 +855,7 @@ def test_tokenizer_offsets_code_llama():
     assert list(starts) == expected_offsets
 
 
-#@pytest.mark.skipif(IS_GITHUB_ACTIONS, reason="Can't load tokenizer on GitHub Actions")
+# @pytest.mark.skipif(IS_GITHUB_ACTIONS, reason="Can't load tokenizer on GitHub Actions")
 @pytest.mark.skip(reason="Mistral seems broken with gating error")
 def test_offsets_for_mistral():
     model_name = Models.Mistral_7B
@@ -872,7 +873,7 @@ def test_offsets_for_mistral():
     ]
 
 
-#@pytest.mark.skipif(IS_GITHUB_ACTIONS, reason="Can't load tokenizer on GitHub Actions")
+# @pytest.mark.skipif(IS_GITHUB_ACTIONS, reason="Can't load tokenizer on GitHub Actions")
 @pytest.mark.skip(reason="Mistral seems broken with gating error")
 def test_offsets_for_mistral2():
     model_name = Models.Mistral_7B
@@ -889,7 +890,7 @@ def test_offsets_for_mistral2():
     ]
 
 
-#@pytest.mark.skipif(IS_GITHUB_ACTIONS, reason="Can't load tokenizer on GitHub Actions")
+# @pytest.mark.skipif(IS_GITHUB_ACTIONS, reason="Can't load tokenizer on GitHub Actions")
 @pytest.mark.skip(reason="Mistral seems broken with gating error")
 def test_offsets_for_mistral3():
     model_name = Models.Mistral_7B
@@ -1041,7 +1042,7 @@ def test_hello_world_prompt(model):
     }
 
 
-#@pytest.mark.skipif(IS_GITHUB_ACTIONS, reason="Can't load tokenizer on GitHub Actions")
+# @pytest.mark.skipif(IS_GITHUB_ACTIONS, reason="Can't load tokenizer on GitHub Actions")
 @pytest.mark.skip(reason="Mistral seems broken with gating error")
 def test_check_tokenizer_check():
     mistral_tokenizer = AutoTokenizer.from_pretrained(Models.Mistral_7B, use_fast=True)

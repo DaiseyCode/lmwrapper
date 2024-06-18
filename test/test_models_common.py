@@ -292,8 +292,8 @@ def test_stopping_begin_tok_full_tok(lm):
     assert "is the city Paris" in val_normal.completion_text
     assert len(val_normal.completion_tokens) == 4
     assert (
-            lm.remove_special_chars_from_tokens(val_normal.completion_tokens)[-1]
-            == " Paris"
+        lm.remove_special_chars_from_tokens(val_normal.completion_tokens)[-1]
+        == " Paris"
     )
     val_no_pa = lm.predict(
         LmPrompt(
@@ -740,5 +740,5 @@ def test_echo_many_toks(lm):
     assert np.allclose(
         np.exp(out2.completion_logprobs),
         np.exp(out.completion_logprobs),
-        atol=0.001
+        atol=0.001,
     )
