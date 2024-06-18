@@ -22,7 +22,7 @@ authors = [
     { name = "David Gros" },
     { name = "Claudio Spiess" },
 ]
-description = "Wrapper around language model APIs"
+description = "An object-oriented wrapper around language models with caching, batching, and more. "
 readme = "README.md"
 requires-python = ">=3.10"
 classifiers = ["Programming Language :: Python :: 3"]
@@ -35,7 +35,7 @@ dependencies = [
     "ratemate~=0.1",
     "humanize~=4.8.0",
     "xxhash~=3.4",
-    "numpy~=1"
+    "numpy~=1.21"
 ]
 
 [project.optional-dependencies]
