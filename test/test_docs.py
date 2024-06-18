@@ -47,5 +47,7 @@ def test_readme_code(code):
     exec_thread.start()
     timeout = 60 * 5
     exec_thread.join(timeout)
+    clear_cache_dir()
     if exec_thread.is_alive():
         print("Execution timed out")
+        pytest.fail("timeout exceeded for docs text")

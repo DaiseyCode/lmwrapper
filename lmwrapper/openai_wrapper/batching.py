@@ -259,7 +259,7 @@ def main():
     batch_manager = OpenAiBatchManager(prompts, lm._disk_cache)
     batch_manager.start_batch()
     print("Sleep")
-    time.sleep(5)
+    time.sleep(2)
     for result in batch_manager.iter_results():
         print("result", result)
 

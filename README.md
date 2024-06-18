@@ -159,7 +159,7 @@ The OpenAI [batching API](https://platform.openai.com/docs/guides/batch) has a 5
 `lmwrapper` takes care of managing the batch files so that it's as easy 
 as the normal API.
 
-<!-- no skip test -->
+<!-- skip test -->
 ```python
 from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
 from lmwrapper.structs import LmPrompt
