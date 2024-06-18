@@ -1,7 +1,7 @@
 from abc import abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from sqlite3 import OperationalError
-from typing import Iterable
+
 from ratemate import RateLimit
 
 from lmwrapper.sqlcache_struct import BatchPredictionPlaceholder
@@ -10,7 +10,8 @@ from lmwrapper.utils import StrEnum
 
 
 class CompletionWindow(StrEnum):
-    """The """
+    """The"""
+
     ASAP = "asap"
     BATCH_ANY = "batch_any"
     """Uses the batch api willing to accept any latency.
@@ -45,6 +46,10 @@ class LmPredictor:
         prompt: str | LmPrompt,
     ) -> LmPrediction:
         prompt = self._cast_prompt(prompt)
+        if prompt.num_completions > 1:
+            raise NotImplementedError(
+                "Changes with with caching and batching means we need to test `num_completions > 1`."
+            )
         should_cache = self._cache_default if prompt.cache is None else prompt.cache
         if should_cache and prompt.model_internals_request is not None:
             raise NotImplementedError(
@@ -63,11 +68,11 @@ class LmPredictor:
                 if cache_copy:
                     if isinstance(cache_copy, BatchPredictionPlaceholder):
                         raise NotImplementedError(
-                            "We retrieved a non-finalized batched prediction from the"
-                            "cache. This might be actually finished and we could recover"
-                            "and check to see if it is done. However, this is not yet "
-                            "implemented. For now, perhaps try to give this prompt to "
-                            "predict_many to retrieve the batch data."
+                            "We retrieved a non-finalized batched prediction from"
+                            " thecache. This might be actually finished and we could"
+                            " recoverand check to see if it is done. However, this is"
+                            " not yet implemented. For now, perhaps try to give this"
+                            " prompt to predict_many to retrieve the batch data.",
                         )
                     cache_copy = cache_copy.mark_as_cached()
                 return cache_copy

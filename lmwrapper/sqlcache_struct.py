@@ -3,8 +3,11 @@ from dataclasses import dataclass
 
 @dataclass
 class BatchPredictionPlaceholder:
-    """Used to represent a prediction that got batched
-    but has not had its results completed or fetched yet"""
+    """
+    Used to represent a prediction that got batched
+    but has not had its results completed or fetched yet
+    """
+
     batch_id: str
     text_and_sample_hash: str
     api_id: str

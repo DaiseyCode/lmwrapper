@@ -1,19 +1,21 @@
 import bisect
 import math
-from typing import Any, Iterable
 import random
 import re
 import time
 import warnings
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 import openai.types
+import openai.types.chat
 import tiktoken
 from openai import OpenAI, RateLimitError
-import openai.types.chat
 from openai.types.completion_choice import Logprobs
-from lmwrapper.abstract_predictor import LmPredictor, CompletionWindow
+
+from lmwrapper.abstract_predictor import CompletionWindow, LmPredictor
 from lmwrapper.secrets_manager import (
     SecretEnvVar,
     SecretFile,
@@ -115,7 +117,7 @@ def get_open_ai_lm(
     organization: str | None = None,
     cache_outputs_default: bool = False,
     retry_on_rate_limit: bool = False,
-) -> 'OpenAIPredictor':
+) -> "OpenAIPredictor":
     if api_key_secret is None:
         api_key_secret = SecretEnvVar("OPENAI_API_KEY")
         if not api_key_secret.is_readable():
@@ -485,6 +487,7 @@ class OpenAIPredictor(LmPredictor):
     ) -> Iterable[LmPrediction]:
         if completion_window == CompletionWindow.BATCH_ANY:
             from lmwrapper.openai_wrapper import batching
+
             # ^ putting this here to prevent circular import.
             #   probably some more clever way...
             batch_manager = batching.OpenAiBatchManager(
@@ -579,9 +582,7 @@ def prompt_to_openai_args_dict(
     default_tokens_generated: int = 20,
 ) -> dict[str, Any]:
     max_toks = (
-        prompt.max_tokens
-        if prompt.max_tokens is not None
-        else default_tokens_generated
+        prompt.max_tokens if prompt.max_tokens is not None else default_tokens_generated
     )
     if chat_model:
         return dict(

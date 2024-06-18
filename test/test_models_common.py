@@ -792,12 +792,13 @@ def test_predict_many_cached(lm):
 
     # Start the thread and set a timeout
     many = None
+
     def run_predict_many():
         nonlocal many
         now = time.time()
         many = lm.predict_many(
             [prompt, prompt, prompt],
-            completion_window=CompletionWindow.BATCH_ANY
+            completion_window=CompletionWindow.BATCH_ANY,
         )
         print("Delta", time.time() - now)
 
@@ -811,4 +812,3 @@ def test_predict_many_cached(lm):
         assert len(resps) == 3
         assert all(resp.was_cached for resp in resps)
         assert all(resp.completion_text == pred.completion_text for resp in resps)
-

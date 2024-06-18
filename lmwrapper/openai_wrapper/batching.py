@@ -5,20 +5,26 @@ This offers cost saving by accepting larger latencies.
 It is designed closely around the openai API, but might be
 abstracted later.
 """
-import openai.types
-import tqdm
+
+import io
+import json
+import time
 import uuid
+
+import openai.types
 import openai.types.chat
+import tqdm
 
 from lmwrapper.caching import clear_cache_dir
-from lmwrapper.openai_wrapper import prompt_to_openai_args_dict, OpenAiModelNames, OpenAiModelInfo, \
-    OpenAIPredictor, get_open_ai_lm
-from lmwrapper.sqlcache import prompt_to_sample_hash_text, SqlBackedCache, BatchRow
+from lmwrapper.openai_wrapper import (
+    OpenAiModelNames,
+    OpenAIPredictor,
+    get_open_ai_lm,
+    prompt_to_openai_args_dict,
+)
+from lmwrapper.sqlcache import BatchRow, SqlBackedCache, prompt_to_sample_hash_text
 from lmwrapper.sqlcache_struct import BatchPredictionPlaceholder
-import json
-from lmwrapper.structs import LmPrompt, LmPrediction
-import io
-import time
+from lmwrapper.structs import LmPrediction, LmPrompt
 
 
 class OpenAiBatchManager:
@@ -42,9 +48,10 @@ class OpenAiBatchManager:
         self._max_input_file_size = 100e6  # 100MB
         if len(prompts) > self._max_batch_size:
             raise ValueError(
-                f"Batch size of {len(prompts)} is too large. Max is {self._max_batch_size}. This "
-                f"is a temporary restriction. The goal of this API is to automatically "
-                f"create sub-batches for you to handle this."
+                f"Batch size of {len(prompts)} is too large. Max is"
+                f" {self._max_batch_size}. This is a temporary restriction. The goal of"
+                " this API is to automatically create sub-batches for you to handle"
+                " this.",
             )
 
     def start_batch(self):
@@ -71,12 +78,10 @@ class OpenAiBatchManager:
         if not prompts:
             return
         jsonl = "\n".join(
-            json.dumps(
-                _prompt_to_arg_dict_for_batch(prompt, self._lm, str(index))
-            )
+            json.dumps(_prompt_to_arg_dict_for_batch(prompt, self._lm, str(index)))
             for index, prompt in prompts
         )
-        ids, just_prompts = zip(*prompts)
+        ids, just_prompts = zip(*prompts, strict=False)
         batch_input_file = _put_batch_in_file(jsonl, self._lm)
         batch_data = _make_batch(batch_input_file, self._lm)
         batch_row = BatchRow(
@@ -90,21 +95,16 @@ class OpenAiBatchManager:
             total_inputs=len(prompts),
             api_json_data=json.dumps(batch_data.dict()),
         )
-        place_holders = self._cache.put_batch_placeholders(
-            batch_row, just_prompts
-        )
-        for (index, prompt), place_holder in zip(prompts, place_holders):
+        place_holders = self._cache.put_batch_placeholders(batch_row, just_prompts)
+        for (index, prompt), place_holder in zip(prompts, place_holders, strict=False):
             self._output[index] = place_holder
 
-    def _poll_completion(
-        self,
-        target: BatchPredictionPlaceholder
-    ):
+    def _poll_completion(self, target: BatchPredictionPlaceholder):
         start_time = time.time()
         pbar = self._pbar_for_targer(target)
         while (time_waited := time.time() - start_time) < 60 * 60 * 24:
             retrieve_data: openai.types.Batch = self._cache.lm._api.batches.retrieve(
-                target.api_id
+                target.api_id,
             )
             waiting_for_results = retrieve_data.status in (
                 "validating",
@@ -117,7 +117,11 @@ class OpenAiBatchManager:
                 waiting_for_a_result=waiting_for_results,
             )
             pbar.update(
-                (retrieve_data.request_counts.completed + retrieve_data.request_counts.failed) - pbar.n
+                (
+                    retrieve_data.request_counts.completed
+                    + retrieve_data.request_counts.failed
+                )
+                - pbar.n,
             )
             # Update description with failure count
             desc = f"Waiting for batch `{target.api_id}` completion"
@@ -139,7 +143,7 @@ class OpenAiBatchManager:
         batch_data: openai.types.Batch,
     ):
         content = self._cache.lm._api.files.content(batch_data.output_file_id)
-        content_str = content.content.decode('utf-8')
+        content_str = content.content.decode("utf-8")
         for line in content_str.split("\n"):
             if not line:
                 continue
@@ -147,7 +151,7 @@ class OpenAiBatchManager:
             custom_id = data["custom_id"]
             response = data["response"]
             prompt = self._prompts[int(custom_id)]
-            body = response['body']
+            body = response["body"]
             if self._lm.is_chat_model:
                 body = openai.types.chat.ChatCompletion.parse_obj(body)
             else:
@@ -158,13 +162,12 @@ class OpenAiBatchManager:
             self._output[int(custom_id)] = pred
             self._cache.add_or_set(pred)
 
-
     def _pbar_for_targer(self, target: BatchPredictionPlaceholder):
         batch_id = target.api_id
         if batch_id not in self._batch_id_to_pbar:
             pbar = tqdm.tqdm(
                 total=target.batch_total_inputs,
-                desc=f"Waiting for batch {batch_id} completion"
+                desc=f"Waiting for batch {batch_id} completion",
             )
             self._batch_id_to_pbar[batch_id] = pbar
         return self._batch_id_to_pbar[batch_id]
@@ -193,7 +196,8 @@ class OpenAiBatchManager:
             raise ValueError("All prompts must be LmPrompt instances")
         if not all(prompt.cache for prompt in prompts):
             raise ValueError(
-                "All prompts must have caching enabled with `LmPrompt(cache=True)` currently use batching manager"
+                "All prompts must have caching enabled with `LmPrompt(cache=True)`"
+                " currently use batching manager",
             )
 
 
@@ -201,7 +205,7 @@ def _put_batch_in_file(
     jsonl_str: str,
     lm: OpenAIPredictor,
 ) -> openai.types.FileObject:
-    jsonl_bytes = io.BytesIO(jsonl_str.encode('utf-8'))
+    jsonl_bytes = io.BytesIO(jsonl_str.encode("utf-8"))
     batch_input_file = lm._api.files.create(
         file=jsonl_bytes,
         purpose="batch",
@@ -211,15 +215,11 @@ def _put_batch_in_file(
 
 def _make_batch(
     batch_input_file: openai.types.FileObject,
-    lm: OpenAIPredictor
+    lm: OpenAIPredictor,
 ) -> openai.types.Batch:
     batch_data = lm._api.batches.create(
         input_file_id=batch_input_file.id,
-        endpoint=(
-            "/v1/chat/completions"
-            if lm.is_chat_model
-            else "/v1/completions"
-        ),
+        endpoint=("/v1/chat/completions" if lm.is_chat_model else "/v1/completions"),
         completion_window="24h",
     )
     return batch_data
@@ -238,11 +238,7 @@ def _prompt_to_arg_dict_for_batch(
     request = {
         "body": args,
         "method": "POST",
-        "url": (
-            "/v1/chat/completions"
-            if lm.is_chat_model
-            else "/v1/completions"
-        ),
+        "url": "/v1/chat/completions" if lm.is_chat_model else "/v1/completions",
         # TODO multiple responses
         "custom_id": prompt_to_sample_hash_text(prompt, lm.get_model_cache_key()),
     }

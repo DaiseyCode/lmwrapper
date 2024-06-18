@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 cur_file = Path(__file__).parent.absolute()
 
 _set_cache_dir = None
@@ -39,11 +38,13 @@ def cache_dir() -> Path:
 
 def _get_disk_cache_joblib():
     from joblib import Memory
+
     return Memory(cache_dir(), verbose=0)
 
 
 def _get_disk_cache_diskcache():
     import diskcache
+
     return diskcache.FanoutCache(
         str(cache_dir()),
         timeout=int(9e9),

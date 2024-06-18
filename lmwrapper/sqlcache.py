@@ -241,10 +241,7 @@ def create_from_prompt_sample_params(prompt: LmPrompt, model_key: str):
     return sample_hash
 
 
-def add_or_set_prediction_to_cache(
-    prediction: LmPrediction,
-    model_key: str
-):
+def add_or_set_prediction_to_cache(prediction: LmPrediction, model_key: str):
     create_tables()
     text_and_sample_hash = prompt_to_sample_hash_text(prediction.prompt, model_key)
     params = prompt_to_only_sample_class_dict(prediction.prompt, model_key)
@@ -262,7 +259,7 @@ def add_or_set_prediction_to_cache(
                 (text_hash, text),
             ),
             (
-            """
+                """
             INSERT OR IGNORE INTO CacheLmPromptSampleParams 
             (text_hash, text_and_sample_hash, model_key, max_tokens, temperature, top_p, presence_penalty, 
             frequency_penalty, add_bos_token, echo, add_special_tokens, has_internals_request, stop) 
@@ -284,12 +281,12 @@ def add_or_set_prediction_to_cache(
                     params["stop"],
                 ),
             ),
-            #(
-            #"""
-            #INSERT OR REPLACE INTO CacheLmPrediction
-            #(text_and_sample_hash, data_populated, base_class, completion_text, metad_bytes, date_added)
-            #VALUES (?, ?, ?, ?, ?, ?);
-            #""",
+            # (
+            # """
+            # INSERT OR REPLACE INTO CacheLmPrediction
+            # (text_and_sample_hash, data_populated, base_class, completion_text, metad_bytes, date_added)
+            # VALUES (?, ?, ?, ?, ?, ?);
+            # """,
             #    (
             #        text_and_sample_hash,
             #        True,  # data_populated
@@ -298,7 +295,7 @@ def add_or_set_prediction_to_cache(
             #        prediction.serialize_metad_for_cache(),
             #        datetime.datetime.now().isoformat(),
             #    ),
-            #),
+            # ),
         ],
     )
     # Try to update the prediction
@@ -357,7 +354,7 @@ class BatchRow:
 
 def get_from_cache(
     prompt: LmPrompt,
-    lm: LmPredictor = None
+    lm: LmPredictor = None,
 ) -> LmPrediction | BatchPredictionPlaceholder | None:
     create_tables()
     sample_hash = prompt_to_sample_hash_text(prompt, lm.get_model_cache_key())
@@ -416,13 +413,13 @@ class SqlBackedCache:
         return get_from_cache(prompt, self._lm)
 
     def add_or_set(self, prediction: LmPrediction):
-        add_or_set_prediction_to_cache(
-            prediction, self._lm.get_model_cache_key()
-        )
+        add_or_set_prediction_to_cache(prediction, self._lm.get_model_cache_key())
 
     def update_batch_row(
         self,
-        batch_api_id: str, status: str, waiting_for_a_result: bool
+        batch_api_id: str,
+        status: str,
+        waiting_for_a_result: bool,
     ):
         conn = get_connection()
         cursor = conn.cursor()
@@ -448,7 +445,9 @@ class SqlBackedCache:
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO Batches (batch_id, user_batch_name, api_id, api_category, status, waiting_for_a_result, created_at, total_inputs, api_json_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO Batches (batch_id, user_batch_name, api_id, api_category,"
+            " status, waiting_for_a_result, created_at, total_inputs, api_json_data)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 batch_row.batch_id,
                 batch_row.user_batch_name,
@@ -473,13 +472,16 @@ class SqlBackedCache:
                     batch_row.batch_id,
                 )
                 for prompt in prompts
-            ]
+            ],
         )
         conn.commit()
         return [
             BatchPredictionPlaceholder(
                 batch_id=batch_row.batch_id,
-                text_and_sample_hash=prompt_to_sample_hash_text(prompt, self._lm.get_model_cache_key()),
+                text_and_sample_hash=prompt_to_sample_hash_text(
+                    prompt,
+                    self._lm.get_model_cache_key(),
+                ),
                 api_id=batch_row.api_id,
                 api_category=batch_row.api_category,
                 status=batch_row.status,
