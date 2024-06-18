@@ -23,7 +23,7 @@ B) Make it easy to reuse your code for other language models with minimal change
 Some key features currently include local caching of responses, and super simple
 use of the OpenAI batching API which can save 50% on costs.
 
-`lmwrapper` is lightweight and can serve as a flexible stand-in for the OpenAI API when building or researching such techniques.
+`lmwrapper` is lightweight and can serve as a flexible stand-in for the OpenAI API.
 
 ## Installation
 
@@ -76,6 +76,7 @@ prediction = lm.predict(
     LmPrompt(  # A LmPrompt object lets your IDE hint on args
         "Once upon a",
         max_tokens=10,
+        temperature=1, # Set this to 0 for deterministic completions
     )
 )
 print(prediction.completion_text)
@@ -155,9 +156,10 @@ will always sample the same output on reruns.)
 
 The OpenAI [batching API](https://platform.openai.com/docs/guides/batch) has a 50% reduced cost when willing to accept a 24-hour turnaround. This makes it good for processing datasets or other non-interactive tasks (which is the main target for `lmwrapper` currently).
 
-`lmwrapper` makes using the batching API as easy as the normal API.
+`lmwrapper` takes care of managing the batch files so that it's as easy 
+as the normal API.
 
-<!-- skip test -->
+<!-- no skip test -->
 ```python
 from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
 from lmwrapper.structs import LmPrompt
@@ -165,13 +167,13 @@ from lmwrapper.batch_config import CompletionWindow
 
 def load_dataset() -> list:
     """Load some toy task"""
-    return ["France", "China", "United States", "India"]
+    return ["France", "United States", "China"]
 
 def make_prompts(data) -> list[LmPrompt]:
     """Make some toy prompts for our data"""
     return [
         LmPrompt(
-            f"What is the capital of {country}?",
+            f"What is the capital of {country}? Answer with just the city name.",
             max_tokens=10,
             temperature=0,
             cache=True,
@@ -191,10 +193,13 @@ predictions = lm.predict_many(
 ) # The batch is submitted here
 
 for ex, pred in zip(data, predictions):  # Will wait for the batch to complete
-    print(f"Input: {ex}. Output: {pred.completion_text}")
+    print(f"Country: {ex} --- Capital: {pred.completion_text}")
+    if ex == "France": assert pred.completion_text == "Paris" 
+    # ...
 ```
+
 The above code could technically take up to 24hrs to complete. However,
-OpenAI seems to complete these quicker (for example, five prompts in a ~1 minute or less). In a large batch, you don't have to keep the process running for hours. Thanks to the `lmwrapper` cache it will automatically load or pick back up waiting on the
+OpenAI seems to complete these quicker (for example, these three prompts in ~1 minute or less). In a large batch, you don't have to keep the process running for hours. Thanks to `lmwrapper` cacheing it will automatically load or pick back up waiting on the
 existing batch.
 
 The `lmwrapper` cache lets you also intermix cached and uncached examples.
@@ -211,14 +216,14 @@ data = load_data() + load_dataset_more_data()
 prompts = make_prompts(data)
 # If we submit the new data, only the new data will get
 # submitted to the batch. The already completed prompts will
-# be loaded near-instantly from the cache.
+# be loaded near-instantly from the local cache.
 predictions = list(lm.predict_many(
     prompts,
     completion_window=CompletionWindow.BATCH_ANY
 ))
 ```
 
-This API is mostly designed for the OpenAI cost savings. You could swap out the model for HuggingFace and the same code
+This feature is mostly designed for the OpenAI cost savings. You could swap out the model for HuggingFace and the same code
 will still work. However, internally it is like a loop over the prompts.
 Eventually in `lmwrapper` we want to do more complex batching if
 memory is available.
@@ -229,7 +234,7 @@ things to sort out:
 
 - [ ] Automatically splitting up batches when have >50,000 prompts (limit from OpenAI)
 - [ ] Automatically splitting up batch when exceeding 100MB prompts limit
-- [ ] Recovering / splitting up batches when hitting the user's token Batch Queue Limit
+- [ ] Recovering / splitting up batches when hitting your token Batch Queue Limit (see [docs on limits](https://platform.openai.com/docs/guides/rate-limits/usage-tiers))
 - [ ] Handling of failed prompts / batches
 - [ ] Fancy batching of HF
 - [ ] Concurrent batching when in ASAP mode
