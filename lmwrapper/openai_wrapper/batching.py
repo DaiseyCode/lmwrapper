@@ -9,6 +9,8 @@ import openai.types
 import tqdm
 import uuid
 import openai.types.chat
+
+from lmwrapper.caching import clear_cache_dir
 from lmwrapper.openai_wrapper import prompt_to_openai_args_dict, OpenAiModelNames, OpenAiModelInfo, \
     OpenAIPredictor, get_open_ai_lm
 from lmwrapper.sqlcache import prompt_to_sample_hash_text, SqlBackedCache, BatchRow
@@ -36,6 +38,14 @@ class OpenAiBatchManager:
         self._started = False
         self._lm: OpenAIPredictor = cache.lm
         self._batch_id_to_pbar = {}
+        self._max_batch_size = 50_000  # Actual limit is 50,000
+        self._max_input_file_size = 100e6  # 100MB
+        if len(prompts) > self._max_batch_size:
+            raise ValueError(
+                f"Batch size of {len(prompts)} is too large. Max is {self._max_batch_size}. This "
+                f"is a temporary restriction. The goal of this API is to automatically "
+                f"create sub-batches for you to handle this."
+            )
 
     def start_batch(self):
         need_prompts = self._organize_prompts(self._prompts)
@@ -110,7 +120,7 @@ class OpenAiBatchManager:
                 (retrieve_data.request_counts.completed + retrieve_data.request_counts.failed) - pbar.n
             )
             # Update description with failure count
-            desc = f"Waiting for batch {target.api_id} completion."
+            desc = f"Waiting for batch `{target.api_id}` completion"
             if retrieve_data.request_counts.failed:
                 raise RuntimeError("Batch failed. This needs to be handled")
                 desc += f" ({retrieve_data.request_counts.failed} failed)"
@@ -243,6 +253,7 @@ def _prompt_to_arg_dict_for_batch(
 
 def main():
     lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo)
+    clear_cache_dir()
     prompts = [
         LmPrompt("hello world", cache=True),
         LmPrompt("hello world! I come", cache=True),
@@ -251,6 +262,8 @@ def main():
     ]
     batch_manager = OpenAiBatchManager(prompts, lm._disk_cache)
     batch_manager.start_batch()
+    print("Sleep")
+    time.sleep(5)
     for result in batch_manager.iter_results():
         print("result", result)
 

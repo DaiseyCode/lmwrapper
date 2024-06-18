@@ -492,6 +492,7 @@ class OpenAIPredictor(LmPredictor):
                 cache=self._disk_cache,
                 maintain_order=True,
             )
+            batch_manager.start_batch()
             yield from batch_manager.iter_results()
             return
         for prompt in prompts:

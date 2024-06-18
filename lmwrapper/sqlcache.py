@@ -496,7 +496,7 @@ class SqlBackedCache:
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "DELETE FROM CacheLmPrediction WHERE text_and_sample_hashsample_params = ?",
+            "DELETE FROM CacheLmPrediction WHERE text_and_sample_hash = ?",
             (sample_hash,),
         )
         cursor.execute(

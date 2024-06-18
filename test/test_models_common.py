@@ -1,9 +1,12 @@
 import math
+import threading
+import time
 
 import numpy as np
 import pytest
 
 from lmwrapper.abstract_predictor import CompletionWindow
+from lmwrapper.caching import clear_cache_dir
 from lmwrapper.huggingface_wrapper.wrapper import get_huggingface_lm
 from lmwrapper.openai_wrapper.wrapper import OpenAiModelNames, get_open_ai_lm
 from lmwrapper.structs import LmPrompt
@@ -768,3 +771,44 @@ def test_predict_many(lm):
     )
     resps = list(pred)
     assert len(resps) == 2
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_predict_many_cached(lm):
+    clear_cache_dir()
+    lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct)
+    prompt = LmPrompt(
+        "A B C D E F G H",
+        max_tokens=3,
+        cache=True,
+        temperature=0,
+        logprobs=1,
+    )
+    pred = lm.predict(prompt)
+    if hasattr(lm, "_api"):
+        lm._api = None  # It's cached. No requests should be made
+
+        # Function to run the predict_many call
+
+    # Start the thread and set a timeout
+    many = None
+    def run_predict_many():
+        nonlocal many
+        now = time.time()
+        many = lm.predict_many(
+            [prompt, prompt, prompt],
+            completion_window=CompletionWindow.BATCH_ANY
+        )
+        print("Delta", time.time() - now)
+
+    thread = threading.Thread(target=run_predict_many)
+    thread.start()
+    thread.join(timeout=0.05)
+    if thread.is_alive():
+        pytest.fail("predict_many call timed out")
+    else:
+        resps = list(many)
+        assert len(resps) == 3
+        assert all(resp.was_cached for resp in resps)
+        assert all(resp.completion_text == pred.completion_text for resp in resps)
+
