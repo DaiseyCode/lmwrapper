@@ -34,7 +34,8 @@ dependencies = [
     "tiktoken~=0.5.1",
     "ratemate~=0.1",
     "humanize~=4.8.0",
-    "xxhash~=3.4"
+    "xxhash~=3.4",
+    "numpy~=1"
 ]
 
 [project.optional-dependencies]
