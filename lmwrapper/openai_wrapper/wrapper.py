@@ -15,7 +15,8 @@ import tiktoken
 from openai import OpenAI, RateLimitError
 from openai.types.completion_choice import Logprobs
 
-from lmwrapper.abstract_predictor import CompletionWindow, LmPredictor
+from lmwrapper.abstract_predictor import LmPredictor
+from lmwrapper.batch_config import CompletionWindow
 from lmwrapper.secrets_manager import (
     SecretEnvVar,
     SecretFile,

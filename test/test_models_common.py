@@ -5,7 +5,7 @@ import time
 import numpy as np
 import pytest
 
-from lmwrapper.abstract_predictor import CompletionWindow
+from lmwrapper.batch_config import CompletionWindow
 from lmwrapper.caching import clear_cache_dir
 from lmwrapper.huggingface_wrapper.wrapper import get_huggingface_lm
 from lmwrapper.openai_wrapper.wrapper import OpenAiModelNames, get_open_ai_lm
