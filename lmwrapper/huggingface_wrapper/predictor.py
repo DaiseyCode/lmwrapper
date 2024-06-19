@@ -241,7 +241,29 @@ class HuggingFacePredictor(LmPredictor):
             output_scores=need_log_prob,
             **optional_generation_kwargs,
         )
+        outputs = []
+        for gen_num in range(prompt.num_completions):
+            outputs.append(
+                self._do_actual_generate(
+                    prompt,
+                    encoded_input,
+                    gen_config,
+                    patch_model_forward,
+                    will_have_bos,
+                    model_requires_attention_mask,
+                    need_log_prob,
+                ),
+            )
+        del encoded_input
 
+        if len(outputs) == 1:
+            return outputs[0]
+        return outputs
+
+    def _do_actual_generate(
+        self, prompt, encoded_input, gen_config, patch_model_forward,
+        will_have_bos, model_requires_attention_mask, need_log_prob,
+    ):
         if patch_model_forward:
             # We need a way of getting the raw logprobs of the whole sequence.
             #   The scores we get back are possibly already warped by the configuration
@@ -470,7 +492,7 @@ class HuggingFacePredictor(LmPredictor):
 
         np_logprobs = logprobs.numpy() if logprobs is not None else None
         np_encoded_input = (
-            encoded_input.to("cpu").convert_to_tensors(TensorType.NUMPY).copy()
+            encoded_input.copy().to("cpu").convert_to_tensors(TensorType.NUMPY)
         )
 
         # generation_output needs to be mapped to .detach().cpu().numpy() for all tensors
@@ -495,7 +517,6 @@ class HuggingFacePredictor(LmPredictor):
 
         del generation_output
         del logprobs
-        del encoded_input
 
         logging.debug("Post del statements")
         log_cuda_mem()

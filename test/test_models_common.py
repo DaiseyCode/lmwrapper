@@ -776,7 +776,6 @@ def test_predict_many(lm):
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_predict_many_cached(lm):
     clear_cache_dir()
-    lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct)
     prompt = LmPrompt(
         "A B C D E F G H",
         max_tokens=3,
@@ -812,3 +811,22 @@ def test_predict_many_cached(lm):
         assert len(resps) == 3
         assert all(resp.was_cached for resp in resps)
         assert all(resp.completion_text == pred.completion_text for resp in resps)
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_num_completions_two(lm):
+    clear_cache_dir()
+    prompt = LmPrompt(
+        "Make up a random guid:",
+        max_tokens=20,
+        cache=False,
+        temperature=1,
+        logprobs=1,
+        num_completions=2,
+    )
+    pred = lm.predict(prompt)
+    assert len(pred) == 2
+    assert isinstance(pred, list)
+    assert len(pred[0].completion_tokens) == 20
+    assert len(pred[1].completion_tokens) == 20
+    assert pred[0].completion_text != pred[1].completion_text

@@ -30,10 +30,10 @@ class LmPredictor:
         prompt: str | LmPrompt,
     ) -> LmPrediction:
         prompt = self._cast_prompt(prompt)
-        if prompt.num_completions > 1:
-            raise NotImplementedError(
-                "Changes with with caching and batching means we need to test `num_completions > 1`."
-            )
+        #if prompt.num_completions > 1:
+        #    raise NotImplementedError(
+        #        "Changes with with caching and batching means we need to test `num_completions > 1`."
+        #    )
         should_cache = self._cache_default if prompt.cache is None else prompt.cache
         if should_cache and prompt.model_internals_request is not None:
             raise NotImplementedError(

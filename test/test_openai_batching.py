@@ -133,3 +133,47 @@ def test_batch_starting_connection_error():
     )
     batch_manager.start_batch()
     assert calls == 3
+
+
+def test_batch_dup_prompts():
+    """A test with duplicate values. Should only submit one of them"""
+    clear_cache_dir()
+    cache = SqlBackedCache(lm=get_open_ai_lm())
+    orig_api = cache._lm._api
+
+    mock_api = MagicMock(wraps=orig_api)
+    cache._lm._api = mock_api
+
+    calls = 0
+
+    def mock_files_create(**kwargs):
+        nonlocal calls
+        calls += 1
+        assert len(kwargs) == 2
+        print("Files create")
+        print(kwargs)
+        assert kwargs["purpose"] == "batch"
+        assert kwargs["file"] is not None
+        file_text = kwargs["file"].getvalue().decode()
+        file_lines = file_text.split("\n")
+        assert len(file_lines) == 1, "unexpected number of lines"
+        return openai.types.FileObject.parse_obj(sample_file_resp)
+
+    def mock_batches_create(**kwargs):
+        nonlocal calls
+        calls += 1
+        assert kwargs["input_file_id"] == sample_file_resp["id"]
+        return openai.types.Batch.parse_obj(mock_batch_data)
+
+    mock_api.files.create = mock_files_create
+    mock_api.batches.create = mock_batches_create
+
+    batch_manager = OpenAiBatchManager(
+        [
+            LmPrompt("hello", cache=True)
+            for i in range(2)
+        ],
+        cache=cache,
+    )
+    batch_manager.start_batch()
+    assert calls == 2, "unexpeced number of calls"

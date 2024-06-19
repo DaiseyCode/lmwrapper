@@ -23,7 +23,7 @@ from lmwrapper.openai_wrapper import (
     get_open_ai_lm,
     prompt_to_openai_args_dict,
 )
-from lmwrapper.sqlcache import BatchRow, SqlBackedCache, prompt_to_sample_hash_text
+from lmwrapper.sqlcache import BatchRow, SqlBackedCache, prompt_to_text_and_sample_hash
 from lmwrapper.sqlcache_struct import BatchPredictionPlaceholder
 from lmwrapper.structs import LmPrediction, LmPrompt
 from lmwrapper.utils import retry_func_on_exception
@@ -60,13 +60,13 @@ class OpenAiBatchManager:
         self._batch_id_to_pbar = {}
         self._max_batch_size = 50_000  # Actual limit is 50,000
         self._max_input_file_size = 100e6  # 100MB
-        if len(prompts) > self._max_batch_size:
-            raise ValueError(
-                f"Batch size of {len(prompts)} is too large. Max is"
-                f" {self._max_batch_size}. This is a temporary restriction. The goal of"
-                " this API is to automatically create sub-batches for you to handle"
-                " this.",
-            )
+        #if len(prompts) > self._max_batch_size:
+        #    raise ValueError(
+        #        f"Batch size of {len(prompts)} is too large. Max is"
+        #        f" {self._max_batch_size}. This is a temporary restriction. The goal of"
+        #        " this API is to automatically create sub-batches for you to handle"
+        #        " this.",
+        #    )
 
     def start_batch(self):
         need_prompts = self._organize_prompts(self._prompts)
@@ -77,7 +77,13 @@ class OpenAiBatchManager:
     def _organize_prompts(self, prompts) -> list[tuple[int, LmPrompt]]:
         # Loop through and figure out the already completed ones
         needed = []
+        already_added_hash_to_batch_pred = {}
         for i, prompt in enumerate(prompts):
+            prompt_hash = prompt_to_text_and_sample_hash(
+                prompt, self._lm.get_model_cache_key())
+            # We might have already added this prompt to needed
+            if prompt_hash in already_added_hash_to_batch_pred:
+                self._output[i] = already_added_hash_to_batch_pred[prompt_hash]
             value = self._cache.get(prompt)
             if value is None:
                 needed.append((i, prompt))
@@ -259,7 +265,7 @@ def _prompt_to_arg_dict_for_batch(
         "method": "POST",
         "url": "/v1/chat/completions" if lm.is_chat_model else "/v1/completions",
         # TODO multiple responses
-        "custom_id": prompt_to_sample_hash_text(prompt, lm.get_model_cache_key()),
+        "custom_id": prompt_to_text_and_sample_hash(prompt, lm.get_model_cache_key()),
     }
     if custom_id is not None:
         request["custom_id"] = custom_id

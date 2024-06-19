@@ -167,7 +167,7 @@ def prompt_to_text_hash(prompt: LmPrompt) -> str:
     return text_hash
 
 
-def prompt_to_sample_hash_text(prompt: LmPrompt, model_key: str) -> str:
+def prompt_to_text_and_sample_hash(prompt: LmPrompt, model_key: str) -> str:
     return prompt_to_text_hash(prompt) + prompt_to_sample_params_hash(prompt, model_key)
 
 
@@ -211,7 +211,7 @@ def create_from_prompt_text(prompt: LmPrompt):
 
 def create_from_prompt_sample_params(prompt: LmPrompt, model_key: str):
     text_hash = create_from_prompt_text(prompt)
-    sample_hash = prompt_to_sample_hash_text(prompt, model_key)
+    sample_hash = prompt_to_text_and_sample_hash(prompt, model_key)
     params = prompt_to_only_sample_class_dict(prompt, model_key)
     execute_query(
         (
@@ -243,7 +243,7 @@ def create_from_prompt_sample_params(prompt: LmPrompt, model_key: str):
 
 def add_or_set_prediction_to_cache(prediction: LmPrediction, model_key: str):
     create_tables()
-    text_and_sample_hash = prompt_to_sample_hash_text(prediction.prompt, model_key)
+    text_and_sample_hash = prompt_to_text_and_sample_hash(prediction.prompt, model_key)
     params = prompt_to_only_sample_class_dict(prediction.prompt, model_key)
     text_hash = prompt_to_text_hash(prediction.prompt)
     text = prediction.prompt.get_text_as_string_default_form()
@@ -357,7 +357,7 @@ def get_from_cache(
     lm: LmPredictor = None,
 ) -> LmPrediction | BatchPredictionPlaceholder | None:
     create_tables()
-    sample_hash = prompt_to_sample_hash_text(prompt, lm.get_model_cache_key())
+    sample_hash = prompt_to_text_and_sample_hash(prompt, lm.get_model_cache_key())
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -467,7 +467,7 @@ class SqlBackedCache:
             """,
             [
                 (
-                    prompt_to_sample_hash_text(prompt, self._lm.get_model_cache_key()),
+                    prompt_to_text_and_sample_hash(prompt, self._lm.get_model_cache_key()),
                     False,
                     batch_row.batch_id,
                 )
@@ -478,7 +478,7 @@ class SqlBackedCache:
         return [
             BatchPredictionPlaceholder(
                 batch_id=batch_row.batch_id,
-                text_and_sample_hash=prompt_to_sample_hash_text(
+                text_and_sample_hash=prompt_to_text_and_sample_hash(
                     prompt,
                     self._lm.get_model_cache_key(),
                 ),
@@ -494,7 +494,7 @@ class SqlBackedCache:
     def delete(self, prompt: LmPrompt) -> bool:
         if not isinstance(prompt, LmPrompt):
             raise ValueError(f"Expected LmPrompt, got {type(prompt)}")
-        sample_hash = prompt_to_sample_hash_text(prompt, self._lm.get_model_cache_key())
+        sample_hash = prompt_to_text_and_sample_hash(prompt, self._lm.get_model_cache_key())
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(

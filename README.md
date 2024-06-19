@@ -231,16 +231,17 @@ GPU/CPU/accelorator memory is available.
 
 #### Caveats / Implementation needs
 This feature is still somewhat experimental. There are a few known
-things to sort out:
+things to sort out / TODOs:
 
-- [X] Retry API batch connection errors
+- [X] Retry batch API connection errors
+- [ ] Handle when there are duplicate prompts in batch submission
 - [ ] Automatically splitting up batches when have >50,000 prompts (limit from OpenAI)
+- [ ] Handling of failed prompts / batches
 - [ ] Automatically splitting up batch when exceeding 100MB prompts limit
 - [ ] Recovering / splitting up batches when hitting your token Batch Queue Limit (see [docs on limits](https://platform.openai.com/docs/guides/rate-limits/usage-tiers))
-- [ ] Handling of failed prompts / batches
+- [ ] Test on free-tier accounts. It is possible certain things might hit limits.
 - [ ] Fancy batching of HF
 - [ ] Concurrent batching when in ASAP mode
-- [ ] Test on free-tier accounts. It is possible certain things might hit limits.
 
 Please open an issue if you want to discuss one of these or something else.
 
