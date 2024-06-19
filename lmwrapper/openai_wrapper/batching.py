@@ -10,6 +10,7 @@ import io
 import json
 import time
 import uuid
+from typing import TypeVar, Callable
 
 import openai.types
 import openai.types.chat
@@ -25,6 +26,18 @@ from lmwrapper.openai_wrapper import (
 from lmwrapper.sqlcache import BatchRow, SqlBackedCache, prompt_to_sample_hash_text
 from lmwrapper.sqlcache_struct import BatchPredictionPlaceholder
 from lmwrapper.structs import LmPrediction, LmPrompt
+from lmwrapper.utils import retry_func_on_exception
+
+T_C = TypeVar("T_C")
+T_R = TypeVar("T_R")
+
+
+_retry_func_on_connect_error = retry_func_on_exception(
+    exception=openai.APIConnectionError,
+    max_retries=8,
+    linear_backoff_factor=3,
+    exponential_backoff_factor=2,
+)
 
 
 class OpenAiBatchManager:
@@ -83,7 +96,7 @@ class OpenAiBatchManager:
         )
         ids, just_prompts = zip(*prompts, strict=False)
         batch_input_file = _put_batch_in_file(jsonl, self._lm)
-        batch_data = _make_batch(batch_input_file, self._lm)
+        batch_data = _retry_func_on_connect_error(_make_batch)(batch_input_file, self._lm)
         batch_row = BatchRow(
             batch_id=uuid.uuid4().hex,
             user_batch_name="",
@@ -103,7 +116,9 @@ class OpenAiBatchManager:
         start_time = time.time()
         pbar = self._pbar_for_targer(target)
         while (time_waited := time.time() - start_time) < 60 * 60 * 24:
-            retrieve_data: openai.types.Batch = self._cache.lm._api.batches.retrieve(
+            retrieve_data: openai.types.Batch = _retry_func_on_connect_error(
+                self._cache.lm._api.batches.retrieve
+            )(
                 target.api_id,
             )
             waiting_for_results = retrieve_data.status in (
@@ -134,15 +149,18 @@ class OpenAiBatchManager:
                 break
             if time_waited < 60:
                 sleep_time = 1
-            else:
+            elif time_waited < 60 * 60:
                 sleep_time = 5
+            else:
+                sleep_time = 20
             time.sleep(sleep_time)
 
     def _update_cache_rows(
         self,
         batch_data: openai.types.Batch,
     ):
-        content = self._cache.lm._api.files.content(batch_data.output_file_id)
+        content = _retry_func_on_connect_error(
+            self._cache.lm._api.files.content)(batch_data.output_file_id)
         content_str = content.content.decode("utf-8")
         for line in content_str.split("\n"):
             if not line:
@@ -206,7 +224,7 @@ def _put_batch_in_file(
     lm: OpenAIPredictor,
 ) -> openai.types.FileObject:
     jsonl_bytes = io.BytesIO(jsonl_str.encode("utf-8"))
-    batch_input_file = lm._api.files.create(
+    batch_input_file = _retry_func_on_connect_error(lm._api.files.create)(
         file=jsonl_bytes,
         purpose="batch",
     )
@@ -217,7 +235,7 @@ def _make_batch(
     batch_input_file: openai.types.FileObject,
     lm: OpenAIPredictor,
 ) -> openai.types.Batch:
-    batch_data = lm._api.batches.create(
+    batch_data = _retry_func_on_connect_error(lm._api.batches.create)(
         input_file_id=batch_input_file.id,
         endpoint=("/v1/chat/completions" if lm.is_chat_model else "/v1/completions"),
         completion_window="24h",

@@ -57,7 +57,7 @@ Please note that this method is for development and not supported.
 
 ## Example usage
 
-### Completion models
+### Basic Completion and Prompting
 
 ```python
 from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
@@ -83,7 +83,7 @@ print(prediction.completion_text)
 # " time, there were three of us." - Example. This will change with each sample.
 ```
 
-### Chat models
+### Chat
 
 ```python
 from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
@@ -126,14 +126,14 @@ print(pred.completion_text)
 
 ### Hugging Face models
 
-Causal LM models on Hugging Face models can be used interchangeably with the
+Local Causal LM models on Hugging Face models can be used interchangeably with the
 OpenAI models.
 
 ```python
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
 from lmwrapper.structs import LmPrompt
 
-lm = get_huggingface_lm("gpt2")  # The smallest 124M parameter model
+lm = get_huggingface_lm("gpt2")  # Download the smallest 124M parameter model
 
 prediction = lm.predict(LmPrompt(
     "The capital of Germany is Berlin. The capital of France is",
@@ -143,6 +143,7 @@ prediction = lm.predict(LmPrompt(
 print(prediction.completion_text)
 assert prediction.completion_text == " Paris"
 ```
+<!-- Model internals -->
 
 ## Caching
 
@@ -156,7 +157,7 @@ will always sample the same output on reruns.)
 
 The OpenAI [batching API](https://platform.openai.com/docs/guides/batch) has a 50% reduced cost when willing to accept a 24-hour turnaround. This makes it good for processing datasets or other non-interactive tasks (which is the main target for `lmwrapper` currently).
 
-`lmwrapper` takes care of managing the batch files so that it's as easy 
+`lmwrapper` takes care of managing the batch files and other details so that it's as easy 
 as the normal API.
 
 <!-- noskip test -->
@@ -200,7 +201,7 @@ for ex, pred in zip(data, predictions):  # Will wait for the batch to complete
 
 The above code could technically take up to 24hrs to complete. However,
 OpenAI seems to complete these quicker (for example, these three prompts in ~1 minute or less). In a large batch, you don't have to keep the process running for hours. Thanks to `lmwrapper` cacheing it will automatically load or pick back up waiting on the
-existing batch.
+existing batch when the script is reran.
 
 The `lmwrapper` cache lets you also intermix cached and uncached examples.
 
@@ -208,7 +209,7 @@ The `lmwrapper` cache lets you also intermix cached and uncached examples.
 ```python
 # ... above code
 
-def load_dataset_more_data() -> list:
+def load_more_data() -> list:
     """Load some toy task"""
     return ["Mexico", "Canada"]
 
@@ -226,7 +227,7 @@ predictions = list(lm.predict_many(
 This feature is mostly designed for the OpenAI cost savings. You could swap out the model for HuggingFace and the same code
 will still work. However, internally it is like a loop over the prompts.
 Eventually in `lmwrapper` we want to do more complex batching if
-memory is available.
+GPU/CPU/accelorator memory is available.
 
 #### Caveats / Implementation needs
 This feature is still somewhat experimental. There are a few known
@@ -238,8 +239,9 @@ things to sort out:
 - [ ] Handling of failed prompts / batches
 - [ ] Fancy batching of HF
 - [ ] Concurrent batching when in ASAP mode
- 
-Feel free to open an issue to discuss one of these or something else.
+- [ ] Test on free-tier accounts. It is possible certain things might hit limits.
+
+Please open an issue if you want to discuss one of these or something else.
 
 ### Retries on rate limit
 
@@ -280,8 +282,10 @@ please make a Github Issue.
 - [X] Redesign cache to make it easier to manage
 - [X] OpenAI batching interface (experimental)
 - [ ] Anthropic interface
+- [ ] Be able to add user metadata to a prompt
 - [ ] Multimodal/images in super easy format (like automatically process pil, opencv, etc)
 - [ ] sort through usage of quantized models
 - [ ] Cost estimating (so can estimate cost of a prompt before running / track total cost)
 - [ ] Additional Huggingface runtimes (TensorRT, BetterTransformers, etc)
 - [ ] async / streaming (not a top priority for non-interactive research use cases)
+- [ ] some lightweight utilities to help with tool use

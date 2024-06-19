@@ -1,10 +1,14 @@
-# backport str enum(https://github.com/clbarnes/backports.strenum/blob/main/backports/strenum/strenum.py)
 from enum import Enum
-from typing import Any, TypeVar
+import math
+from typing import Any, TypeVar, Type, TextIO, Callable
+import sys
+import time
+import functools
 
 _S = TypeVar("_S", bound="StrEnum")
 
 
+# backport str enum(https://github.com/clbarnes/backports.strenum/blob/main/backports/strenum/strenum.py)
 class StrEnum(str, Enum):
     """Enum where members are also (and must be) strings"""
 
@@ -66,3 +70,44 @@ def flatten_dict(
         else:
             items.append((new_key, v))
     return dict(items)
+
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def retry_func_on_exception(
+    exception: Type[Exception],
+    max_retries: int = 8,
+    linear_backoff_factor: float = 3,
+    exponential_backoff_factor: float = 2,
+    print_output_stream: TextIO = sys.stderr
+) -> Callable[[F], F]:
+    """A decorator that retries a function on a given exception.
+
+    The wait time between retries is calculated as:
+    wait_time = exponential_backoff_factor**retries + linear_backoff_factor * retries
+    """
+    def decorator_retry(func: F) -> F:
+        @functools.wraps(func)
+        def wrapper_retry(*args, **kwargs):
+            retries = 0
+            while retries < max_retries:
+                try:
+                    return func(*args, **kwargs)
+                except exception as e:
+                    retries += 1
+                    if retries >= max_retries:
+                        raise
+                    wait_time = (
+                        exponential_backoff_factor**retries
+                        + linear_backoff_factor * retries
+                    )
+                    if print_output_stream:
+                        print(
+                            f"{e.__class__.__name__} occurred. "
+                            f"Retrying in {wait_time:.3f} seconds...",
+                            file=print_output_stream,
+                        )
+                    time.sleep(wait_time)
+        return wrapper_retry
+    return decorator_retry
