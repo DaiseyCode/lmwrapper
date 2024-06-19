@@ -233,6 +233,7 @@ GPU/CPU/accelorator memory is available.
 This feature is still somewhat experimental. There are a few known
 things to sort out:
 
+- [X] Retry API batch connection errors
 - [ ] Automatically splitting up batches when have >50,000 prompts (limit from OpenAI)
 - [ ] Automatically splitting up batch when exceeding 100MB prompts limit
 - [ ] Recovering / splitting up batches when hitting your token Batch Queue Limit (see [docs on limits](https://platform.openai.com/docs/guides/rate-limits/usage-tiers))

@@ -37,6 +37,7 @@ _retry_func_on_connect_error = retry_func_on_exception(
     max_retries=8,
     linear_backoff_factor=3,
     exponential_backoff_factor=2,
+    extra_message="(If you get this repeated, you might want to check your network connection)"
 )
 
 
