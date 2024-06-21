@@ -1,3 +1,4 @@
+import dataclasses
 from abc import abstractmethod
 from collections.abc import Callable, Iterable
 from sqlite3 import OperationalError
@@ -28,7 +29,7 @@ class LmPredictor:
     def predict(
         self,
         prompt: str | LmPrompt,
-    ) -> LmPrediction:
+    ) -> LmPrediction | list[LmPrediction]:
         prompt = self._cast_prompt(prompt)
         #if prompt.num_completions > 1:
         #    raise NotImplementedError(
@@ -41,42 +42,70 @@ class LmPredictor:
             )
         self._validate_prompt(prompt, raise_on_invalid=True)
         if should_cache:
-            # cache_key = (prompt, self._get_cache_key_metadata())
-            cache_key = prompt
-            if cache_key in self._disk_cache:
+            cached_vals = self._read_cached_values(prompt)
+            if len(cached_vals) >= prompt.num_completions:
+                assert len(cached_vals) == prompt.num_completions
+                if len(cached_vals) == 1:
+                    return cached_vals[0]
+                return cached_vals
+            # There are some missing values. Let's predict for the missing ones.
+            need_new_completions = prompt.num_completions - len(cached_vals)
+            if need_new_completions != prompt.num_completions:
+                new_prompt = dataclasses.replace(
+                    prompt,
+                    num_completions=prompt.num_completions - len(cached_vals)
+                )
+            else:
+                new_prompt = prompt
+            new_vals = self._predict_maybe_cached(new_prompt)
+            # Add the new values we got
+            if not isinstance(new_vals, list):
+                new_vals = [new_vals]
+            for val in new_vals:
                 try:
-                    cache_copy = self._disk_cache.get(cache_key)
+                    # self._disk_cache.set(cache_key, val)
+                    # TODO maybe figure out a way to bulk add
+                    self._disk_cache.add_or_set(val)
                 except OperationalError as e:
-                    print("Failed to get from cache", e)
-                    cache_copy = None
-                if cache_copy:
-                    if isinstance(cache_copy, BatchPredictionPlaceholder):
-                        raise NotImplementedError(
-                            "We retrieved a non-finalized batched prediction from"
-                            " thecache. This might be actually finished and we could"
-                            " recoverand check to see if it is done. However, this is"
-                            " not yet implemented. For now, perhaps try to give this"
-                            " prompt to predict_many to retrieve the batch data.",
-                        )
-                    cache_copy = cache_copy.mark_as_cached()
-                return cache_copy
-            val = self._predict_maybe_cached(prompt)
-            try:
-                # self._disk_cache.set(cache_key, val)
-                self._disk_cache.add_or_set(val)
-            except OperationalError as e:
-                print("Failed to cache", e)
-            return val
+                    print("Failed to cache", e)
+            vals = cached_vals + new_vals
+            if len(vals) == 1:
+                return vals[0]
+            return vals
         else:
             return self._predict_maybe_cached(prompt)
+
+    def _read_cached_values(self, prompt: LmPrompt) -> list[LmPrediction]:
+        """Checks the cache for any matches of the prompt. Returns a list
+        as if num_completions is >1 we might have multiple items"""
+        cache_key = prompt
+        try:
+            cached_items = self._disk_cache.get(cache_key)
+        except OperationalError as e:
+            print("Failed to get from cache", e)
+            cached_items = None
+        if not cached_items:
+            return []
+        for i, item in enumerate(cached_items):
+            if isinstance(item, BatchPredictionPlaceholder):
+                raise NotImplementedError(
+                    "We retrieved a non-finalized batched prediction from"
+                    " the cache. This might be actually finished and we could"
+                    " recover and check to see if it is done. However, this is"
+                    " not yet implemented. For now, perhaps try to give this"
+                    " prompt to predict_many to retrieve the batch data.",
+                )
+            cached_items[i] = item.mark_as_cached()
+        return cached_items
 
     def predict_many(
         self,
         prompts: list[str | LmPrompt],
         completion_window: CompletionWindow,
-    ) -> Iterable[LmPrediction]:
+    ) -> Iterable[LmPrediction | list[LmPrediction]]:
         for prompt in prompts:
-            yield self.predict(prompt)
+            val = self.predict(prompt)
+            yield val
 
     def remove_prompt_from_cache(
         self,

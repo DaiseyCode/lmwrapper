@@ -24,8 +24,10 @@ def test_get_cache():
     assert get_from_cache(prompt, lm) is None
     pred = lm.predict(prompt)
     add_or_set_prediction_to_cache(pred, model_key)
-    ret = get_from_cache(prompt, lm)
-    assert ret is not None
+    rets = get_from_cache(prompt, lm)
+    assert rets is not None
+    assert len(rets) == 1
+    ret = rets[0]
     assert isinstance(ret, pred.__class__), f"{ret.__class__} != {pred.__class__}"
     assert ret.completion_text == pred.completion_text
     assert pred == ret

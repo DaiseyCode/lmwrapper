@@ -485,10 +485,9 @@ class OpenAIPredictor(LmPredictor):
         self,
         prompts: list[str | LmPrompt],
         completion_window: CompletionWindow,
-    ) -> Iterable[LmPrediction]:
+    ) -> Iterable[LmPrediction | list[LmPrediction]]:
         if completion_window == CompletionWindow.BATCH_ANY:
             from lmwrapper.openai_wrapper import batching
-
             # ^ putting this here to prevent circular import.
             #   probably some more clever way...
             batch_manager = batching.OpenAiBatchManager(
@@ -499,8 +498,7 @@ class OpenAIPredictor(LmPredictor):
             batch_manager.start_batch()
             yield from batch_manager.iter_results()
             return
-        for prompt in prompts:
-            yield self.predict(prompt)
+        yield from super().predict_many(prompts, completion_window)
 
     def remove_special_chars_from_tokens(self, tokens: list[str]) -> list[str]:
         return tokens

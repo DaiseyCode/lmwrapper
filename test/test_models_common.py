@@ -1,3 +1,4 @@
+import dataclasses
 import math
 import threading
 import time
@@ -830,3 +831,47 @@ def test_num_completions_two(lm):
     assert len(pred[0].completion_tokens) == 20
     assert len(pred[1].completion_tokens) == 20
     assert pred[0].completion_text != pred[1].completion_text
+    pred2 = lm.predict(prompt)
+    assert pred[0].completion_text != pred2[0].completion_text
+    assert pred[1].completion_text != pred2[1].completion_text
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_num_completions_two_cached(lm):
+    clear_cache_dir()
+    prompt = LmPrompt(
+        "Make up a random guid:",
+        max_tokens=20,
+        cache=True,
+        temperature=1.5,
+        logprobs=1,
+        num_completions=2,
+    )
+    pred = lm.predict(prompt)
+    assert len(pred) == 2
+    assert isinstance(pred, list)
+    assert all(not p.was_cached for p in pred)
+    assert pred[0].completion_text != pred[1].completion_text
+    print("pred 0", pred[0].completion_text)
+    print("pred 1", pred[1].completion_text)
+    pred2 = lm.predict(prompt)
+    assert len(pred2) == 2
+    assert all(p.was_cached for p in pred2)
+    assert pred[0].completion_text == pred2[0].completion_text
+    assert pred[1].completion_text == pred2[1].completion_text
+    # Try with just a single completion
+    prompt = dataclasses.replace(prompt, num_completions=1)
+    pred3 = lm.predict(prompt)
+    assert pred3.was_cached
+    assert pred3.completion_text == pred2[0].completion_text == pred[0].completion_text
+    # Try predict an extra one. The first 2 should be cached
+    prompt = dataclasses.replace(prompt, num_completions=3)
+    pred4 = lm.predict(prompt)
+    assert pred4[0].was_cached
+    assert pred4[1].was_cached
+    assert not pred4[2].was_cached
+    assert pred4[0].completion_text == pred[0].completion_text
+    assert pred4[1].completion_text == pred[1].completion_text
+    assert pred4[2].completion_text != pred[0].completion_text
+    assert pred4[2].completion_text != pred[1].completion_text
+

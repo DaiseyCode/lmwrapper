@@ -174,6 +174,9 @@ class LmPrompt:
                 "Only StopMode.AUTO is supported at this time as a temporary hack",
             )
 
+    def is_deterministic_sampling(self) -> bool:
+        return (self.temperature < 1e-4) or (self.top_p < 1e-4)
+
     def is_text_a_chat(self) -> bool:
         return isinstance(self.text, LmChatDialog)
 
