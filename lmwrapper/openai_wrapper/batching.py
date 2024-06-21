@@ -10,7 +10,8 @@ import io
 import json
 import time
 import uuid
-from typing import TypeVar, Callable
+from dataclasses import dataclass
+from typing import TypeVar, Callable, Iterable
 
 import openai.types
 import openai.types.chat
@@ -47,6 +48,7 @@ class OpenAiBatchManager:
         prompts: list[LmPrompt],
         cache: SqlBackedCache,
         maintain_order: bool = True,
+        max_prompts_per_batch: int = 10_000,
     ):
         self._validate_prompts_input(prompts)
         self._awaiting_marker = object()
@@ -55,10 +57,20 @@ class OpenAiBatchManager:
         self._cache = cache
         self._maintain_order = maintain_order
         self._prompts = prompts
+        self._prompt_hashes = [
+            prompt_to_text_and_sample_hash(p, cache.lm.get_model_cache_key()) for p in prompts
+        ]
+        if len(set(self._prompt_hashes)) != len(prompts):
+            raise NotImplementedError("Duplicate prompts detected. This is not currently handled")
         self._started = False
         self._lm: OpenAIPredictor = cache.lm
         self._batch_id_to_pbar = {}
-        self._max_batch_size = 50_000  # Actual limit is 50,000
+        self._max_prompts_batch_size = max_prompts_per_batch
+        if max_prompts_per_batch > 50_000:
+            raise ValueError(
+                "Due to API limits max prompts per batch "
+                "cannot be more than 50,000"
+            )
         self._max_input_file_size = 100e6  # 100MB
         #if len(prompts) > self._max_batch_size:
         #    raise ValueError(
@@ -69,21 +81,21 @@ class OpenAiBatchManager:
         #    )
 
     def start_batch(self):
-        need_prompts = self._organize_prompts(self._prompts)
-        if need_prompts:
-            self._send_batch(need_prompts)
+        batches = self._organize_prompts(self._prompts)
+        if batches:
+            for batch in batches:
+                self._send_batch(batch)
         self._started = True
 
-    def _organize_prompts(self, prompts) -> list[tuple[int, LmPrompt]]:
+    def _organize_prompts(self, prompts) -> list["_BatchToMonitor"]:
         # Loop through and figure out the already completed ones
         needed = []
-        already_added_hash_to_batch_pred = {}
+        #api_id_to_batch = {}
         for i, prompt in enumerate(prompts):
+            if prompt.num_completions != 1:
+                raise NotImplementedError()
             prompt_hash = prompt_to_text_and_sample_hash(
                 prompt, self._lm.get_model_cache_key())
-            # We might have already added this prompt to needed
-            if prompt_hash in already_added_hash_to_batch_pred:
-                self._output[i] = already_added_hash_to_batch_pred[prompt_hash]
             value = self._cache.get(prompt)
             if value is None:
                 needed.append((i, prompt))
@@ -92,16 +104,35 @@ class OpenAiBatchManager:
             else:
                 value.mark_as_cached()
                 self._output[i] = value
-        return needed
-
-    def _send_batch(self, prompts: list[tuple[int, LmPrompt]]):
-        if not prompts:
-            return
-        jsonl = "\n".join(
-            json.dumps(_prompt_to_arg_dict_for_batch(prompt, self._lm, str(index)))
-            for index, prompt in prompts
+        if not needed:
+            return []
+        batch = _BatchToMonitor(
+            api_id=None,
+            submitted=False,
+            prompts=[p for i, p in needed],
+            prompt_to_output_indexes=[[(i, 0)] for i, _ in needed],
         )
-        ids, just_prompts = zip(*prompts, strict=False)
+        return self._split_batch_to_known_requirements(batch)
+
+    def _split_batch_to_known_requirements(
+        self, batch: "_BatchToMonitor"
+    ) -> list["_BatchToMonitor"]:
+        if (
+            len(batch.prompts) > self._max_prompts_batch_size
+        ):
+            a, b = batch.split()
+            return self._split_batch_to_known_requirements(a) + self._split_batch_to_known_requirements(b)
+        return [batch]
+
+    def _send_batch(self, batch: '_BatchToMonitor'):
+        if not batch or not batch.prompts:
+            return
+        lines = []
+        for prompt, targets in zip(batch.prompts, batch.prompt_to_output_indexes):
+            assert len(targets) == 1
+            l = json.dumps(_prompt_to_arg_dict_for_batch(prompt, self._lm, str(targets[0][0])))
+            lines.append(l)
+        jsonl = "\n".join(lines)
         batch_input_file = _put_batch_in_file(jsonl, self._lm)
         batch_data = _retry_func_on_connect_error(_make_batch)(batch_input_file, self._lm)
         batch_row = BatchRow(
@@ -112,12 +143,15 @@ class OpenAiBatchManager:
             status=batch_data.status,
             waiting_for_a_result=True,
             created_at=batch_data.created_at,
-            total_inputs=len(prompts),
+            total_inputs=len(batch.prompts),
             api_json_data=json.dumps(batch_data.dict()),
         )
-        place_holders = self._cache.put_batch_placeholders(batch_row, just_prompts)
-        for (index, prompt), place_holder in zip(prompts, place_holders, strict=False):
-            self._output[index] = place_holder
+        place_holders = self._cache.put_batch_placeholders(batch_row, batch.prompts)
+        for prompt, dest, place_holder in zip(
+            batch.prompts, batch.prompt_to_output_indexes, place_holders, strict=True
+        ):
+            for index, start_index in dest:
+                self._output[index] = place_holder
 
     def _poll_completion(self, target: BatchPredictionPlaceholder):
         start_time = time.time()
@@ -148,8 +182,10 @@ class OpenAiBatchManager:
             # Update description with failure count
             desc = f"Waiting for batch `{target.api_id}` completion"
             if retrieve_data.request_counts.failed:
-                raise RuntimeError("Batch failed. This needs to be handled")
+                raise RuntimeError("Batch has failed prompts. This needs to be handled")
                 desc += f" ({retrieve_data.request_counts.failed} failed)"
+            if retrieve_data.status == "failed":
+                raise RuntimeError(f"Batch failed. Errors: {retrieve_data.errors}")
             pbar.set_description(desc)
             if not waiting_for_results:
                 self._update_cache_rows(retrieve_data)
@@ -197,7 +233,7 @@ class OpenAiBatchManager:
             self._batch_id_to_pbar[batch_id] = pbar
         return self._batch_id_to_pbar[batch_id]
 
-    def iter_results(self):
+    def iter_results(self) -> Iterable[LmPrediction]:
         num_yielded = 0
         while num_yielded < len(self._output):
             result = self._output[num_yielded]
@@ -231,6 +267,9 @@ def _put_batch_in_file(
     lm: OpenAIPredictor,
 ) -> openai.types.FileObject:
     jsonl_bytes = io.BytesIO(jsonl_str.encode("utf-8"))
+    if len(jsonl_bytes.getvalue()) > 100e6:
+        raise ValueError("Batch file is too large. Max is 100MB."
+                         " We still need to implement automatic splitting for this")
     batch_input_file = _retry_func_on_connect_error(lm._api.files.create)(
         file=jsonl_bytes,
         purpose="batch",
@@ -247,6 +286,8 @@ def _make_batch(
         endpoint=("/v1/chat/completions" if lm.is_chat_model else "/v1/completions"),
         completion_window="24h",
     )
+    print("Batch")
+    print(batch_data)
     return batch_data
 
 
@@ -270,6 +311,44 @@ def _prompt_to_arg_dict_for_batch(
     if custom_id is not None:
         request["custom_id"] = custom_id
     return request
+
+
+@dataclass
+class _BatchToMonitor:
+    api_id: str
+    submitted: bool
+    prompts: list[LmPrompt]
+    prompt_to_output_indexes: list[list[tuple[int, int]]]
+    """Mapping the prompt values to where the output is written.
+    We return a list in case multiple identical prompts are combined
+    together. The first index is the output index. The second is the
+    starting slice index in the returned choices. We can calculate
+    the slice by looking back at the original prompts and seeing
+    how many completions were requested.
+    """
+
+    def __post_init__(self):
+        assert len(self.prompts) == len(self.prompt_to_output_indexes)
+
+    def split(self) -> tuple["_BatchToMonitor", "_BatchToMonitor"]:
+        """Splits the batch in half"""
+        if len(self.prompts) == 1:
+            raise RuntimeError("Cannot split a batch with only one prompt")
+        mid = len(self.prompts) // 2
+        return (
+            _BatchToMonitor(
+                api_id=self.api_id,
+                submitted=self.submitted,
+                prompts=self.prompts[:mid],
+                prompt_to_output_indexes=self.prompt_to_output_indexes[:mid],
+            ),
+            _BatchToMonitor(
+                api_id=self.api_id,
+                submitted=self.submitted,
+                prompts=self.prompts[mid:],
+                prompt_to_output_indexes=self.prompt_to_output_indexes[mid:],
+            ),
+        )
 
 
 def main():
