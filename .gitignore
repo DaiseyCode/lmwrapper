@@ -189,3 +189,5 @@ lm_model_cache
 /test/.lmwrapper_cache/
 .lmwrapper_cache
 lmwrapper/togethertoy.py
+
+bugrepo.py

@@ -68,7 +68,6 @@ def test_batch_starting():
         # print(og.dict())
         return openai.types.FileObject.parse_obj(sample_file_resp)
 
-
     def mock_batches_create(**kwargs):
         nonlocal calls
         calls += 1

@@ -468,6 +468,9 @@ class SqlBackedCache:
         ]
 
     def delete(self, prompt: LmPrompt) -> bool:
+        """Deletes all entries of a prompt (including all the multisamples)
+        Returns True if any data was deleted, False otherwise.
+        """
         if not isinstance(prompt, LmPrompt):
             raise ValueError(f"Expected LmPrompt, got {type(prompt)}")
         sample_hash = prompt_to_text_and_sample_hash(prompt, self._lm.get_model_cache_key())

@@ -213,7 +213,7 @@ def load_more_data() -> list:
     """Load some toy task"""
     return ["Mexico", "Canada"]
 
-data = load_data() + load_dataset_more_data()
+data = load_data() + load_more_data()
 prompts = make_prompts(data)
 # If we submit the new data, only the new data will get
 # submitted to the batch. The already completed prompts will
@@ -224,29 +224,38 @@ predictions = list(lm.predict_many(
 ))
 ```
 
+`lmwrapper` is designed to automatically manage the batching of thousands or millions of prompts.
+
 This feature is mostly designed for the OpenAI cost savings. You could swap out the model for HuggingFace and the same code
 will still work. However, internally it is like a loop over the prompts.
 Eventually in `lmwrapper` we want to do more complex batching if
 GPU/CPU/accelorator memory is available.
 
 #### Caveats / Implementation needs
-This feature is still somewhat experimental. There are a few known
-things to sort out / TODOs:
+This feature is still somewhat experimental. It likely works in typical
+usecases, but recovery from failures (like invalid prompts, canceled batches, or
+errors on OpenAI's end) might not be ideally managed. There are few known things 
+to sort out / TODOs:
 
 - [X] Retry batch API connection errors
 - [X] Automatically splitting up batches when have >50,000 prompts (limit from OpenAI) 
-- [ ] Recovering / splitting up batches when hitting your token Batch Queue Limit (see [docs on limits](https://platform.openai.com/docs/guides/rate-limits/usage-tiers))
-- [ ] Handling of failed prompts
+- [X] Recovering / splitting up batches when hitting your token Batch Queue Limit (see [docs on limits](https://platform.openai.com/docs/guides/rate-limits/usage-tiers))
+- [ ] Handling of failed prompts (like when have too many tokens)
 - [ ] Handle when a given prompt has `num_completions>1`
-- [ ] Automatically splitting up batch when exceeding 100MB prompts limit
+- [X] Automatically splitting up batch when exceeding 100MB prompts limit
 - [ ] Handle when there are duplicate prompts in batch submission
-- [ ] Clean up potential failed zombie batch placeholders from cache if openai fails or canceled
-- [ ] Automatically clean up API files after done
+- [X] Handle canceled batches during current run (use the [web interface](https://platform.openai.com/batches) to cancel)
+- [ ] Handle canceled batches outside of current run
+- [ ] Handle if openai fails and batch expires unfinished in 24hrs (never observed this)
+- [ ] Automatically clean up API files after done (right now end up with a lot of file in [storage](https://platform.openai.com/storage/files). There isn't an obvious cost for these batche files, but this might change and it would be better to clean them up.)
 - [ ] Test on free-tier accounts. It is not clear what the tiny request limit counts
 - [ ] Fancy batching of HF
 - [ ] Concurrent batching when in ASAP mode
 
 Please open an issue if you want to discuss one of these or something else.
+
+Note, in the progress bars in PyCharm can be bit cleaner if you enable 
+[terminal emulation](https://stackoverflow.com/a/64727188) in your run configuration.
 
 ### Retries on rate limit
 
