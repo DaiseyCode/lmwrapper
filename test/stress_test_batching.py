@@ -11,7 +11,7 @@ from lmwrapper.structs import LmPrompt
 
 
 def simple():
-    #clear_cache_dir()
+    clear_cache_dir()
     def load_dataset() -> list:
         """Load some toy task"""
         return ["France", "Japan", "China", "UK"]
@@ -105,7 +105,7 @@ def bigarthmatic():
             print(f"Fail: {i} + 10 = {pred.completion_text}")
     assert fails == 0
     assert samples == num_prompts
-    print("Done.")
+    print("Done. All arithmetic correct.")
 
 
 def token_queue_limit_try():
@@ -140,9 +140,9 @@ def token_queue_limit_try():
 
 
 if __name__ == "__main__":
-    #simple()
+    simple()
     #print(list(get_unique_texts(int(1e6), OpenAiModelNames.gpt_3_5_turbo)))
     #over50k()
     #clear_cache_dir()
-    bigarthmatic()
+    #bigarthmatic()
     #token_queue_limit_try()

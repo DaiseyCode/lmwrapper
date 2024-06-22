@@ -154,12 +154,16 @@ def create_tables():
     execute_query(create_tables_sql)
 
 
+
+
 def prompt_to_text_hash(prompt: LmPrompt) -> str:
     text = prompt.get_text_as_string_default_form()
     hasher = xxhash.xxh64()
     hasher.update(text.encode())
     text_hash = base64.b64encode(hasher.digest()).decode()
     remaining_chars = _text_hash_len - len(text_hash)
+    # Strip non-alphanumeric characters
+    text = "".join(filter(str.isalnum, text))
     start_chars = text[: min(remaining_chars // 3, len(text))]
     end_chars = text[-min(remaining_chars - len(start_chars), len(text)) :]
     text_hash = start_chars + end_chars[::-1] + text_hash

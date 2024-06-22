@@ -56,14 +56,21 @@ class OpenAiBatchManager:
         self._validate_prompts_input(prompts)
         self._awaiting_marker = object()
         self._output = [self._awaiting_marker] * len(prompts)
+        # TODO store the output as a hash to list[outputs]. Then can read from that for dup prompts
         self._num_yielded = 0
         self._cache = cache
         self._maintain_order = maintain_order
         self._prompts = prompts
-        self._prompt_hashes = [
-            prompt_to_text_and_sample_hash(p, cache.lm.get_model_cache_key()) for p in prompts
+        _cache_key = cache.lm.get_model_cache_key()
+        self._index_to_hash = [
+            prompt_to_text_and_sample_hash(p, _cache_key)
+            for i, p in enumerate(prompts)
         ]
-        if len(set(self._prompt_hashes)) != len(prompts):
+        self._prompt_hashes_to_index = {
+            h: i
+            for i, h in enumerate(self._index_to_hash)
+        }
+        if len(self._prompt_hashes_to_index) != len(prompts):
             raise NotImplementedError("Duplicate prompts detected. This is not currently handled")
         self._started = False
         self._lm: OpenAIPredictor = cache.lm
@@ -79,15 +86,7 @@ class OpenAiBatchManager:
         self._batches_to_submit: list[_BatchToMonitor] = []
         self._in_progress_api_id_to_monitor: dict[str, _BatchToMonitor] = {}
 
-        self._last_checked_in_progress_batches_from_list = None
-
-        #if len(prompts) > self._max_batch_size:
-        #    raise ValueError(
-        #        f"Batch size of {len(prompts)} is too large. Max is"
-        #        f" {self._max_batch_size}. This is a temporary restriction. The goal of"
-        #        " this API is to automatically create sub-batches for you to handle"
-        #        " this.",
-        #    )
+        self._last_checked_in_batch_set = None
 
     def start_batch(self):
         self._batches_to_submit.extend(self._organize_prompts(self._prompts))
@@ -96,22 +95,14 @@ class OpenAiBatchManager:
 
     def _check_if_change_in_listed_batches(self) -> bool:
         all_in_progress_batches = list(list_all_in_progress_batches(self._lm._api))
-        is_value_new = len(all_in_progress_batches) != self._last_checked_in_progress_batches_from_list
-        self._last_checked_in_progress_batches_from_list = len(all_in_progress_batches)
-        # Notify user
-        if is_value_new:
-            for batch in all_in_progress_batches:
-                if (
-                    batch.id not in self._in_progress_api_id_to_monitor
-                    and batch.id not in [b.api_id for b in self._batches_to_submit]
-                ):
-                    print(
-                        f"Found new batch `{batch.id}` that we are not managing."
-                        f" This batch may have been submitted by a different process"
-                        f" or organization user. We might need to wait for this batch"
-                        f" to complete before submitting our own batches...",
-                        file=sys.stderr
-                    )
+        all_in_progress_ids = {b.id for b in all_in_progress_batches}
+        unmanaged_ids = (
+            all_in_progress_ids
+            - set(self._in_progress_api_id_to_monitor.keys())
+            - {b.api_id for b in self._batches_to_submit}
+        )
+        is_value_new = unmanaged_ids != self._last_checked_in_batch_set
+        self._last_checked_in_batch_set = unmanaged_ids
         return is_value_new
 
     def _try_to_empty_needed_submissions(self, max_to_submit: int = None):
@@ -133,8 +124,6 @@ class OpenAiBatchManager:
         for i, prompt in enumerate(prompts):
             if prompt.num_completions != 1:
                 raise NotImplementedError()
-            prompt_hash = prompt_to_text_and_sample_hash(
-                prompt, self._lm.get_model_cache_key())
             value = self._cache.get(prompt)
             if isinstance(value, list):
                 if len(value) != 1:
@@ -144,8 +133,6 @@ class OpenAiBatchManager:
             if value is None:
                 needed.append((i, prompt))
             elif isinstance(value, BatchPredictionPlaceholder):
-                #if not value.waiting_for_a_result:
-                #    raise RuntimeError("Found an existing batch placeholder that is not waiting")
                 if value.api_id not in self._in_progress_api_id_to_monitor:
                     self._in_progress_api_id_to_monitor[value.api_id] = _BatchToMonitor(
                         api_id=value.api_id,
@@ -153,10 +140,9 @@ class OpenAiBatchManager:
                         prompts=[prompt],
                         fresh_in_this_manager=False
                     )
-                if value.api_id in self._in_progress_api_id_to_monitor:
+                elif value.api_id in self._in_progress_api_id_to_monitor:
                     existing = self._in_progress_api_id_to_monitor[value.api_id]
                     existing.prompts.append(prompt)
-                    existing.prompt_to_output_indexes.append([(i, 0)])
                 self._output[i] = value
             elif isinstance(value, LmPrediction):
                 value.mark_as_cached()
@@ -169,7 +155,6 @@ class OpenAiBatchManager:
             api_id=None,
             submitted=False,
             prompts=[p for i, p in needed],
-            prompt_to_output_indexes=[[(i, 0)] for i, _ in needed],
             fresh_in_this_manager=True,
         )
         return self._split_batch_to_known_requirements(batch)
@@ -205,9 +190,9 @@ class OpenAiBatchManager:
             return
         lines = []
         custom_ids = set()
-        for prompt, targets in zip(batch.prompts, batch.prompt_to_output_indexes):
-            assert len(targets) == 1
-            custom_id = str(targets[0][0])
+        for prompt in batch.prompts:
+            custom_id = prompt_to_text_and_sample_hash(
+                prompt, self._lm.get_model_cache_key())
             if custom_id in custom_ids:
                 raise RuntimeError("Duplicate custom id target outputs? This should not happen?")
             l = json.dumps(_prompt_to_arg_dict_for_batch(prompt, self._lm, custom_id))
@@ -222,7 +207,7 @@ class OpenAiBatchManager:
             self._batches_to_submit.extend(batch.split())
             return
         batch_data = _retry_func_on_connect_error(_make_batch)(batch_input_file, self._lm)
-        print(f"Started OpenAI batch (https://platform.openai.com/batches/{batch_data.id})", file=sys.stderr)
+        self._log(f"Started OpenAI batch (https://platform.openai.com/batches/{batch_data.id})")
         batch.submitted = True
         batch.api_id = batch_data.id
         self._in_progress_api_id_to_monitor[batch.api_id] = batch
@@ -238,11 +223,9 @@ class OpenAiBatchManager:
             api_json_data=json.dumps(batch_data.dict()),
         )
         place_holders = self._cache.put_batch_placeholders(batch_row, batch.prompts)
-        for prompt, dest, place_holder in zip(
-            batch.prompts, batch.prompt_to_output_indexes, place_holders, strict=True
-        ):
-            for index, start_index in dest:
-                self._output[index] = place_holder
+        for place_holder in place_holders:
+            index = self._prompt_hashes_to_index[place_holder.text_and_sample_hash]
+            self._output[index] = place_holder
 
     def _poll_completion(self, target: BatchPredictionPlaceholder | object):
         if not isinstance(target, BatchPredictionPlaceholder):
@@ -259,22 +242,32 @@ class OpenAiBatchManager:
             if len(self._in_progress_api_id_to_monitor) == 0:
                 if len(self._batches_to_submit) == 0:
                     return
-                was_none = self._last_checked_in_progress_batches_from_list is None
+                was_none = self._last_checked_in_batch_set is None
                 change_in_num_in_progress = self._check_if_change_in_listed_batches()
-                if change_in_num_in_progress and was_none:
-                    print(
-                        f"Waiting one of {self._last_checked_in_progress_batches_from_list} "
-                        f"other unmanaged batches to complete... (https://platform.openai.com/batches)",
-                        file=sys.stderr,
+                if (
+                    change_in_num_in_progress
+                    and was_none
+                ):
+                    assert self._last_checked_in_batch_set is not None  # for mypy
+                    msg = "Waiting for one of theses unmanaged batches to finish (not submitted by this BatchManager)"
+                    for bid in self._last_checked_in_batch_set:
+                        msg += f"\n-- https://platform.openai.com/batches/{bid}"
+                    self._log(msg)
+                if (  # See if we can clear
+                    change_in_num_in_progress
+                    and not (
+                        # Only count a change from None if a new change to empty
+                        was_none
+                        and len(self._last_checked_in_batch_set) > 0
                     )
-                if change_in_num_in_progress:
+                ):
                     self._try_to_empty_needed_submissions()
                 else:
-                    if self._last_checked_in_progress_batches_from_list == 0:
+                    if len(self._last_checked_in_batch_set) == 0:
                         raise RuntimeError("No running batches")
                     self._poll_sleep(time_waited)
             else:
-                self._last_checked_in_progress_batches_from_list = None
+                self._last_checked_in_batch_set = None
             # Normal listening of batches in progress
             for batch in list(self._in_progress_api_id_to_monitor.values()):
                 pbar = self._pbar_for_targer(batch.api_id, batch.total)
@@ -308,21 +301,74 @@ class OpenAiBatchManager:
                     self._cancel_all_batches()
                     raise RuntimeError("Batch has failed prompts. This needs to be handled")
                 pbar.set_description(desc)
-                if self._handle_batch_if_failed(batch, retrieve_data):
-                    pbar.close()
-                    break
-                if self._handle_if_batch_canceled(batch, retrieve_data):
+                if (
+                    self._handle_batch_if_failed(batch, retrieve_data)
+                    or self._handle_if_batch_canceled(batch, retrieve_data)
+                ):
                     pbar.close()
                     break
                 if not waiting_for_results:
-                    self._update_cache_rows(retrieve_data)
+                    self._update_cache_rows(batch, retrieve_data)
                     del self._in_progress_api_id_to_monitor[batch.api_id]
+                    self._handle_if_batch_expired(batch, retrieve_data)
                     pbar.close()
                     self._try_to_empty_needed_submissions()
                     if target_api_id == batch.api_id:
                         return
                     break
                 self._poll_sleep(time_waited)
+
+    def _handle_if_batch_expired(
+        self,
+        batch_monitor: '_BatchToMonitor',
+        batch_data: openai.types.Batch
+    ) -> bool:
+        if batch_data.status != "expired":
+            return False
+        self._log(
+            f"{batch_monitor.api_id} expired. We will resubmit other prompts"
+        )
+        needed_prompts = []
+        for prompt in batch_monitor.prompts:
+            phash = prompt_to_text_and_sample_hash(prompt, self._lm.get_model_cache_key())
+            if phash not in self._prompt_hashes_to_index:
+                continue
+            index = self._prompt_hashes_to_index[phash]
+            if (
+                self._output[index] is self._awaiting_marker
+                or isinstance(self._output[index], BatchPredictionPlaceholder)
+            ):
+                needed_prompts.append(prompt)
+        new_monitor = _BatchToMonitor(
+            api_id=None,
+            submitted=False,
+            prompts=needed_prompts,
+            fresh_in_this_manager=True,
+        )
+        self._batches_to_submit.extend(new_monitor.split())
+        return True
+
+    def _log(self, message: str):
+        print("lmwrapper:: " + message, file=sys.stderr)
+
+    def _resubmit_batch(self, batch_monitor):
+        # Filter the prompts to ones we might need
+        old_prompt_hashes = [
+            prompt_to_text_and_sample_hash(p, self._lm.get_model_cache_key())
+            for p in batch_monitor.prompts
+        ]
+        new_prompts = [
+            p
+            for p, h in zip(batch_monitor.prompts, old_prompt_hashes)
+            if h in self._prompt_hashes_to_index
+        ]
+        self._batches_to_submit.append(_BatchToMonitor(
+            api_id=None,
+            submitted=False,
+            prompts=new_prompts,
+            fresh_in_this_manager=True,
+        ))
+        self._try_to_empty_needed_submissions()
 
     def _handle_if_batch_canceled(
         self,
@@ -334,22 +380,15 @@ class OpenAiBatchManager:
             "canceled",
         ):
             return False
-        print(f"Batch {batch_monitor.api_id} was cancelled", file=sys.stderr)
+        self._log(f"Batch {batch_monitor.api_id} was cancelled")
         self._remove_in_progress_batch(batch_monitor)
         if not batch_monitor.fresh_in_this_manager:
-            print(f"This batch manager is not the one who submitted this batch originally, "
-                  f"so we will try to resubmit the prompts.", file=sys.stderr)
-            self._batches_to_submit.append(_BatchToMonitor(
-                api_id=None,
-                submitted=False,
-                prompts=batch_monitor.prompts,
-                prompt_to_output_indexes=batch_monitor.prompt_to_output_indexes,
-                fresh_in_this_manager=True,
-            ))
-            self._try_to_empty_needed_submissions()
+            self._log(f"Found canceled batch not submitted by this BatchManager. "
+                  f"We will try to resubmit the prompts.")
+            self._resubmit_batch(batch_monitor)
             return True
         if len(self._in_progress_api_id_to_monitor) > 1:
-            print("Attempting to cancel other batches", file=sys.stderr)
+            self._log("Attempting to cancel other batches")
             self._cancel_all_batches()
         raise RuntimeError("Batch was cancelled.")
 
@@ -371,7 +410,11 @@ class OpenAiBatchManager:
     def _cancel_batch(self, batch: '_BatchToMonitor'):
         if batch.manager_canceled:
             return
-        self._lm._api.batches.cancel(batch.api_id)
+        try:
+            self._lm._api.batches.cancel(batch.api_id)
+        except openai.ConflictError as e:
+            # Might already be done
+            pass
         self._remove_in_progress_batch(batch)
         batch.manager_canceled = True
 
@@ -382,10 +425,10 @@ class OpenAiBatchManager:
     def _remove_in_progress_batch(self, batch: '_BatchToMonitor'):
         if batch.api_id in list(self._in_progress_api_id_to_monitor):
             del self._in_progress_api_id_to_monitor[batch.api_id]
-        for prompts_indexes in batch.prompt_to_output_indexes:
-            assert len(prompts_indexes) == 1
-            for index, _ in prompts_indexes:
-                self._output[index] = self._awaiting_marker
+        for prompt in batch.prompts:
+            phash = prompt_to_text_and_sample_hash(prompt, self._lm.get_model_cache_key())
+            index = self._prompt_hashes_to_index[phash]
+            self._output[index] = self._awaiting_marker
         for prompt in batch.prompts:
             self._cache.delete(prompt)
 
@@ -399,33 +442,32 @@ class OpenAiBatchManager:
         self._remove_in_progress_batch(batch_monitor)
         for error in batch_data.errors.data:
             if error.code == "token_limit_exceeded":
-                print("Token queue limit exceeded.", file=sys.stderr)
+                self._log("Token queue limit exceeded.")
                 limit = _extract_limit_from_error_message(error.message)
                 if limit is not None:
-                    print(f"Organization limit: {limit}", file=sys.stderr)
-                print("Tokenizing all the prompts and will see if we can "
-                      "split the batch to get under the limit.", file=sys.stderr)
+                    self._log(f"Organization limit: {limit}")
                 split_batches = self._split_batch_to_known_requirements(
                     batch_monitor,
                     token_limit=int(limit * 0.95),  # give a bit of buffer
                 )
                 if len(split_batches) == 1:
-                    print("Retrying later.", file=sys.stderr)
+                    self._log("Retrying later.")
                     self._batches_to_submit.extend(split_batches)
                 else:
-                    print(f"Splitting into {len(split_batches)} new batches.", file=sys.stderr)
+                    self._log(f"Splitting into {len(split_batches)} new smaller batches.")
                     self._batches_to_submit.extend(split_batches)
                     self._try_to_empty_needed_submissions(1)
                 return True
             else:
-                print(f"Error in batch {batch_monitor.api_id}", file=sys.stderr)
-                print(error, file=sys.stderr)
+                self._log(f"Error in batch {batch_monitor.api_id}")
+                self._log(error)
         raise RuntimeError(
             f"Batch failed. This needs to be handled."
         )
 
     def _update_cache_rows(
         self,
+        batch_monitor: '_BatchToMonitor',
         batch_data: openai.types.Batch,
     ):
         content = _retry_func_on_connect_error(
@@ -437,7 +479,14 @@ class OpenAiBatchManager:
             data = json.loads(line)
             custom_id = data["custom_id"]
             response = data["response"]
-            prompt = self._prompts[int(custom_id)]
+            if custom_id not in self._prompt_hashes_to_index:
+                # This might happen if we are reading from an old batch
+                #  that we didn't start that contains some other prompts.
+                if not batch_monitor.fresh_in_this_manager:
+                    continue
+                raise RuntimeError("Custom id not find in a batch we started", custom_id)
+            out_index = self._prompt_hashes_to_index[custom_id]
+            prompt = self._prompts[out_index]
             body = response["body"]
             if self._lm.is_chat_model:
                 body = openai.types.chat.ChatCompletion.parse_obj(body)
@@ -446,7 +495,7 @@ class OpenAiBatchManager:
             pred = self._lm.prediction_from_api_response(body, prompt)
             assert len(pred) == 1
             pred = pred[0]
-            self._output[int(custom_id)] = pred
+            self._output[out_index] = pred
             self._cache.add_or_set(pred)
 
     def _pbar_for_targer(self, api_id: str, total: int):
@@ -583,7 +632,6 @@ class _BatchToMonitor:
     api_id: str | None
     submitted: bool
     prompts: list[LmPrompt]
-    prompt_to_output_indexes: list[list[tuple[int, int]]]
     """Mapping the prompt values to where the output is written.
     We return a list in case multiple identical prompts are combined
     together. The first index is the output index. The second is the
@@ -606,9 +654,6 @@ class _BatchToMonitor:
     def total(self):
         return len(self.prompts)
 
-    def __post_init__(self):
-        assert len(self.prompts) == len(self.prompt_to_output_indexes)
-
     def split(self) -> tuple["_BatchToMonitor", "_BatchToMonitor"]:
         """Splits the batch in half"""
         if len(self.prompts) == 1:
@@ -619,14 +664,12 @@ class _BatchToMonitor:
                 api_id=self.api_id,
                 submitted=self.submitted,
                 prompts=self.prompts[:mid],
-                prompt_to_output_indexes=self.prompt_to_output_indexes[:mid],
                 fresh_in_this_manager=self.fresh_in_this_manager,
             ),
             _BatchToMonitor(
                 api_id=self.api_id,
                 submitted=self.submitted,
                 prompts=self.prompts[mid:],
-                prompt_to_output_indexes=self.prompt_to_output_indexes[mid:],
                 fresh_in_this_manager=self.fresh_in_this_manager,
             ),
         )

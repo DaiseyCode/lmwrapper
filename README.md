@@ -245,8 +245,8 @@ to sort out / TODOs:
 - [X] Automatically splitting up batch when exceeding 100MB prompts limit
 - [ ] Handle when there are duplicate prompts in batch submission
 - [X] Handle canceled batches during current run (use the [web interface](https://platform.openai.com/batches) to cancel)
-- [ ] Handle canceled batches outside of current run
-- [ ] Handle if openai fails and batch expires unfinished in 24hrs (never observed this)
+- [X] Handle canceled batches outside of current run
+- [X] Handle if openai batch expires unfinished in 24hrs (though not actually tested or observed this)
 - [ ] Automatically clean up API files after done (right now end up with a lot of file in [storage](https://platform.openai.com/storage/files). There isn't an obvious cost for these batche files, but this might change and it would be better to clean them up.)
 - [ ] Test on free-tier accounts. It is not clear what the tiny request limit counts
 - [ ] Fancy batching of HF
