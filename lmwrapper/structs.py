@@ -1,4 +1,5 @@
 import contextlib
+import dataclasses
 import pickle
 import statistics
 from dataclasses import dataclass, field
@@ -177,6 +178,11 @@ class LmPrompt:
     def is_deterministic_sampling(self) -> bool:
         return (self.temperature < 1e-4) or (self.top_p < 1e-4)
 
+    def replace(self, **kwargs):
+        """Returns a new prompt with the given parameters replaced."""
+        return dataclasses.replace(self, **kwargs)
+
+
     def is_text_a_chat(self) -> bool:
         return isinstance(self.text, LmChatDialog)
 
@@ -305,6 +311,11 @@ class LmPrediction:
     prompt: LmPrompt
     metad: Any
     internals: ModelInternalsResults | None = field(default=None, kw_only=True)
+    errors: list[str] | None = field(default=None, kw_only=True)
+
+    @property
+    def has_errors(self):
+        return self.errors is not None and len(self.errors) > 0
 
     @classmethod
     def parse_from_cache(

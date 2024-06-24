@@ -59,7 +59,7 @@ class HuggingFacePredictor(LmPredictor):
             raise NotImplementedError(
                 msg,
             )
-        if prompt.logprobs > 1:
+        if prompt.logprobs is not None and prompt.logprobs > 1:
             msg = (
                 "Retrieving more than 1 logprob is not yet supported for HuggingFace"
                 " models."

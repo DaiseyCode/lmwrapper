@@ -777,41 +777,54 @@ def test_predict_many(lm):
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_predict_many_cached(lm):
     clear_cache_dir()
-    prompt = LmPrompt(
-        "A B C D E F G H",
-        max_tokens=3,
-        cache=True,
-        temperature=0,
-        logprobs=1,
+    prompts = (
+        [
+            LmPrompt(
+                t,
+                max_tokens=3,
+                cache=True,
+                temperature=0,
+                logprobs=1,
+            )
+            for t in ["A", "A B", "A B C"]
+        ]
     )
-    pred = lm.predict(prompt)
+    preds = [
+        lm.predict(prompt)
+        for prompt in prompts
+    ]
     if hasattr(lm, "_api"):
+        old_api = lm._api
         lm._api = None  # It's cached. No requests should be made
-
-        # Function to run the predict_many call
+    else:
+        old_api = None
 
     # Start the thread and set a timeout
     many = None
 
-    def run_predict_many():
-        nonlocal many
-        now = time.time()
-        many = lm.predict_many(
-            [prompt, prompt, prompt],
-            completion_window=CompletionWindow.BATCH_ANY,
-        )
-        print("Delta", time.time() - now)
+    try:
+        def run_predict_many():
+            nonlocal many
+            now = time.time()
+            many = lm.predict_many(
+                prompts,
+                completion_window=CompletionWindow.BATCH_ANY,
+            )
+            print("Delta", time.time() - now)
 
-    thread = threading.Thread(target=run_predict_many)
-    thread.start()
-    thread.join(timeout=0.05)
-    if thread.is_alive():
-        pytest.fail("predict_many call timed out")
-    else:
-        resps = list(many)
-        assert len(resps) == 3
-        assert all(resp.was_cached for resp in resps)
-        assert all(resp.completion_text == pred.completion_text for resp in resps)
+        thread = threading.Thread(target=run_predict_many)
+        thread.start()
+        thread.join(timeout=0.05)
+        if thread.is_alive():
+            pytest.fail("predict_many call timed out")
+        else:
+            resps = list(many)
+            assert len(resps) == 3
+            assert all(resp.was_cached for resp in resps)
+            assert all(resp.completion_text == pred.completion_text for resp, pred in zip(resps, preds))
+    finally:
+        if old_api:
+            lm._api = old_api
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS)

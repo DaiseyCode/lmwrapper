@@ -240,13 +240,13 @@ to sort out / TODOs:
 - [X] Retry batch API connection errors
 - [X] Automatically splitting up batches when have >50,000 prompts (limit from OpenAI) 
 - [X] Recovering / splitting up batches when hitting your token Batch Queue Limit (see [docs on limits](https://platform.openai.com/docs/guides/rate-limits/usage-tiers))
-- [ ] Handling of failed prompts (like when have too many tokens)
-- [ ] Handle when a given prompt has `num_completions>1`
-- [X] Automatically splitting up batch when exceeding 100MB prompts limit
-- [ ] Handle when there are duplicate prompts in batch submission
 - [X] Handle canceled batches during current run (use the [web interface](https://platform.openai.com/batches) to cancel)
 - [X] Handle canceled batches outside of current run
 - [X] Handle if openai batch expires unfinished in 24hrs (though not actually tested or observed this)
+- [X] Automatically splitting up batch when exceeding 100MB prompts limit
+- [ ] Handling of failed prompts (like when have too many tokens). Right now whole batch fails.
+- [ ] Handle when there are duplicate prompts in batch submission
+- [ ] Handle when a given prompt has `num_completions>1`
 - [ ] Automatically clean up API files after done (right now end up with a lot of file in [storage](https://platform.openai.com/storage/files). There isn't an obvious cost for these batche files, but this might change and it would be better to clean them up.)
 - [ ] Test on free-tier accounts. It is not clear what the tiny request limit counts
 - [ ] Fancy batching of HF

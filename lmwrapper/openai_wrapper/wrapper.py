@@ -1,4 +1,5 @@
 import bisect
+import dataclasses
 import math
 import random
 import re
@@ -159,7 +160,10 @@ def get_open_ai_lm(
     )
 
 
+@dataclasses.dataclass
 class OpenAiLmPrediction(LmPrediction):
+    #tokenizer: tiktoken.Encoding = dataclasses.field(default=None, kw_only=False)
+
     def _get_completion_token_index(self):
         """
         If echoing the completion text might not start at the begining. Returns the
@@ -287,8 +291,8 @@ class OpenAiLmPrediction(LmPrediction):
         return top_logprobs
 
 
-class OpenAiLmChatPrediction(LmPrediction):
-    pass
+#class OpenAiLmChatPrediction(LmPrediction):
+#    pass
 
 
 class OpenAIPredictor(LmPredictor):
@@ -341,8 +345,8 @@ class OpenAIPredictor(LmPredictor):
         cls._instantiation_hooks.append(hook)
 
     def find_prediction_class(self, prompt):
-        if self._chat_mode:
-            return OpenAiLmChatPrediction
+        #if self._chat_mode:
+        #    return OpenAiLmChatPrediction
         return OpenAiLmPrediction
 
     def _validate_prompt(self, prompt: LmPrompt, raise_on_invalid: bool = True) -> bool:
@@ -477,6 +481,7 @@ class OpenAIPredictor(LmPredictor):
                 prompt,
                 choice,
                 internals=None,
+                #tokenizer=self._tokenizer
             )
             for choice in choices
         ]

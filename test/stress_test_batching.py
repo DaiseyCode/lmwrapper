@@ -139,10 +139,30 @@ def token_queue_limit_try():
     print(list(batching_manager.iter_results()))
 
 
+def failed_prompt():
+    clear_cache_dir()
+    model_name = OpenAiModelNames.gpt_3_5_turbo
+    lm = get_open_ai_lm(model_name)
+    cache = SqlBackedCache(lm=lm)
+    prompt = LmPrompt(
+        "a",
+        cache=True,
+        max_tokens=10_000,  # output too big
+        temperature=0,
+    )
+    batching_manager = OpenAiBatchManager(
+        [prompt],
+        cache=cache,
+    )
+    batching_manager.start_batch()
+    print(list(batching_manager.iter_results()))
+
+
 if __name__ == "__main__":
-    simple()
+    #simple()
     #print(list(get_unique_texts(int(1e6), OpenAiModelNames.gpt_3_5_turbo)))
     #over50k()
     #clear_cache_dir()
     #bigarthmatic()
     #token_queue_limit_try()
+    failed_prompt()

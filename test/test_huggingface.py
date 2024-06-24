@@ -458,6 +458,7 @@ def test_stop_token_removal():
         max_tokens=15,
         cache=False,
         temperature=0,
+        logprobs=1,
     )
     out = lm.predict(prompt)
     assert "Italy" in out.completion_text
@@ -559,6 +560,7 @@ def test_stop_token_removal():
         max_tokens=15,
         cache=False,
         temperature=0,
+        logprobs=1,
         stop=["Italy"],
     )
     out = lm.predict(prompt)
@@ -622,6 +624,7 @@ def test_stop_token_removal():
         max_tokens=300,
         cache=False,
         temperature=0,
+        logprobs=1,
     )
     out = lm.predict(prompt)
     assert "I like to eat candy" in out.completion_text
@@ -632,6 +635,7 @@ def test_stop_token_removal():
         max_tokens=300,
         cache=False,
         temperature=0,
+        logprobs=1,
         stop=["I like to eat candy"],
     )
     out = lm.predict(prompt)
