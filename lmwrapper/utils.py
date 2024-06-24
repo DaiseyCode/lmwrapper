@@ -1,9 +1,9 @@
-from enum import Enum
-import math
-from typing import Any, TypeVar, Type, TextIO, Callable
+import functools
 import sys
 import time
-import functools
+from collections.abc import Callable
+from enum import Enum
+from typing import Any, TextIO, TypeVar
 
 _S = TypeVar("_S", bound="StrEnum")
 
@@ -76,18 +76,20 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 
 def retry_func_on_exception(
-    exception: Type[Exception],
+    exception: type[Exception],
     max_retries: int = 8,
     linear_backoff_factor: float = 3,
     exponential_backoff_factor: float = 2,
     print_output_stream: TextIO = sys.stderr,
     extra_message: str = "",
 ) -> Callable[[F], F]:
-    """A decorator that retries a function on a given exception.
+    """
+    A decorator that retries a function on a given exception.
 
     The wait time between retries is calculated as:
     wait_time = exponential_backoff_factor**retries + linear_backoff_factor * retries
     """
+
     def decorator_retry(func: F) -> F:
         @functools.wraps(func)
         def wrapper_retry(*args, **kwargs):
@@ -106,9 +108,12 @@ def retry_func_on_exception(
                     if print_output_stream:
                         print(
                             f"{e.__class__.__name__} occurred. "
-                            f"Retrying in {wait_time:.3f} seconds..." + extra_message,
+                            f"Retrying in {wait_time:.3f} seconds..."
+                            + extra_message,
                             file=print_output_stream,
                         )
                     time.sleep(wait_time)
+
         return wrapper_retry
+
     return decorator_retry

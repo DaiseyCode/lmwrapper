@@ -8,12 +8,13 @@ abstracted later.
 
 import io
 import json
-import sys
 import re
+import sys
 import time
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import TypeVar, Callable, Iterable
+from typing import TypeVar
 
 import openai.types
 import openai.types.chat
@@ -41,7 +42,9 @@ _retry_func_on_connect_error = retry_func_on_exception(
     max_retries=8,
     linear_backoff_factor=3,
     exponential_backoff_factor=2,
-    extra_message="(If you get this repeated, you might want to check your network connection)"
+    extra_message=(
+        "(If you get this repeated, you might want to check your network connection)"
+    ),
 )
 
 
@@ -63,23 +66,20 @@ class OpenAiBatchManager:
         self._prompts = prompts
         _cache_key = cache.lm.get_model_cache_key()
         self._index_to_hash = [
-            prompt_to_text_and_sample_hash(p, _cache_key)
-            for i, p in enumerate(prompts)
+            prompt_to_text_and_sample_hash(p, _cache_key) for i, p in enumerate(prompts)
         ]
-        self._prompt_hashes_to_index = {
-            h: i
-            for i, h in enumerate(self._index_to_hash)
-        }
+        self._prompt_hashes_to_index = {h: i for i, h in enumerate(self._index_to_hash)}
         if len(self._prompt_hashes_to_index) != len(prompts):
-            raise NotImplementedError("Duplicate prompts detected. This is not currently handled")
+            raise NotImplementedError(
+                "Duplicate prompts detected. This is not currently handled",
+            )
         self._started = False
         self._lm: OpenAIPredictor = cache.lm
         self._batch_id_to_pbar = {}
         self._max_prompts_batch_size = max_prompts_per_batch
         if max_prompts_per_batch > 50_000:
             raise ValueError(
-                "Due to API limits max prompts per batch "
-                "cannot be more than 50,000"
+                "Due to API limits max prompts per batch cannot be more than 50,000",
             )
         self._max_input_file_size = 80e6  # Actual 100MB
 
@@ -109,10 +109,7 @@ class OpenAiBatchManager:
         if not self._batches_to_submit:
             return
         num_sent = 0
-        while (
-            self._batches_to_submit
-            and num_sent < (max_to_submit or 1000)
-        ):
+        while self._batches_to_submit and num_sent < (max_to_submit or 1000):
             batch = self._batches_to_submit.pop()
             self._send_batch(batch)
             num_sent += 1
@@ -120,14 +117,14 @@ class OpenAiBatchManager:
     def _organize_prompts(self, prompts) -> list["_BatchToMonitor"]:
         # Loop through and figure out the already completed ones
         needed = []
-        #api_id_to_batch = {}
+        # api_id_to_batch = {}
         for i, prompt in enumerate(prompts):
             if prompt.num_completions != 1:
-                raise NotImplementedError()
+                raise NotImplementedError
             value = self._cache.get(prompt)
             if isinstance(value, list):
                 if len(value) != 1:
-                    raise RuntimeError()
+                    raise RuntimeError
                 value = value[0]
 
             if value is None:
@@ -138,7 +135,7 @@ class OpenAiBatchManager:
                         api_id=value.api_id,
                         submitted=True,
                         prompts=[prompt],
-                        fresh_in_this_manager=False
+                        fresh_in_this_manager=False,
                     )
                 elif value.api_id in self._in_progress_api_id_to_monitor:
                     existing = self._in_progress_api_id_to_monitor[value.api_id]
@@ -164,11 +161,11 @@ class OpenAiBatchManager:
         batch: "_BatchToMonitor",
         token_limit: int = None,
     ) -> list["_BatchToMonitor"]:
-        if (
-            len(batch.prompts) > self._max_prompts_batch_size
-        ):
+        if len(batch.prompts) > self._max_prompts_batch_size:
             a, b = batch.split()
-            return self._split_batch_to_known_requirements(a) + self._split_batch_to_known_requirements(b)
+            return self._split_batch_to_known_requirements(
+                a,
+            ) + self._split_batch_to_known_requirements(b)
         if token_limit is not None:
             tokens = batch.calculate_prompt_tokens(self._lm)
             if tokens > token_limit:
@@ -176,25 +173,29 @@ class OpenAiBatchManager:
                     raise RuntimeError(
                         "Single prompt in batch is larger than available token limit. "
                         "(Ideally, this should just fail this prompt, but for now "
-                        "it is a error for the whole batch)."
+                        "it is a error for the whole batch).",
                     )
                 a, b = batch.split()
-                return (
-                    self._split_batch_to_known_requirements(a, token_limit)
-                    + self._split_batch_to_known_requirements(b, token_limit)
-                )
+                return self._split_batch_to_known_requirements(
+                    a,
+                    token_limit,
+                ) + self._split_batch_to_known_requirements(b, token_limit)
         return [batch]
 
-    def _send_batch(self, batch: '_BatchToMonitor'):
+    def _send_batch(self, batch: "_BatchToMonitor"):
         if not batch or not batch.prompts:
             return
         lines = []
         custom_ids = set()
         for prompt in batch.prompts:
             custom_id = prompt_to_text_and_sample_hash(
-                prompt, self._lm.get_model_cache_key())
+                prompt,
+                self._lm.get_model_cache_key(),
+            )
             if custom_id in custom_ids:
-                raise RuntimeError("Duplicate custom id target outputs? This should not happen?")
+                raise RuntimeError(
+                    "Duplicate custom id target outputs? This should not happen?",
+                )
             l = json.dumps(_prompt_to_arg_dict_for_batch(prompt, self._lm, custom_id))
             custom_ids.add(custom_id)
             lines.append(l)
@@ -206,8 +207,14 @@ class OpenAiBatchManager:
                 raise e
             self._batches_to_submit.extend(batch.split())
             return
-        batch_data = _retry_func_on_connect_error(_make_batch)(batch_input_file, self._lm)
-        self._log(f"Started OpenAI batch (https://platform.openai.com/batches/{batch_data.id})")
+        batch_data = _retry_func_on_connect_error(_make_batch)(
+            batch_input_file,
+            self._lm,
+        )
+        self._log(
+            "Started OpenAI batch"
+            f" (https://platform.openai.com/batches/{batch_data.id})",
+        )
         batch.submitted = True
         batch.api_id = batch_data.id
         self._in_progress_api_id_to_monitor[batch.api_id] = batch
@@ -244,22 +251,19 @@ class OpenAiBatchManager:
                     return
                 was_none = self._last_checked_in_batch_set is None
                 change_in_num_in_progress = self._check_if_change_in_listed_batches()
-                if (
-                    change_in_num_in_progress
-                    and was_none
-                ):
+                if change_in_num_in_progress and was_none:
                     assert self._last_checked_in_batch_set is not None  # for mypy
-                    msg = "Waiting for one of theses unmanaged batches to finish (not submitted by this BatchManager)"
+                    msg = (
+                        "Waiting for one of theses unmanaged batches to finish (not"
+                        " submitted by this BatchManager)"
+                    )
                     for bid in self._last_checked_in_batch_set:
                         msg += f"\n-- https://platform.openai.com/batches/{bid}"
                     self._log(msg)
-                if (  # See if we can clear
-                    change_in_num_in_progress
-                    and not (
-                        # Only count a change from None if a new change to empty
-                        was_none
-                        and len(self._last_checked_in_batch_set) > 0
-                    )
+                if change_in_num_in_progress and not (  # See if we can clear
+                    # Only count a change from None if a new change to empty
+                    was_none
+                    and len(self._last_checked_in_batch_set) > 0
                 ):
                     self._try_to_empty_needed_submissions()
                 else:
@@ -272,7 +276,7 @@ class OpenAiBatchManager:
             for batch in list(self._in_progress_api_id_to_monitor.values()):
                 pbar = self._pbar_for_targer(batch.api_id, batch.total)
                 retrieve_data: openai.types.Batch = _retry_func_on_connect_error(
-                    self._cache.lm._api.batches.retrieve
+                    self._cache.lm._api.batches.retrieve,
                 )(
                     batch.api_id,
                 )
@@ -299,12 +303,14 @@ class OpenAiBatchManager:
                     desc += f" ({retrieve_data.request_counts.failed} failed)"
                     pbar.set_description(desc)
                     self._cancel_all_batches()
-                    raise RuntimeError("Batch has failed prompts. This needs to be handled")
+                    raise RuntimeError(
+                        "Batch has failed prompts. This needs to be handled",
+                    )
                 pbar.set_description(desc)
-                if (
-                    self._handle_batch_if_failed(batch, retrieve_data)
-                    or self._handle_if_batch_canceled(batch, retrieve_data)
-                ):
+                if self._handle_batch_if_failed(
+                    batch,
+                    retrieve_data,
+                ) or self._handle_if_batch_canceled(batch, retrieve_data):
                     pbar.close()
                     break
                 if not waiting_for_results:
@@ -320,23 +326,24 @@ class OpenAiBatchManager:
 
     def _handle_if_batch_expired(
         self,
-        batch_monitor: '_BatchToMonitor',
-        batch_data: openai.types.Batch
+        batch_monitor: "_BatchToMonitor",
+        batch_data: openai.types.Batch,
     ) -> bool:
         if batch_data.status != "expired":
             return False
-        self._log(
-            f"{batch_monitor.api_id} expired. We will resubmit other prompts"
-        )
+        self._log(f"{batch_monitor.api_id} expired. We will resubmit other prompts")
         needed_prompts = []
         for prompt in batch_monitor.prompts:
-            phash = prompt_to_text_and_sample_hash(prompt, self._lm.get_model_cache_key())
+            phash = prompt_to_text_and_sample_hash(
+                prompt,
+                self._lm.get_model_cache_key(),
+            )
             if phash not in self._prompt_hashes_to_index:
                 continue
             index = self._prompt_hashes_to_index[phash]
-            if (
-                self._output[index] is self._awaiting_marker
-                or isinstance(self._output[index], BatchPredictionPlaceholder)
+            if self._output[index] is self._awaiting_marker or isinstance(
+                self._output[index],
+                BatchPredictionPlaceholder,
             ):
                 needed_prompts.append(prompt)
         new_monitor = _BatchToMonitor(
@@ -359,21 +366,23 @@ class OpenAiBatchManager:
         ]
         new_prompts = [
             p
-            for p, h in zip(batch_monitor.prompts, old_prompt_hashes)
+            for p, h in zip(batch_monitor.prompts, old_prompt_hashes, strict=False)
             if h in self._prompt_hashes_to_index
         ]
-        self._batches_to_submit.append(_BatchToMonitor(
-            api_id=None,
-            submitted=False,
-            prompts=new_prompts,
-            fresh_in_this_manager=True,
-        ))
+        self._batches_to_submit.append(
+            _BatchToMonitor(
+                api_id=None,
+                submitted=False,
+                prompts=new_prompts,
+                fresh_in_this_manager=True,
+            ),
+        )
         self._try_to_empty_needed_submissions()
 
     def _handle_if_batch_canceled(
         self,
-        batch_monitor: '_BatchToMonitor',
-        batch_data: openai.types.Batch
+        batch_monitor: "_BatchToMonitor",
+        batch_data: openai.types.Batch,
     ) -> bool:
         if batch_data.status not in (
             "cancelling",
@@ -383,8 +392,10 @@ class OpenAiBatchManager:
         self._log(f"Batch {batch_monitor.api_id} was cancelled")
         self._remove_in_progress_batch(batch_monitor)
         if not batch_monitor.fresh_in_this_manager:
-            self._log(f"Found canceled batch not submitted by this BatchManager. "
-                  f"We will try to resubmit the prompts.")
+            self._log(
+                "Found canceled batch not submitted by this BatchManager. "
+                "We will try to resubmit the prompts.",
+            )
             self._resubmit_batch(batch_monitor)
             return True
         if len(self._in_progress_api_id_to_monitor) > 1:
@@ -407,12 +418,12 @@ class OpenAiBatchManager:
             sleep_time /= min(len(self._in_progress_api_id_to_monitor), 4)
         time.sleep(sleep_time)
 
-    def _cancel_batch(self, batch: '_BatchToMonitor'):
+    def _cancel_batch(self, batch: "_BatchToMonitor"):
         if batch.manager_canceled:
             return
         try:
             self._lm._api.batches.cancel(batch.api_id)
-        except openai.ConflictError as e:
+        except openai.ConflictError:
             # Might already be done
             pass
         self._remove_in_progress_batch(batch)
@@ -422,11 +433,14 @@ class OpenAiBatchManager:
         for batch in list(self._in_progress_api_id_to_monitor.values()):
             self._cancel_batch(batch)
 
-    def _remove_in_progress_batch(self, batch: '_BatchToMonitor'):
+    def _remove_in_progress_batch(self, batch: "_BatchToMonitor"):
         if batch.api_id in list(self._in_progress_api_id_to_monitor):
             del self._in_progress_api_id_to_monitor[batch.api_id]
         for prompt in batch.prompts:
-            phash = prompt_to_text_and_sample_hash(prompt, self._lm.get_model_cache_key())
+            phash = prompt_to_text_and_sample_hash(
+                prompt,
+                self._lm.get_model_cache_key(),
+            )
             index = self._prompt_hashes_to_index[phash]
             self._output[index] = self._awaiting_marker
         for prompt in batch.prompts:
@@ -434,8 +448,8 @@ class OpenAiBatchManager:
 
     def _handle_batch_if_failed(
         self,
-        batch_monitor: '_BatchToMonitor',
-        batch_data: openai.types.Batch
+        batch_monitor: "_BatchToMonitor",
+        batch_data: openai.types.Batch,
     ) -> bool:
         if batch_data.status != "failed":
             return False
@@ -454,24 +468,25 @@ class OpenAiBatchManager:
                     self._log("Retrying later.")
                     self._batches_to_submit.extend(split_batches)
                 else:
-                    self._log(f"Splitting into {len(split_batches)} new smaller batches.")
+                    self._log(
+                        f"Splitting into {len(split_batches)} new smaller batches.",
+                    )
                     self._batches_to_submit.extend(split_batches)
                     self._try_to_empty_needed_submissions(1)
                 return True
             else:
                 self._log(f"Error in batch {batch_monitor.api_id}")
                 self._log(error)
-        raise RuntimeError(
-            f"Batch failed. This needs to be handled."
-        )
+        raise RuntimeError("Batch failed. This needs to be handled.")
 
     def _update_cache_rows(
         self,
-        batch_monitor: '_BatchToMonitor',
+        batch_monitor: "_BatchToMonitor",
         batch_data: openai.types.Batch,
     ):
-        content = _retry_func_on_connect_error(
-            self._cache.lm._api.files.content)(batch_data.output_file_id)
+        content = _retry_func_on_connect_error(self._cache.lm._api.files.content)(
+            batch_data.output_file_id,
+        )
         content_str = content.content.decode("utf-8")
         for line in content_str.split("\n"):
             if not line:
@@ -484,7 +499,10 @@ class OpenAiBatchManager:
                 #  that we didn't start that contains some other prompts.
                 if not batch_monitor.fresh_in_this_manager:
                     continue
-                raise RuntimeError("Custom id not find in a batch we started", custom_id)
+                raise RuntimeError(
+                    "Custom id not find in a batch we started",
+                    custom_id,
+                )
             out_index = self._prompt_hashes_to_index[custom_id]
             prompt = self._prompts[out_index]
             body = response["body"]
@@ -512,7 +530,10 @@ class OpenAiBatchManager:
         num_yielded = 0
         while num_yielded < len(self._output):
             result = self._output[num_yielded]
-            if isinstance(result, BatchPredictionPlaceholder) or result is self._awaiting_marker:
+            if (
+                isinstance(result, BatchPredictionPlaceholder)
+                or result is self._awaiting_marker
+            ):
                 try:
                     self._poll_completion(result)
                 except RuntimeError as e:
@@ -538,7 +559,10 @@ class OpenAiBatchManager:
                 " currently to use batching manager",
             )
         if not all(prompt.num_completions == 1 for prompt in prompts):
-            raise NotImplementedError("Only num_completions of 1 is currently supported in batches (need to be fixed)")
+            raise NotImplementedError(
+                "Only num_completions of 1 is currently supported in batches (need to"
+                " be fixed)",
+            )
 
 
 class InvalidBatchFile(ValueError):
@@ -551,11 +575,12 @@ def _extract_limit_from_error_message(message):
 
     if match:
         # Extract the matched number and remove commas
-        number_str = match.group(1).replace(',', '')
+        number_str = match.group(1).replace(",", "")
         # Convert to integer
         return int(number_str)
     else:
         return None
+
 
 def _put_batch_in_file(
     jsonl_str: str,
@@ -563,8 +588,10 @@ def _put_batch_in_file(
 ) -> openai.types.FileObject:
     jsonl_bytes = io.BytesIO(jsonl_str.encode("utf-8"))
     if len(jsonl_bytes.getvalue()) > 80e6:
-        raise InvalidBatchFile("Batch file is too large. Max is 100MB."
-                         " We still need to implement automatic splitting for this")
+        raise InvalidBatchFile(
+            "Batch file is too large. Max is 100MB."
+            " We still need to implement automatic splitting for this",
+        )
     batch_input_file = _retry_func_on_connect_error(lm._api.files.create)(
         file=jsonl_bytes,
         purpose="batch",
@@ -646,8 +673,7 @@ class _BatchToMonitor:
 
     def calculate_prompt_tokens(self, lm: OpenAIPredictor):
         return sum(
-            len(lm.tokenize(p.get_text_as_string_default_form()))
-            for p in self.prompts
+            len(lm.tokenize(p.get_text_as_string_default_form())) for p in self.prompts
         )
 
     @property

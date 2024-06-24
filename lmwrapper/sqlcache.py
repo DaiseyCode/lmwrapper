@@ -154,8 +154,6 @@ def create_tables():
     execute_query(create_tables_sql)
 
 
-
-
 def prompt_to_text_hash(prompt: LmPrompt) -> str:
     text = prompt.get_text_as_string_default_form()
     hasher = xxhash.xxh64()
@@ -246,10 +244,7 @@ def create_from_prompt_sample_params(prompt: LmPrompt, model_key: str):
     return sample_hash
 
 
-def add_or_set_prediction_to_cache(
-    prediction: LmPrediction,
-    model_key: str
-):
+def add_or_set_prediction_to_cache(prediction: LmPrediction, model_key: str):
     create_tables()
     text_and_sample_hash = prompt_to_text_and_sample_hash(prediction.prompt, model_key)
     params = prompt_to_only_sample_class_dict(prediction.prompt, model_key)
@@ -267,7 +262,7 @@ def add_or_set_prediction_to_cache(
                 (text_hash, text),
             ),
             (
-            """
+                """
             INSERT OR IGNORE INTO CacheLmPromptSampleParams 
             (text_hash, text_and_sample_hash, model_key, max_tokens, temperature, top_p, presence_penalty, 
             frequency_penalty, add_bos_token, echo, add_special_tokens, has_internals_request, stop) 
@@ -308,7 +303,7 @@ def add_or_set_prediction_to_cache(
                     prediction.serialize_metad_for_cache(),
                     datetime.datetime.now().isoformat(),
                 ),
-            )
+            ),
         ],
     )
 
@@ -355,25 +350,29 @@ def get_from_cache(
     # If the data is not populated, return a BatchPredictionShell
     for ret in all_ret:
         if not ret[2]:  # data_populated is False
-            out.append(BatchPredictionPlaceholder(
-                batch_id=ret[6],
-                text_and_sample_hash=ret[0],
-                api_id=ret[7],
-                api_category=ret[8],
-                status=ret[9],
-                waiting_for_a_result=ret[10],
-                batch_total_inputs=ret[11],
-            ))
+            out.append(
+                BatchPredictionPlaceholder(
+                    batch_id=ret[6],
+                    text_and_sample_hash=ret[0],
+                    api_id=ret[7],
+                    api_category=ret[8],
+                    status=ret[9],
+                    waiting_for_a_result=ret[10],
+                    batch_total_inputs=ret[11],
+                ),
+            )
             continue
 
         # Otherwise, return the LmPrediction object
         completion_text = ret[4]
         metad_bytes = ret[5]
-        out.append(lm.find_prediction_class(prompt).parse_from_cache(
-            completion_text,
-            prompt,
-            metad_bytes,
-        ))
+        out.append(
+            lm.find_prediction_class(prompt).parse_from_cache(
+                completion_text,
+                prompt,
+                metad_bytes,
+            ),
+        )
     return out
 
 
@@ -389,7 +388,10 @@ class SqlBackedCache:
     def __contains__(self, prompt: LmPrompt):
         return get_from_cache(prompt, self._lm) is not None
 
-    def get(self, prompt: LmPrompt) -> list[LmPrediction | BatchPredictionPlaceholder] | None:
+    def get(
+        self,
+        prompt: LmPrompt,
+    ) -> list[LmPrediction | BatchPredictionPlaceholder] | None:
         return get_from_cache(prompt, self._lm)
 
     def add_or_set(self, prediction: LmPrediction):
@@ -447,7 +449,10 @@ class SqlBackedCache:
             """,
             [
                 (
-                    prompt_to_text_and_sample_hash(prompt, self._lm.get_model_cache_key()),
+                    prompt_to_text_and_sample_hash(
+                        prompt,
+                        self._lm.get_model_cache_key(),
+                    ),
                     False,
                     batch_row.batch_id,
                 )
@@ -472,12 +477,16 @@ class SqlBackedCache:
         ]
 
     def delete(self, prompt: LmPrompt) -> bool:
-        """Deletes all entries of a prompt (including all the multisamples)
+        """
+        Deletes all entries of a prompt (including all the multisamples)
         Returns True if any data was deleted, False otherwise.
         """
         if not isinstance(prompt, LmPrompt):
             raise ValueError(f"Expected LmPrompt, got {type(prompt)}")
-        sample_hash = prompt_to_text_and_sample_hash(prompt, self._lm.get_model_cache_key())
+        sample_hash = prompt_to_text_and_sample_hash(
+            prompt,
+            self._lm.get_model_cache_key(),
+        )
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(

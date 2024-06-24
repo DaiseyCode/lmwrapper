@@ -31,7 +31,7 @@ class LmPredictor:
         prompt: str | LmPrompt,
     ) -> LmPrediction | list[LmPrediction]:
         prompt = self._cast_prompt(prompt)
-        #if prompt.num_completions > 1:
+        # if prompt.num_completions > 1:
         #    raise NotImplementedError(
         #        "Changes with with caching and batching means we need to test `num_completions > 1`."
         #    )
@@ -53,7 +53,7 @@ class LmPredictor:
             if need_new_completions != prompt.num_completions:
                 new_prompt = dataclasses.replace(
                     prompt,
-                    num_completions=prompt.num_completions - len(cached_vals)
+                    num_completions=prompt.num_completions - len(cached_vals),
                 )
             else:
                 new_prompt = prompt
@@ -76,8 +76,10 @@ class LmPredictor:
             return self._predict_maybe_cached(prompt)
 
     def _read_cached_values(self, prompt: LmPrompt) -> list[LmPrediction]:
-        """Checks the cache for any matches of the prompt. Returns a list
-        as if num_completions is >1 we might have multiple items"""
+        """
+        Checks the cache for any matches of the prompt. Returns a list
+        as if num_completions is >1 we might have multiple items
+        """
         cache_key = prompt
         try:
             cached_items = self._disk_cache.get(cache_key)

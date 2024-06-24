@@ -261,8 +261,14 @@ class HuggingFacePredictor(LmPredictor):
         return outputs
 
     def _do_actual_generate(
-        self, prompt, encoded_input, gen_config, patch_model_forward,
-        will_have_bos, model_requires_attention_mask, need_log_prob,
+        self,
+        prompt,
+        encoded_input,
+        gen_config,
+        patch_model_forward,
+        will_have_bos,
+        model_requires_attention_mask,
+        need_log_prob,
     ):
         if patch_model_forward:
             # We need a way of getting the raw logprobs of the whole sequence.

@@ -182,7 +182,6 @@ class LmPrompt:
         """Returns a new prompt with the given parameters replaced."""
         return dataclasses.replace(self, **kwargs)
 
-
     def is_text_a_chat(self) -> bool:
         return isinstance(self.text, LmChatDialog)
 

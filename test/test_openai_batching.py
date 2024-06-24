@@ -113,7 +113,6 @@ def test_batch_starting_connection_error():
         print(kwargs["file"].getvalue().decode())
         return openai.types.FileObject.parse_obj(sample_file_resp)
 
-
     def mock_batches_create(**kwargs):
         nonlocal calls
         calls += 1
@@ -170,10 +169,7 @@ def test_batch_dup_prompts():
     mock_api.batches.create = mock_batches_create
 
     batch_manager = OpenAiBatchManager(
-        [
-            LmPrompt("hello", cache=True)
-            for i in range(2)
-        ],
+        [LmPrompt("hello", cache=True) for i in range(2)],
         cache=cache,
     )
     batch_manager.start_batch()

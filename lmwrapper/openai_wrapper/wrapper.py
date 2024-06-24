@@ -162,7 +162,7 @@ def get_open_ai_lm(
 
 @dataclasses.dataclass
 class OpenAiLmPrediction(LmPrediction):
-    #tokenizer: tiktoken.Encoding = dataclasses.field(default=None, kw_only=False)
+    # tokenizer: tiktoken.Encoding = dataclasses.field(default=None, kw_only=False)
 
     def _get_completion_token_index(self):
         """
@@ -291,7 +291,7 @@ class OpenAiLmPrediction(LmPrediction):
         return top_logprobs
 
 
-#class OpenAiLmChatPrediction(LmPrediction):
+# class OpenAiLmChatPrediction(LmPrediction):
 #    pass
 
 
@@ -345,7 +345,7 @@ class OpenAIPredictor(LmPredictor):
         cls._instantiation_hooks.append(hook)
 
     def find_prediction_class(self, prompt):
-        #if self._chat_mode:
+        # if self._chat_mode:
         #    return OpenAiLmChatPrediction
         return OpenAiLmPrediction
 
@@ -481,7 +481,7 @@ class OpenAIPredictor(LmPredictor):
                 prompt,
                 choice,
                 internals=None,
-                #tokenizer=self._tokenizer
+                # tokenizer=self._tokenizer
             )
             for choice in choices
         ]
@@ -493,6 +493,7 @@ class OpenAIPredictor(LmPredictor):
     ) -> Iterable[LmPrediction | list[LmPrediction]]:
         if completion_window == CompletionWindow.BATCH_ANY:
             from lmwrapper.openai_wrapper import batching
+
             # ^ putting this here to prevent circular import.
             #   probably some more clever way...
             batch_manager = batching.OpenAiBatchManager(

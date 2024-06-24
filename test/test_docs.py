@@ -4,12 +4,13 @@ will execute.
 """
 
 import re
-from pathlib import Path
 import sys
-import traceback
-import pytest
-import types
 import threading
+import traceback
+import types
+from pathlib import Path
+
+import pytest
 
 from lmwrapper.caching import clear_cache_dir
 
@@ -19,12 +20,9 @@ cur_file = Path(__file__).parent.absolute()
 def extract_code_blocks(file):
     with open(file) as f:
         content = f.read()
-    pattern = re.compile(
-        r"(<!-- skip ?test -->\s*)?```python\r?\n(.*?)```", re.DOTALL
-    )
+    pattern = re.compile(r"(<!-- skip ?test -->\s*)?```python\r?\n(.*?)```", re.DOTALL)
     blocks = pattern.findall(content)
     return [code for skip, code in blocks if not skip]
-
 
 
 @pytest.mark.parametrize(
@@ -38,7 +36,7 @@ def test_readme_code(code):
     print("### OUTPUT")
 
     # Create a new module
-    module_name = 'dynamic_module'
+    module_name = "dynamic_module"
     dynamic_module = types.ModuleType(module_name)
     # Set the module's __dict__ as the global context for exec
     exec_globals = dynamic_module.__dict__
@@ -53,6 +51,7 @@ def test_readme_code(code):
 
     # Use a queue to get the result from the thread
     import queue
+
     result_queue = queue.Queue()
 
     def thread_function():

@@ -777,22 +777,17 @@ def test_predict_many(lm):
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_predict_many_cached(lm):
     clear_cache_dir()
-    prompts = (
-        [
-            LmPrompt(
-                t,
-                max_tokens=3,
-                cache=True,
-                temperature=0,
-                logprobs=1,
-            )
-            for t in ["A", "A B", "A B C"]
-        ]
-    )
-    preds = [
-        lm.predict(prompt)
-        for prompt in prompts
+    prompts = [
+        LmPrompt(
+            t,
+            max_tokens=3,
+            cache=True,
+            temperature=0,
+            logprobs=1,
+        )
+        for t in ["A", "A B", "A B C"]
     ]
+    preds = [lm.predict(prompt) for prompt in prompts]
     if hasattr(lm, "_api"):
         old_api = lm._api
         lm._api = None  # It's cached. No requests should be made
@@ -803,6 +798,7 @@ def test_predict_many_cached(lm):
     many = None
 
     try:
+
         def run_predict_many():
             nonlocal many
             now = time.time()
@@ -821,7 +817,10 @@ def test_predict_many_cached(lm):
             resps = list(many)
             assert len(resps) == 3
             assert all(resp.was_cached for resp in resps)
-            assert all(resp.completion_text == pred.completion_text for resp, pred in zip(resps, preds))
+            assert all(
+                resp.completion_text == pred.completion_text
+                for resp, pred in zip(resps, preds, strict=False)
+            )
     finally:
         if old_api:
             lm._api = old_api
@@ -887,4 +886,3 @@ def test_num_completions_two_cached(lm):
     assert pred4[1].completion_text == pred[1].completion_text
     assert pred4[2].completion_text != pred[0].completion_text
     assert pred4[2].completion_text != pred[1].completion_text
-
