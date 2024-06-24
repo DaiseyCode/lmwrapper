@@ -25,6 +25,33 @@ def extract_code_blocks(file):
     return [code for skip, code in blocks if not skip]
 
 
+"""
+Tests to verify that any examples given in user-facing documentation
+will execute.
+"""
+
+import re
+from pathlib import Path
+
+import pytest
+import types
+import threading
+
+from lmwrapper.caching import clear_cache_dir
+
+cur_file = Path(__file__).parent.absolute()
+
+
+def extract_code_blocks(file):
+    with open(file) as f:
+        content = f.read()
+    pattern = re.compile(
+        r"(<!-- skip ?test -->\s*)?```python\r?\n(.*?)```", re.DOTALL
+    )
+    blocks = pattern.findall(content)
+    return [code for skip, code in blocks if not skip]
+
+
 @pytest.mark.parametrize(
     "code",
     extract_code_blocks(cur_file / "../README.md"),
