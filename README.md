@@ -215,7 +215,7 @@ def load_more_data() -> list:
 
 data = load_data() + load_more_data()
 prompts = make_prompts(data)
-# If we submit the new data, only the new data will get
+# If we submit the five prompts, only the two new prompts will be
 # submitted to the batch. The already completed prompts will
 # be loaded near-instantly from the local cache.
 predictions = list(lm.predict_many(
@@ -224,16 +224,18 @@ predictions = list(lm.predict_many(
 ))
 ```
 
-`lmwrapper` is designed to automatically manage the batching of thousands or millions of prompts.
+`lmwrapper` is designed to automatically manage the batching of thousands or millions of prompts. 
+If needed, it will automatically split up prompts into sub-batches and will manage
+issues around rate limits.
 
 This feature is mostly designed for the OpenAI cost savings. You could swap out the model for HuggingFace and the same code
 will still work. However, internally it is like a loop over the prompts.
 Eventually in `lmwrapper` we want to do more complex batching if
-GPU/CPU/accelorator memory is available.
+GPU/CPU/accelerator memory is available.
 
 #### Caveats / Implementation needs
 This feature is still somewhat experimental. It likely works in typical
-usecases, but recovery from failures (like invalid prompts, canceled batches, or
+usecases, but recovery from failures (like invalid prompts or
 errors on OpenAI's end) might not be ideally managed. There are few known things 
 to sort out / TODOs:
 
