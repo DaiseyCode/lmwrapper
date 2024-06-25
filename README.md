@@ -241,13 +241,13 @@ to sort out / TODOs:
 - [X] Automatically splitting up batches when have >50,000 prompts (limit from OpenAI) 
 - [X] Recovering / splitting up batches when hitting your token Batch Queue Limit (see [docs on limits](https://platform.openai.com/docs/guides/rate-limits/usage-tiers))
 - [X] Handle canceled batches during current run (use the [web interface](https://platform.openai.com/batches) to cancel)
-- [X] Handle canceled batches outside of current run
+- [X] Handle/recover canceled batches outside of current run
 - [X] Handle if openai batch expires unfinished in 24hrs (though not actually tested or observed this)
 - [X] Automatically splitting up batch when exceeding 100MB prompts limit
 - [ ] Handling of failed prompts (like when have too many tokens). Right now whole batch fails.
 - [ ] Handle when there are duplicate prompts in batch submission
 - [ ] Handle when a given prompt has `num_completions>1`
-- [ ] Automatically clean up API files after done (right now end up with a lot of file in [storage](https://platform.openai.com/storage/files). There isn't an obvious cost for these batche files, but this might change and it would be better to clean them up.)
+- [ ] Automatically clean up API files after done (right now end up with a lot of file in [storage](https://platform.openai.com/storage/files). There isn't an obvious cost for these batch files, but this might change and it would be better to clean them up.)
 - [ ] Test on free-tier accounts. It is not clear what the tiny request limit counts
 - [ ] Fancy batching of HF
 - [ ] Concurrent batching when in ASAP mode
@@ -293,7 +293,8 @@ please make a Github Issue.
 - [X] Huggingface interface
 - [X] Huggingface device checking on PyTorch
 - [X] Move cache to be per project
-- [X] Redesign cache to make it easier to manage
+- [X] Redesign cache away from generic `diskcache` to make it easier to manage
+- [X] Smart caching when num_completions > 1 (reusing prior completions)
 - [X] OpenAI batching interface (experimental)
 - [ ] Anthropic interface
 - [ ] Be able to add user metadata to a prompt
