@@ -246,7 +246,7 @@ to sort out / TODOs:
 - [X] Handle/recover canceled batches outside of current run
 - [X] Handle if openai batch expires unfinished in 24hrs (though not actually tested or observed this)
 - [X] Automatically splitting up batch when exceeding 100MB prompts limit
-- [ ] Handling of failed prompts (like when have too many tokens). Right now whole batch fails.
+- [X] Handling of failed prompts (like when have too many tokens). Use LmPrediction.has_errors to check for an error on a response.
 - [ ] Handle when there are duplicate prompts in batch submission
 - [ ] Handle when a given prompt has `num_completions>1`
 - [ ] Automatically clean up API files after done (right now end up with a lot of file in [storage](https://platform.openai.com/storage/files). There isn't an obvious cost for these batch files, but this might change and it would be better to clean them up.)
@@ -300,6 +300,7 @@ please make a Github Issue.
 - [X] OpenAI batching interface (experimental)
 - [ ] Anthropic interface
 - [ ] Be able to add user metadata to a prompt
+- [ ] Automatic cache eviction to limit count or disk size
 - [ ] Multimodal/images in super easy format (like automatically process pil, opencv, etc)
 - [ ] sort through usage of quantized models
 - [ ] Cost estimating (so can estimate cost of a prompt before running / track total cost)

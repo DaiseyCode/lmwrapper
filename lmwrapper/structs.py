@@ -306,15 +306,22 @@ class LmChatDialog(list[LmChatTurn]):
 
 @dataclass
 class LmPrediction:
-    completion_text: str
+    completion_text: str | None
+    """The new text generated. It might be None if errors"""
     prompt: LmPrompt
     metad: Any
     internals: ModelInternalsResults | None = field(default=None, kw_only=True)
-    errors: list[str] | None = field(default=None, kw_only=True)
+    error_message: str | None = field(default=None, kw_only=True)
+
+    def __post_init__(self):
+        if self.error_message is not None:
+            if not isinstance(self.error_message, str):
+                msg = "The error_message parameter should be a string."
+                raise ValueError(msg)
 
     @property
     def has_errors(self):
-        return self.errors is not None and len(self.errors) > 0
+        return self.error_message is not None
 
     @classmethod
     def parse_from_cache(
@@ -322,11 +329,13 @@ class LmPrediction:
         completion_text: str,
         prompt: LmPrompt,
         metad_bytes: bytes,
+        error_message: str | None,
     ):
         return cls(
             completion_text=completion_text,
             prompt=prompt,
             metad=pickle.loads(metad_bytes),
+            error_message=error_message,
         )
 
     def serialize_metad_for_cache(self) -> bytes:
@@ -439,6 +448,7 @@ class LmPrediction:
             "completion_text": self.completion_text,
             "prompt": self.prompt.dict_serialize(),
             "was_cached": self.was_cached,
+            "error_message": self.error_message,
         }
         if pull_out_props:
             with contextlib.suppress(Exception):

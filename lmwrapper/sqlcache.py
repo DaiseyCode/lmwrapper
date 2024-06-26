@@ -130,6 +130,7 @@ def create_tables():
             metad_bytes BLOB,
             date_added TEXT,
             batch_id INTEGER DEFAULT NULL,
+            error_message TEXT DEFAULT NULL,
             UNIQUE (text_and_sample_hash, multi_sample_number) ON CONFLICT REPLACE
         );
         """,
@@ -287,11 +288,11 @@ def add_or_set_prediction_to_cache(prediction: LmPrediction, model_key: str):
             (
                 """
                 INSERT INTO CacheLmPrediction 
-                (text_and_sample_hash, multi_sample_number, data_populated, base_class, completion_text, metad_bytes, date_added)
+                (text_and_sample_hash, multi_sample_number, data_populated, base_class, completion_text, metad_bytes, date_added, error_message)
                 VALUES (
                     ?,
                     COALESCE((SELECT MAX(multi_sample_number) FROM CacheLmPrediction WHERE text_and_sample_hash = ?) + 1, 0),
-                    ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?, ?
                 );
                 """,
                 (
@@ -302,6 +303,7 @@ def add_or_set_prediction_to_cache(prediction: LmPrediction, model_key: str):
                     prediction.completion_text,
                     prediction.serialize_metad_for_cache(),
                     datetime.datetime.now().isoformat(),
+                    prediction.error_message,
                 ),
             ),
         ],
@@ -333,7 +335,7 @@ def get_from_cache(
         """
         SELECT p.text_and_sample_hash, p.multi_sample_number, p.data_populated, p.base_class, 
                p.completion_text, p.metad_bytes, p.batch_id, b.api_id, b.api_category, b.status, 
-               b.waiting_for_a_result, b.total_inputs
+               b.waiting_for_a_result, b.total_inputs, p.error_message
         FROM CacheLmPrediction p
         LEFT JOIN Batches b ON p.batch_id = b.batch_id
         WHERE p.text_and_sample_hash = ?
@@ -371,6 +373,7 @@ def get_from_cache(
                 completion_text,
                 prompt,
                 metad_bytes,
+                error_message=ret[12],
             ),
         )
     return out

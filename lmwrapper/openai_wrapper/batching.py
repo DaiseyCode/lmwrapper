@@ -33,9 +33,6 @@ from lmwrapper.sqlcache_struct import BatchPredictionPlaceholder
 from lmwrapper.structs import LmPrediction, LmPrompt
 from lmwrapper.utils import retry_func_on_exception
 
-T_C = TypeVar("T_C")
-T_R = TypeVar("T_R")
-
 
 _retry_func_on_connect_error = retry_func_on_exception(
     exception=openai.APIConnectionError,
@@ -54,7 +51,7 @@ class OpenAiBatchManager:
         prompts: list[LmPrompt],
         cache: SqlBackedCache,
         maintain_order: bool = True,
-        max_prompts_per_batch: int = 10_000,
+        max_prompts_per_batch: int = 20_000,
     ):
         self._validate_prompts_input(prompts)
         self._awaiting_marker = object()
@@ -301,11 +298,10 @@ class OpenAiBatchManager:
                 desc = f"Batch `{batch.api_id}` status: {retrieve_data.status}"
                 if retrieve_data.request_counts.failed:
                     desc += f" ({retrieve_data.request_counts.failed} failed)"
-                    pbar.set_description(desc)
-                    self._cancel_all_batches()
-                    raise RuntimeError(
-                        "Batch has failed prompts. This needs to be handled",
-                    )
+                    #self._cancel_all_batches()
+                    #raise RuntimeError(
+                    #    "Batch has failed prompts. This needs to be handled",
+                    #)
                 pbar.set_description(desc)
                 if self._handle_batch_if_failed(
                     batch,
@@ -314,7 +310,8 @@ class OpenAiBatchManager:
                     pbar.close()
                     break
                 if not waiting_for_results:
-                    self._update_cache_rows(batch, retrieve_data)
+                    self._update_cache_rows_from_output(batch, retrieve_data)
+                    self._update_cache_rows_from_errors(batch, retrieve_data)
                     del self._in_progress_api_id_to_monitor[batch.api_id]
                     self._handle_if_batch_expired(batch, retrieve_data)
                     pbar.close()
@@ -479,11 +476,22 @@ class OpenAiBatchManager:
                 self._log(error)
         raise RuntimeError("Batch failed. This needs to be handled.")
 
-    def _update_cache_rows(
+    def _update_cache_rows_from_output(
         self,
         batch_monitor: "_BatchToMonitor",
         batch_data: openai.types.Batch,
     ):
+        if batch_data.output_file_id is None:
+            if batch_data.request_counts.completed > 0:
+                raise RuntimeError(
+                    "Batch has completed some prompts but has no output file. "
+                    "This is unexpected.",
+                )
+            if batch_data.request_counts.failed > 0:
+                self._cancel_all_batches()
+                raise NotImplementedError("All prompts in batch failed. "
+                                          "This is not currently handled")
+
         content = _retry_func_on_connect_error(self._cache.lm._api.files.content)(
             batch_data.output_file_id,
         )
@@ -495,12 +503,12 @@ class OpenAiBatchManager:
             custom_id = data["custom_id"]
             response = data["response"]
             if custom_id not in self._prompt_hashes_to_index:
-                # This might happen if we are reading from an old batch
-                #  that we didn't start that contains some other prompts.
                 if not batch_monitor.fresh_in_this_manager:
+                    # This might happen if we are reading from an old batch
+                    #  that we didn't start that contains some other prompts.
                     continue
                 raise RuntimeError(
-                    "Custom id not find in a batch we started",
+                    "Custom id not found in a batch we started",
                     custom_id,
                 )
             out_index = self._prompt_hashes_to_index[custom_id]
@@ -513,6 +521,47 @@ class OpenAiBatchManager:
             pred = self._lm.prediction_from_api_response(body, prompt)
             assert len(pred) == 1
             pred = pred[0]
+            self._output[out_index] = pred
+            self._cache.add_or_set(pred)
+
+    def _update_cache_rows_from_errors(
+        self,
+        batch_monitor: "_BatchToMonitor",
+        batch_data: openai.types.Batch,
+    ):
+        if batch_data.error_file_id is None:
+            if batch_data.request_counts.failed > 0:
+                raise RuntimeError(
+                    "Batch has failed prompts but has no error file. "
+                    "This is unexpected.",
+                )
+            return
+        content = _retry_func_on_connect_error(self._cache.lm._api.files.content)(
+            batch_data.error_file_id,
+        )
+        content_str = content.content.decode("utf-8")
+        for line in content_str.split("\n"):
+            if not line:
+                continue
+            data = json.loads(line)
+            body = data['response']["body"]
+            error = openai.types.ErrorObject.parse_obj(body['error'])
+            custom_id = data["custom_id"]
+            if custom_id not in self._prompt_hashes_to_index:
+                if not batch_monitor.fresh_in_this_manager:
+                    continue
+                raise RuntimeError(
+                    "Custom id not found in a batch we started",
+                    custom_id,
+                )
+            out_index = self._prompt_hashes_to_index[custom_id]
+            prompt = self._prompts[out_index]
+            pred = LmPrediction(
+                completion_text=None,
+                prompt=prompt,
+                metad=None,
+                error_message=json.dumps(body['error']),
+            )
             self._output[out_index] = pred
             self._cache.add_or_set(pred)
 

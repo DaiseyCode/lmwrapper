@@ -20,12 +20,14 @@ class HuggingFacePrediction(LmPrediction):
         completion_text: str,
         prompt: LmPrompt,
         metad_bytes: bytes,
+        error_message: str,
     ) -> "HuggingFacePrediction":
         metad_and_params = pickle.loads(metad_bytes)
         return cls(
             prompt=prompt,
             completion_text=completion_text,
             **metad_and_params,
+            error_message=error_message,
         )
 
     def serialize_metad_for_cache(self) -> bytes:
