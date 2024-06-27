@@ -86,6 +86,10 @@ def test_failed_prompt():
     assert results[2].completion_text.strip() == "e"
 
 
+def test_why_fail():
+    assert True
+
+
 if __name__ == "__main__":
     if not IS_GITHUB_ACTIONS:
         # simple()
