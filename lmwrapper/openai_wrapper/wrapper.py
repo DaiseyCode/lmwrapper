@@ -1,17 +1,23 @@
 import bisect
+import dataclasses
 import math
 import random
 import re
 import time
 import warnings
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
+import openai.types
+import openai.types.chat
 import tiktoken
 from openai import OpenAI, RateLimitError
 from openai.types.completion_choice import Logprobs
 
 from lmwrapper.abstract_predictor import LmPredictor
+from lmwrapper.batch_config import CompletionWindow
 from lmwrapper.secrets_manager import (
     SecretEnvVar,
     SecretFile,
@@ -25,7 +31,139 @@ PRINT_ON_PREDICT = False
 MAX_LOG_PROB_PARM = 5
 
 
+class _ModelNamesMeta(type):
+    def __iter__(cls):
+        for attr in cls.__dict__:
+            if isinstance(cls.__dict__[attr], OpenAiModelInfo):
+                yield cls.__dict__[attr]
+
+
+class OpenAiModelInfo(str):
+    def __new__(cls, name: str, is_chat_model: bool, token_limit: int):
+        instance = super().__new__(cls, name)
+        instance._is_chat_model = is_chat_model
+        instance._token_limit = token_limit
+        return instance
+
+    @property
+    def is_chat_model(self):
+        return self._is_chat_model
+
+    @property
+    def token_limit(self):
+        return self._token_limit
+
+
+class OpenAiModelNames(metaclass=_ModelNamesMeta):
+    """
+    Enum for available OpenAI models. Variable docstrings adapted from
+    documentation on OpenAI's website at the time.
+    """
+
+    gpt_3_5_turbo = OpenAiModelInfo("gpt-3.5-turbo", True, 4096)
+    """Most capable GPT-3.5 model and optimized for chat at 1/10th the cost of text-davinci-003.
+    Will be updated with our latest model iteration 2 weeks after it is released."""
+    gpt_3_5_turbo_16k = OpenAiModelInfo("gpt-3.5-turbo-16k", True, 16384)
+    """Same capabilities as the standard gpt-3.5-turbo model but with 4 times the context."""
+    gpt_3_5_turbo_instruct = OpenAiModelInfo("gpt-3.5-turbo-instruct", False, 4096)
+    """A GPT-3.5 version but for completion"""
+    code_davinci_002 = OpenAiModelInfo("code-davinci-002", False, 4097)
+    """Can do any language task with better quality, longer output, and consistent instruction-following
+    than the curie, babbage, or ada models.
+    Also supports some additional features such as inserting text."""
+    gpt_4 = OpenAiModelInfo("gpt-4", True, 8192)
+    """More capable than any GPT-3.5 model, able to do more complex tasks, and optimized for chat.
+    Will be updated with our latest model iteration 2 weeks after it is released."""
+    gpt_4_32k = OpenAiModelInfo("gpt-4-32k", True, 32768)
+    """Same capabilities as the base gpt-4 mode but with 4x the context length.
+    Will be updated with our latest model iteration."""
+    gpt_4_turbo = OpenAiModelInfo("gpt-4-1106-preview", True, 128_000)
+    """GPT-4 model with improved instruction following, JSON mode,
+    reproducible outputs, parallel function calling, and more.
+    Returns a maximum of 4,096 output tokens. This preview model is
+    not yet suited for production traffic.
+
+    Note that we don't currently handle the differing input and output
+    token limits (tracked #25).
+
+    see: https://help.openai.com/en/articles/8555510-gpt-4-turbo
+    """
+    gpt_4o = OpenAiModelInfo("gpt-4o", True, 128_000)
+    """
+    GPT-4o (“o” for “omni”) is our most advanced model. 
+    It is multimodal (accepting text or image inputs and outputting text), 
+    and it has the same high intelligence as GPT-4 Turbo but 
+    is much more efficient—it generates text 2x faster and is 50% cheaper. 
+    Additionally, GPT-4o has the best vision and performance across 
+    non-English languages of any of our models. GPT-4o is available in 
+    the OpenAI API to paying customers.
+
+    Currently points to gpt-4o-2024-05-13.
+    Up to Oct 2023
+    """
+    gpt_4o_2024_05_13 = OpenAiModelInfo("gpt-4o-2024-05-13", True, 128_000)
+
+    @classmethod
+    def name_to_info(cls, name: str) -> OpenAiModelInfo | None:
+        if isinstance(name, OpenAiModelInfo):
+            return name
+        for info in cls:
+            if info == name:
+                return info
+        return None
+
+
+def get_open_ai_lm(
+    model_name: str = OpenAiModelNames.gpt_3_5_turbo_instruct,
+    api_key_secret: SecretInterface = None,
+    organization: str | None = None,
+    cache_outputs_default: bool = False,
+    retry_on_rate_limit: bool = False,
+) -> "OpenAIPredictor":
+    if api_key_secret is None:
+        api_key_secret = SecretEnvVar("OPENAI_API_KEY")
+        if not api_key_secret.is_readable():
+            api_key_secret = SecretFile(Path("~/oai_key.txt").expanduser())
+        if not api_key_secret.is_readable():
+            msg = (
+                "Cannot find an API key. By default the OPENAI_API_KEY environment"
+                " variable is used if it is available. Otherwise it will read from a"
+                " file at ~/oai_key.txt. Please place the key at one of the locations"
+                " or pass in a SecretInterface (like SecretEnvVar or SecretFile object)"
+                " to the api_key_secret argument.\nYou can get an API key from"
+                " https://platform.openai.com/account/api-keys"
+            )
+            raise ValueError(
+                msg,
+            )
+    assert_is_a_secret(api_key_secret)
+
+    if not api_key_secret.is_readable():
+        msg = "API key is not defined"
+        raise ValueError(msg)
+
+    if organization is None:
+        org_secret = SecretEnvVar("OPENAI_ORGANIZATION")
+        if org_secret.is_readable():
+            organization = org_secret.get_secret().strip()
+
+    client = OpenAI(
+        api_key=api_key_secret.get_secret().strip(),
+        organization=organization if organization is not None else None,
+    )
+
+    return OpenAIPredictor(
+        api=client,
+        engine_name=model_name,
+        cache_outputs_default=cache_outputs_default,
+        retry_on_rate_limit=retry_on_rate_limit,
+    )
+
+
+@dataclasses.dataclass
 class OpenAiLmPrediction(LmPrediction):
+    # tokenizer: tiktoken.Encoding = dataclasses.field(default=None, kw_only=False)
+
     def _get_completion_token_index(self):
         """
         If echoing the completion text might not start at the begining. Returns the
@@ -153,8 +291,8 @@ class OpenAiLmPrediction(LmPrediction):
         return top_logprobs
 
 
-class OpenAiLmChatPrediction(LmPrediction):
-    pass
+# class OpenAiLmChatPrediction(LmPrediction):
+#    pass
 
 
 class OpenAIPredictor(LmPredictor):
@@ -207,8 +345,8 @@ class OpenAIPredictor(LmPredictor):
         cls._instantiation_hooks.append(hook)
 
     def find_prediction_class(self, prompt):
-        if self._chat_mode:
-            return OpenAiLmChatPrediction
+        # if self._chat_mode:
+        #    return OpenAiLmChatPrediction
         return OpenAiLmPrediction
 
     def _validate_prompt(self, prompt: LmPrompt, raise_on_invalid: bool = True) -> bool:
@@ -286,41 +424,18 @@ class OpenAIPredictor(LmPredictor):
         def run_func():
             # Wait for rate limit
             LmPredictor._wait_ratelimit()
-            max_toks = (
-                prompt.max_tokens
-                if prompt.max_tokens is not None
-                else self.default_tokens_generated
+            args = prompt_to_openai_args_dict(
+                prompt,
+                self._engine_name,
+                self._chat_mode,
+                default_tokens_generated=self.default_tokens_generated,
             )
 
             try:
                 if not self._chat_mode:
-                    return self._api.completions.create(
-                        model=self._engine_name,
-                        prompt=prompt.get_text_as_string_default_form(),
-                        max_tokens=max_toks,
-                        stop=prompt.stop,
-                        stream=False,
-                        logprobs=prompt.logprobs,
-                        temperature=prompt.temperature,
-                        top_p=prompt.top_p,
-                        presence_penalty=prompt.presence_penalty,
-                        n=prompt.num_completions,
-                        echo=prompt.echo,
-                    )
+                    return self._api.completions.create(**args)
                 else:
-                    return self._api.chat.completions.create(
-                        messages=prompt.get_text_as_chat().as_dicts(),
-                        model=self._engine_name,
-                        logprobs=prompt.logprobs > 0,
-                        max_tokens=max_toks,
-                        n=prompt.num_completions,
-                        presence_penalty=prompt.presence_penalty,
-                        stop=prompt.stop,
-                        temperature=prompt.temperature,
-                        # top_logprobs accepts ints 0 to 20, logprobs must be a boolean true
-                        top_logprobs=prompt.logprobs if prompt.logprobs > 0 else None,
-                        top_p=prompt.top_p,
-                    )
+                    return self._api.chat.completions.create(**args)
             except RateLimitError as e:
                 print(e)
                 return e
@@ -340,7 +455,17 @@ class OpenAIPredictor(LmPredictor):
         if not is_success_func(completion):
             raise completion
 
-        choices = completion.choices
+        preds = self.prediction_from_api_response(completion, prompt)
+        if len(preds) == 1:
+            return preds[0]
+        return preds
+
+    def prediction_from_api_response(
+        self,
+        response: openai.types.Completion | openai.types.chat.ChatCompletion,
+        prompt: LmPrompt,
+    ) -> list[LmPrediction]:
+        choices = response.choices
 
         def get_completion_text(text):
             if not prompt.echo:
@@ -350,18 +475,36 @@ class OpenAIPredictor(LmPredictor):
         def get_text_from_choice(choice):
             return choice.text if not self._chat_mode else choice.message.content
 
-        out = [
+        return [
             OpenAiLmPrediction(
                 get_completion_text(get_text_from_choice(choice)),
                 prompt,
                 choice,
                 internals=None,
+                # tokenizer=self._tokenizer
             )
             for choice in choices
         ]
-        if len(choices) == 1:
-            return out[0]
-        return out
+
+    def predict_many(
+        self,
+        prompts: list[str | LmPrompt],
+        completion_window: CompletionWindow,
+    ) -> Iterable[LmPrediction | list[LmPrediction]]:
+        if completion_window == CompletionWindow.BATCH_ANY:
+            from lmwrapper.openai_wrapper import batching
+
+            # ^ putting this here to prevent circular import.
+            #   probably some more clever way...
+            batch_manager = batching.OpenAiBatchManager(
+                prompts=prompts,
+                cache=self._disk_cache,
+                maintain_order=True,
+            )
+            batch_manager.start_batch()
+            yield from batch_manager.iter_results()
+            return
+        yield from super().predict_many(prompts, completion_window)
 
     def remove_special_chars_from_tokens(self, tokens: list[str]) -> list[str]:
         return tokens
@@ -376,7 +519,7 @@ class OpenAiInstantiationHook(ABC):
     """
     Potentially used to add API controls on predictor instantiation.
     An example usecase is to make sure certain keys are only used with
-    certain models..
+    certain models.
     """
 
     def __init__(self):
@@ -421,89 +564,7 @@ def attempt_with_exponential_backoff(
     return result
 
 
-class OpenAiModelInfo(str):
-    def __new__(cls, name: str, is_chat_model: bool, token_limit: int):
-        instance = super().__new__(cls, name)
-        instance._is_chat_model = is_chat_model
-        instance._token_limit = token_limit
-        return instance
-
-    @property
-    def is_chat_model(self):
-        return self._is_chat_model
-
-    @property
-    def token_limit(self):
-        return self._token_limit
-
-
-class _ModelNamesMeta(type):
-    def __iter__(cls):
-        for attr in cls.__dict__:
-            if isinstance(cls.__dict__[attr], OpenAiModelInfo):
-                yield cls.__dict__[attr]
-
-
-class OpenAiModelNames(metaclass=_ModelNamesMeta):
-    """
-    Enum for available OpenAI models. Variable docstrings adapted from
-    documentation on OpenAI's website at the time.
-    """
-
-    gpt_3_5_turbo = OpenAiModelInfo("gpt-3.5-turbo", True, 4096)
-    """Most capable GPT-3.5 model and optimized for chat at 1/10th the cost of text-davinci-003.
-    Will be updated with our latest model iteration 2 weeks after it is released."""
-    gpt_3_5_turbo_16k = OpenAiModelInfo("gpt-3.5-turbo-16k", True, 16384)
-    """Same capabilities as the standard gpt-3.5-turbo model but with 4 times the context."""
-    gpt_3_5_turbo_instruct = OpenAiModelInfo("gpt-3.5-turbo-instruct", False, 4096)
-    """A GPT-3.5 version but for completion"""
-    code_davinci_002 = OpenAiModelInfo("code-davinci-002", False, 4097)
-    """Can do any language task with better quality, longer output, and consistent instruction-following
-    than the curie, babbage, or ada models.
-    Also supports some additional features such as inserting text."""
-    gpt_4 = OpenAiModelInfo("gpt-4", True, 8192)
-    """More capable than any GPT-3.5 model, able to do more complex tasks, and optimized for chat.
-    Will be updated with our latest model iteration 2 weeks after it is released."""
-    gpt_4_32k = OpenAiModelInfo("gpt-4-32k", True, 32768)
-    """Same capabilities as the base gpt-4 mode but with 4x the context length.
-    Will be updated with our latest model iteration."""
-    gpt_4_turbo = OpenAiModelInfo("gpt-4-1106-preview", True, 128_000)
-    """GPT-4 model with improved instruction following, JSON mode,
-    reproducible outputs, parallel function calling, and more.
-    Returns a maximum of 4,096 output tokens. This preview model is
-    not yet suited for production traffic.
-
-    Note that we don't currently handle the differing input and output
-    token limits (tracked #25).
-
-    see: https://help.openai.com/en/articles/8555510-gpt-4-turbo
-    """
-    gpt_4o = OpenAiModelInfo("gpt-4o", True, 128_000)
-    """
-    GPT-4o (“o” for “omni”) is our most advanced model. 
-    It is multimodal (accepting text or image inputs and outputting text), 
-    and it has the same high intelligence as GPT-4 Turbo but 
-    is much more efficient—it generates text 2x faster and is 50% cheaper. 
-    Additionally, GPT-4o has the best vision and performance across 
-    non-English languages of any of our models. GPT-4o is available in 
-    the OpenAI API to paying customers.
-    
-    Currently points to gpt-4o-2024-05-13.
-    Up to Oct 2023
-    """
-    gpt_4o_2024_05_13 = OpenAiModelInfo("gpt-4o-2024-05-13", True, 128_000)
-
-    @classmethod
-    def name_to_info(cls, name: str) -> OpenAiModelInfo | None:
-        if isinstance(name, OpenAiModelInfo):
-            return name
-        for info in cls:
-            if info == name:
-                return info
-        return None
-
-
-def parse_backoff_time(exception: RateLimitError) -> int:
+def parse_backoff_time(exception: RateLimitError) -> int | None:
     # Please try again in 3s.
     regex = r".*Please try again in (\d+(\.\d+)?)s\..*"
     matches = re.findall(regex, exception.message)
@@ -519,48 +580,40 @@ def parse_backoff_time(exception: RateLimitError) -> int:
     return None
 
 
-def get_open_ai_lm(
-    model_name: str = OpenAiModelNames.gpt_3_5_turbo_instruct,
-    api_key_secret: SecretInterface = None,
-    organization: str | None = None,
-    cache_outputs_default: bool = False,
-    retry_on_rate_limit: bool = False,
-) -> OpenAIPredictor:
-    if api_key_secret is None:
-        api_key_secret = SecretEnvVar("OPENAI_API_KEY")
-        if not api_key_secret.is_readable():
-            api_key_secret = SecretFile(Path("~/oai_key.txt").expanduser())
-        if not api_key_secret.is_readable():
-            msg = (
-                "Cannot find an API key. By default the OPENAI_API_KEY environment"
-                " variable is used if it is available. Otherwise it will read from a"
-                " file at ~/oai_key.txt. Please place the key at one of the locations"
-                " or pass in a SecretInterface (like SecretEnvVar or SecretFile object)"
-                " to the api_key_secret argument.\nYou can get an API key from"
-                " https://platform.openai.com/account/api-keys"
-            )
-            raise ValueError(
-                msg,
-            )
-    assert_is_a_secret(api_key_secret)
-
-    if not api_key_secret.is_readable():
-        msg = "API key is not defined"
-        raise ValueError(msg)
-
-    if organization is None:
-        org_secret = SecretEnvVar("OPENAI_ORGANIZATION")
-        if org_secret.is_readable():
-            organization = org_secret.get_secret().strip()
-
-    client = OpenAI(
-        api_key=api_key_secret.get_secret().strip(),
-        organization=organization if organization is not None else None,
+def prompt_to_openai_args_dict(
+    prompt: LmPrompt,
+    engine_name: str,
+    chat_model: bool,
+    default_tokens_generated: int = 20,
+) -> dict[str, Any]:
+    max_toks = (
+        prompt.max_tokens if prompt.max_tokens is not None else default_tokens_generated
     )
-
-    return OpenAIPredictor(
-        api=client,
-        engine_name=model_name,
-        cache_outputs_default=cache_outputs_default,
-        retry_on_rate_limit=retry_on_rate_limit,
-    )
+    if chat_model:
+        return dict(
+            messages=prompt.get_text_as_chat().as_dicts(),
+            model=engine_name,
+            logprobs=prompt.logprobs > 0,
+            max_tokens=max_toks,
+            n=prompt.num_completions,
+            presence_penalty=prompt.presence_penalty,
+            stop=prompt.stop,
+            temperature=prompt.temperature,
+            # top_logprobs accepts ints 0 to 20, logprobs must be a boolean true
+            top_logprobs=prompt.logprobs if prompt.logprobs > 0 else None,
+            top_p=prompt.top_p,
+        )
+    else:
+        return dict(
+            model=engine_name,
+            prompt=prompt.get_text_as_string_default_form(),
+            max_tokens=max_toks,
+            stop=prompt.stop,
+            stream=False,
+            logprobs=prompt.logprobs,
+            temperature=prompt.temperature,
+            top_p=prompt.top_p,
+            presence_penalty=prompt.presence_penalty,
+            n=prompt.num_completions,
+            echo=prompt.echo,
+        )

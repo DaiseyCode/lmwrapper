@@ -1,8 +1,13 @@
+import dataclasses
 import math
+import threading
+import time
 
 import numpy as np
 import pytest
 
+from lmwrapper.batch_config import CompletionWindow
+from lmwrapper.caching import clear_cache_dir
 from lmwrapper.huggingface_wrapper.wrapper import get_huggingface_lm
 from lmwrapper.openai_wrapper.wrapper import OpenAiModelNames, get_open_ai_lm
 from lmwrapper.structs import LmPrompt
@@ -742,3 +747,142 @@ def test_echo_many_toks(lm):
         np.exp(out.completion_logprobs),
         atol=0.001,
     )
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_predict_many(lm):
+    pred = lm.predict_many(
+        [
+            LmPrompt(
+                "A B C D E F G H",
+                max_tokens=3,
+                cache=False,
+                temperature=0,
+                logprobs=1,
+            ),
+            LmPrompt(
+                "A B C D E F G H I J",
+                max_tokens=3,
+                cache=False,
+                temperature=0,
+                logprobs=1,
+            ),
+        ],
+        completion_window=CompletionWindow.ASAP,
+    )
+    resps = list(pred)
+    assert len(resps) == 2
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_predict_many_cached(lm):
+    clear_cache_dir()
+    prompts = [
+        LmPrompt(
+            t,
+            max_tokens=3,
+            cache=True,
+            temperature=0,
+            logprobs=1,
+        )
+        for t in ["A", "A B", "A B C"]
+    ]
+    preds = [lm.predict(prompt) for prompt in prompts]
+    if hasattr(lm, "_api"):
+        old_api = lm._api
+        lm._api = None  # It's cached. No requests should be made
+    else:
+        old_api = None
+
+    # Start the thread and set a timeout
+    many = None
+
+    try:
+
+        def run_predict_many():
+            nonlocal many
+            now = time.time()
+            many = lm.predict_many(
+                prompts,
+                completion_window=CompletionWindow.BATCH_ANY,
+            )
+            print("Delta", time.time() - now)
+
+        thread = threading.Thread(target=run_predict_many)
+        thread.start()
+        thread.join(timeout=0.05)
+        if thread.is_alive():
+            pytest.fail("predict_many call timed out")
+        else:
+            resps = list(many)
+            assert len(resps) == 3
+            assert all(resp.was_cached for resp in resps)
+            assert all(
+                resp.completion_text == pred.completion_text
+                for resp, pred in zip(resps, preds, strict=False)
+            )
+    finally:
+        if old_api:
+            lm._api = old_api
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_num_completions_two(lm):
+    clear_cache_dir()
+    prompt = LmPrompt(
+        "Make up a random guid:",
+        max_tokens=15,
+        cache=False,
+        temperature=1,
+        logprobs=1,
+        num_completions=2,
+    )
+    pred = lm.predict(prompt)
+    assert len(pred) == 2
+    assert isinstance(pred, list)
+    assert 10 < len(pred[0].completion_tokens) <= 20
+    assert 10 < len(pred[1].completion_tokens) <= 20
+    assert pred[0].completion_text != pred[1].completion_text
+    pred2 = lm.predict(prompt)
+    assert pred[0].completion_text != pred2[0].completion_text
+    assert pred[1].completion_text != pred2[1].completion_text
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_num_completions_two_cached(lm):
+    clear_cache_dir()
+    prompt = LmPrompt(
+        "Make up a random guid:",
+        max_tokens=20,
+        cache=True,
+        temperature=1.5,
+        logprobs=1,
+        num_completions=2,
+    )
+    pred = lm.predict(prompt)
+    assert len(pred) == 2
+    assert isinstance(pred, list)
+    assert all(not p.was_cached for p in pred)
+    assert pred[0].completion_text != pred[1].completion_text
+    print("pred 0", pred[0].completion_text)
+    print("pred 1", pred[1].completion_text)
+    pred2 = lm.predict(prompt)
+    assert len(pred2) == 2
+    assert all(p.was_cached for p in pred2)
+    assert pred[0].completion_text == pred2[0].completion_text
+    assert pred[1].completion_text == pred2[1].completion_text
+    # Try with just a single completion
+    prompt = dataclasses.replace(prompt, num_completions=1)
+    pred3 = lm.predict(prompt)
+    assert pred3.was_cached
+    assert pred3.completion_text == pred2[0].completion_text == pred[0].completion_text
+    # Try predict an extra one. The first 2 should be cached
+    prompt = dataclasses.replace(prompt, num_completions=3)
+    pred4 = lm.predict(prompt)
+    assert pred4[0].was_cached
+    assert pred4[1].was_cached
+    assert not pred4[2].was_cached
+    assert pred4[0].completion_text == pred[0].completion_text
+    assert pred4[1].completion_text == pred[1].completion_text
+    assert pred4[2].completion_text != pred[0].completion_text
+    assert pred4[2].completion_text != pred[1].completion_text

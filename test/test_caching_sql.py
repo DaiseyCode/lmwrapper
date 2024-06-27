@@ -2,7 +2,7 @@ from lmwrapper import sqlcache
 from lmwrapper.caching import clear_cache_dir
 from lmwrapper.openai_wrapper import get_open_ai_lm
 from lmwrapper.sqlcache import (
-    add_prediction_to_cache,
+    add_or_set_prediction_to_cache,
     get_from_cache,
     prompt_to_text_hash,
 )
@@ -13,7 +13,7 @@ def test_add_cache():
     clear_cache_dir()
     lm = get_open_ai_lm()
     pred = lm.predict("Once upon a time")
-    add_prediction_to_cache(pred, lm.model_name())
+    add_or_set_prediction_to_cache(pred, lm.model_name())
 
 
 def test_get_cache():
@@ -23,9 +23,12 @@ def test_get_cache():
     prompt = LmPrompt("Once upon a time", cache=True)
     assert get_from_cache(prompt, lm) is None
     pred = lm.predict(prompt)
-    add_prediction_to_cache(pred, model_key)
-    ret = get_from_cache(prompt, lm)
-    assert ret is not None
+    add_or_set_prediction_to_cache(pred, model_key)
+    rets = get_from_cache(prompt, lm)
+    assert rets is not None
+    assert len(rets) == 1
+    ret = rets[0]
+    assert isinstance(ret, pred.__class__), f"{ret.__class__} != {pred.__class__}"
     assert ret.completion_text == pred.completion_text
     assert pred == ret
     prompt2 = LmPrompt("Once upon a time", cache=True)

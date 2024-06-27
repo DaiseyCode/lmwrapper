@@ -1,11 +1,29 @@
-# LmWrapper
-
+<!--
 Provides a wrapper around OpenAI API and Hugging Face Language models, focusing
 on being a clean and user-friendly interface. Because every input
 and output is object-oriented (rather than just JSON dictionaries with string
 keys and values), your IDE can help you with things like argument and
 property names and catch certain bugs statically. Additionally, it allows
 you to switch inbetween OpenAI endpoints and local models with minimal changes.
+
+Because every input
+and output is object-oriented (rather than just JSON dictionaries with string
+keys and values), your IDE can help you with things like argument and
+property names and catch certain bugs statically. Additionally, it allows
+you to switch inbetween OpenAI endpoints and local models with minimal changes.
+-->
+
+`lmwrapper` provides a wrapper around OpenAI API and Hugging Face Language models, focusing
+on being a clean, object-oriented, and user-friendly interface. It has two main goals:
+
+A) Make it easier to use the OpenAI API
+
+B) Make it easy to reuse your code for other language models with minimal changes.
+
+Some key features currently include local caching of responses, and super simple
+use of the OpenAI batching API which can save 50% on costs.
+
+`lmwrapper` is lightweight and can serve as a flexible stand-in for the OpenAI API.
 
 ## Installation
 
@@ -33,13 +51,13 @@ If you prefer using `conda`/`mamba` to manage your environments, you may edit th
 ```bash
 mamba env create -f environment.yml
 ```
--->
 
 Please note that this method is for development and not supported.
+-->
 
 ## Example usage
 
-### Completion models
+### Basic Completion and Prompting
 
 ```python
 from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
@@ -58,13 +76,14 @@ prediction = lm.predict(
     LmPrompt(  # A LmPrompt object lets your IDE hint on args
         "Once upon a",
         max_tokens=10,
+        temperature=1, # Set this to 0 for deterministic completions
     )
 )
 print(prediction.completion_text)
 # " time, there were three of us." - Example. This will change with each sample.
 ```
 
-### Chat models
+### Chat
 
 ```python
 from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
@@ -107,14 +126,14 @@ print(pred.completion_text)
 
 ### Hugging Face models
 
-Causal LM models on Hugging Face models can be used interchangeably with the
+Local Causal LM models on Hugging Face models can be used interchangeably with the
 OpenAI models.
 
 ```python
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
 from lmwrapper.structs import LmPrompt
 
-lm = get_huggingface_lm("gpt2")  # The smallest 124M parameter model
+lm = get_huggingface_lm("gpt2")  # Download the smallest 124M parameter model
 
 prediction = lm.predict(LmPrompt(
     "The capital of Germany is Berlin. The capital of France is",
@@ -124,22 +143,126 @@ prediction = lm.predict(LmPrompt(
 print(prediction.completion_text)
 assert prediction.completion_text == " Paris"
 ```
+<!-- Model internals -->
 
-## Features
+Additionally, with HuggingFace models `lmwrapper` provides an interface for
+accessing the model internal states.
 
-`lmwrapper` provides several features missing from the OpenAI API.
-
-### Caching
+## Caching
 
 Add `caching = True` in the prompt to cache the output to disk. Any
 subsequent calls with this prompt will return the same value. Note that
 this might be unexpected behavior if your temperature is non-zero. (You
 will always sample the same output on reruns.)
 
-### Retries on rate limit
 
-An OpenAIPredictor can be configured to read rate limit errors and wait the appropriate
-amount of seconds in the error before retrying.
+## OpenAI Batching
+
+The OpenAI [batching API](https://platform.openai.com/docs/guides/batch) has a 50% reduced cost when willing to accept a 24-hour turnaround. This makes it good for processing datasets or other non-interactive tasks (which is the main target for `lmwrapper` currently).
+
+`lmwrapper` takes care of managing the batch files and other details so that it's as easy 
+as the normal API.
+
+<!-- noskip test -->
+```python
+from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
+from lmwrapper.structs import LmPrompt
+from lmwrapper.batch_config import CompletionWindow
+
+def load_dataset() -> list:
+    """Load some toy task"""
+    return ["France", "United States", "China"]
+
+def make_prompts(data) -> list[LmPrompt]:
+    """Make some toy prompts for our data"""
+    return [
+        LmPrompt(
+            f"What is the capital of {country}? Answer with just the city name.",
+            max_tokens=10,
+            temperature=0,
+            cache=True,
+        ) 
+        for country in data
+    ]
+
+data = load_dataset()
+prompts = make_prompts(data)
+lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo)
+predictions = lm.predict_many(
+    prompts,
+    completion_window=CompletionWindow.BATCH_ANY 
+    #                 ^ swap out for CompletionWindow.ASAP
+    #                   to complete as soon as possible via
+    #                   the non-batching API at a higher cost.
+) # The batch is submitted here
+
+for ex, pred in zip(data, predictions):  # Will wait for the batch to complete
+    print(f"Country: {ex} --- Capital: {pred.completion_text}")
+    if ex == "France": assert pred.completion_text == "Paris" 
+    # ...
+```
+
+The above code could technically take up to 24hrs to complete. However,
+OpenAI seems to complete these quicker (for example, these three prompts in ~1 minute or less). In a large batch, you don't have to keep the process running for hours. Thanks to `lmwrapper` cacheing it will automatically load or pick back up waiting on the
+existing batch when the script is reran.
+
+The `lmwrapper` cache lets you also intermix cached and uncached examples.
+
+<!-- skip test -->
+```python
+# ... above code
+
+def load_more_data() -> list:
+    """Load some toy task"""
+    return ["Mexico", "Canada"]
+
+data = load_data() + load_more_data()
+prompts = make_prompts(data)
+# If we submit the five prompts, only the two new prompts will be
+# submitted to the batch. The already completed prompts will
+# be loaded near-instantly from the local cache.
+predictions = list(lm.predict_many(
+    prompts,
+    completion_window=CompletionWindow.BATCH_ANY
+))
+```
+
+`lmwrapper` is designed to automatically manage the batching of thousands or millions of prompts. 
+If needed, it will automatically split up prompts into sub-batches and will manage
+issues around rate limits.
+
+This feature is mostly designed for the OpenAI cost savings. You could swap out the model for HuggingFace and the same code
+will still work. However, internally it is like a loop over the prompts.
+Eventually in `lmwrapper` we want to do more complex batching if
+GPU/CPU/accelerator memory is available.
+
+#### Caveats / Implementation needs
+This feature is still somewhat experimental. It likely works in typical
+usecases, but recovery from failures (like invalid prompts or
+errors on OpenAI's end) might not be ideally managed. There are few known things 
+to sort out / TODOs:
+
+- [X] Retry batch API connection errors
+- [X] Automatically splitting up batches when have >50,000 prompts (limit from OpenAI) 
+- [X] Recovering / splitting up batches when hitting your token Batch Queue Limit (see [docs on limits](https://platform.openai.com/docs/guides/rate-limits/usage-tiers))
+- [X] Handle canceled batches during current run (use the [web interface](https://platform.openai.com/batches) to cancel)
+- [X] Handle/recover canceled batches outside of current run
+- [X] Handle if openai batch expires unfinished in 24hrs (though not actually tested or observed this)
+- [X] Automatically splitting up batch when exceeding 100MB prompts limit
+- [X] Handling of failed prompts (like when have too many tokens). Use LmPrediction.has_errors to check for an error on a response.
+- [ ] Handle when there are duplicate prompts in batch submission
+- [ ] Handle when a given prompt has `num_completions>1`
+- [ ] Automatically clean up API files after done (right now end up with a lot of file in [storage](https://platform.openai.com/storage/files). There isn't an obvious cost for these batch files, but this might change and it would be better to clean them up.)
+- [ ] Test on free-tier accounts. It is not clear what the tiny request limit counts
+- [ ] Fancy batching of HF
+- [ ] Concurrent batching when in ASAP mode
+
+Please open an issue if you want to discuss one of these or something else.
+
+Note, in the progress bars in PyCharm can be bit cleaner if you enable 
+[terminal emulation](https://stackoverflow.com/a/64727188) in your run configuration.
+
+### Retries on rate limit
 
 ```python
 from lmwrapper.openai_wrapper import *
@@ -175,9 +298,15 @@ please make a Github Issue.
 - [X] Huggingface interface
 - [X] Huggingface device checking on PyTorch
 - [X] Move cache to be per project
+- [X] Redesign cache away from generic `diskcache` to make it easier to manage
+- [X] Smart caching when num_completions > 1 (reusing prior completions)
+- [X] OpenAI batching interface (experimental)
 - [ ] Anthropic interface
-- [ ] Redesign cache to make it easier to manage
+- [ ] Be able to add user metadata to a prompt
+- [ ] Automatic cache eviction to limit count or disk size
+- [ ] Multimodal/images in super easy format (like automatically process pil, opencv, etc)
 - [ ] sort through usage of quantized models
-- [ ] async / streaming
-- [ ] Additional Huggingface runtimes (TensorRT, BetterTransformers, etc)
 - [ ] Cost estimating (so can estimate cost of a prompt before running / track total cost)
+- [ ] Additional Huggingface runtimes (TensorRT, BetterTransformers, etc)
+- [ ] async / streaming (not a top priority for non-interactive research use cases)
+- [ ] some lightweight utilities to help with tool use

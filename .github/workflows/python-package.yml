@@ -10,7 +10,7 @@ on:
   #  branches: [ "master" ]
 jobs:
   build:
-
+    timeout-minutes: 6
     runs-on: ubuntu-latest
     environment:
       name: lmwrapper_my_env
