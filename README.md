@@ -145,6 +145,9 @@ assert prediction.completion_text == " Paris"
 ```
 <!-- Model internals -->
 
+Additionally, with HuggingFace models `lmwrapper` provides an interface for
+accessing the model internal states.
+
 ## Caching
 
 Add `caching = True` in the prompt to cache the output to disk. Any
