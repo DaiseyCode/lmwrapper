@@ -1,18 +1,3 @@
-<!--
-Provides a wrapper around OpenAI API and Hugging Face Language models, focusing
-on being a clean and user-friendly interface. Because every input
-and output is object-oriented (rather than just JSON dictionaries with string
-keys and values), your IDE can help you with things like argument and
-property names and catch certain bugs statically. Additionally, it allows
-you to switch inbetween OpenAI endpoints and local models with minimal changes.
-
-Because every input
-and output is object-oriented (rather than just JSON dictionaries with string
-keys and values), your IDE can help you with things like argument and
-property names and catch certain bugs statically. Additionally, it allows
-you to switch inbetween OpenAI endpoints and local models with minimal changes.
--->
-
 `lmwrapper` provides a wrapper around OpenAI API and Hugging Face Language models, focusing
 on being a clean, object-oriented, and user-friendly interface. It has two main goals:
 
@@ -148,6 +133,8 @@ assert prediction.completion_text == " Paris"
 Additionally, with HuggingFace models `lmwrapper` provides an interface for
 accessing the model internal states.
 
+Note: The universe of Huggingface models is diverse and inconsistent. Some (especially the non-completion ones) might require special prompt formatting to work as expected.
+
 ## Caching
 
 Add `caching = True` in the prompt to cache the output to disk. Any
@@ -238,8 +225,7 @@ GPU/CPU/accelerator memory is available.
 
 #### Caveats / Implementation needs
 This feature is still somewhat experimental. It likely works in typical
-usecases, but recovery from failures (like invalid prompts or
-errors on OpenAI's end) might not be ideally managed. There are few known things 
+usecases, but there are few known things 
 to sort out / TODOs:
 
 - [X] Retry batch API connection errors
@@ -249,7 +235,7 @@ to sort out / TODOs:
 - [X] Handle/recover canceled batches outside of current run
 - [X] Handle if openai batch expires unfinished in 24hrs (though not actually tested or observed this)
 - [X] Automatically splitting up batch when exceeding 100MB prompts limit
-- [X] Handling of failed prompts (like when have too many tokens). Use LmPrediction.has_errors to check for an error on a response.
+- [X] Handling of failed prompts (like when have too many tokens). Use LmPrediction.has_errors and LmPrediction.error_message to check for an error on a response.
 - [ ] Handle when there are duplicate prompts in batch submission
 - [ ] Handle when a given prompt has `num_completions>1`
 - [ ] Automatically clean up API files after done (right now end up with a lot of file in [storage](https://platform.openai.com/storage/files). There isn't an obvious cost for these batch files, but this might change and it would be better to clean them up.)
@@ -303,10 +289,11 @@ please make a Github Issue.
 - [X] OpenAI batching interface (experimental)
 - [ ] Anthropic interface
 - [ ] Be able to add user metadata to a prompt
-- [ ] Automatic cache eviction to limit count or disk size
+- [ ] Use the huggingface chat templates for chat models if available
+- [ ] Automatic cache eviction to limit count or disk size (right now have to run a SQL query to delete entries before a certain time or matching your criteria)
 - [ ] Multimodal/images in super easy format (like automatically process pil, opencv, etc)
 - [ ] sort through usage of quantized models
-- [ ] Cost estimating (so can estimate cost of a prompt before running / track total cost)
+- [ ] Cost estimation of a prompt before running / log total cost
 - [ ] Additional Huggingface runtimes (TensorRT, BetterTransformers, etc)
 - [ ] async / streaming (not a top priority for non-interactive research use cases)
 - [ ] some lightweight utilities to help with tool use
