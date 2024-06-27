@@ -242,11 +242,12 @@ def test_failed_prompt():
 
 
 if __name__ == "__main__":
-    # simple()
-    # print(list(get_unique_texts(int(1e6), OpenAiModelNames.gpt_3_5_turbo)))
-    # over50k()
-    # clear_cache_dir()
-    # bigarthmatic()
-    # token_queue_limit_try()
-    #failed_prompt()
-    pass
+    if not IS_GITHUB_ACTIONS:
+        # simple()
+        # print(list(get_unique_texts(int(1e6), OpenAiModelNames.gpt_3_5_turbo)))
+        # over50k()
+        # clear_cache_dir()
+        # bigarthmatic()
+        # token_queue_limit_try()
+        #failed_prompt()
+        pass
