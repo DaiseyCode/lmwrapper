@@ -54,7 +54,7 @@ def test_cache_stress_random():
         lm.predict(prompt)
 
 
-@pytest.mark.skip(IS_GITHUB_ACTIONS, reason="No multithread maybe makes it happier")
+@pytest.mark.skipif(IS_GITHUB_ACTIONS, reason="No multithread maybe makes it happier")
 def test_cache_stress_random_multithread():
     prompts = [LmPrompt(f"Prompt {i}", cache=True) for i in range(100)]
     import random
@@ -86,7 +86,7 @@ def _worker_multiproc():
     assert num_hits > 9000
 
 
-@pytest.mark.skip(IS_GITHUB_ACTIONS, reason="Multiprocessing seems to cause issues")
+@pytest.mark.skipif(IS_GITHUB_ACTIONS, reason="Multiprocessing seems to cause issues")
 def test_cache_stress_random_multiproc():
     procs = [multiprocessing.Process(target=_worker_multiproc) for _ in range(5)]
     for p in procs:
