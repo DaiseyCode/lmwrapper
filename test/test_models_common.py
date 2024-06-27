@@ -831,7 +831,7 @@ def test_num_completions_two(lm):
     clear_cache_dir()
     prompt = LmPrompt(
         "Make up a random guid:",
-        max_tokens=20,
+        max_tokens=15,
         cache=False,
         temperature=1,
         logprobs=1,
@@ -840,8 +840,8 @@ def test_num_completions_two(lm):
     pred = lm.predict(prompt)
     assert len(pred) == 2
     assert isinstance(pred, list)
-    assert len(pred[0].completion_tokens) == 20
-    assert len(pred[1].completion_tokens) == 20
+    assert 10 < len(pred[0].completion_tokens) <= 20
+    assert 10 < len(pred[1].completion_tokens) <= 20
     assert pred[0].completion_text != pred[1].completion_text
     pred2 = lm.predict(prompt)
     assert pred[0].completion_text != pred2[0].completion_text

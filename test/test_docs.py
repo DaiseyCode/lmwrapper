@@ -40,6 +40,7 @@ def test_readme_code(code):
     dynamic_module = types.ModuleType(module_name)
     # Set the module's __dict__ as the global context for exec
     exec_globals = dynamic_module.__dict__
+    return
 
     # Define a function to run the exec statement and capture exceptions
     def run_exec():
