@@ -1012,10 +1012,9 @@ def test_hello_world_prompt(model):
             temperature=0,
         ),
     )
-    assert (
-        resp.completion_text.startswith("    print('hello world')")
-        or resp.completion_text.startswith('    print("hello world")'),
-    )
+    assert resp.completion_text.startswith(
+        "    print('hello world')",
+    ) or resp.completion_text.startswith('    print("hello world")')
 
     # A version using stop. Breaks because the tokenization is wrong.
     resp = lm.predict(

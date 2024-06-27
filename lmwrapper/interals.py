@@ -27,7 +27,6 @@ class ModelInternalsRequest:
     layer and the last layer."""
 
     def __post_init__(self):
-        getting_some_internals = self.return_hidden_states or self.return_attentions
         if self.hidden_layer_indexes is not None:
             if not all(isinstance(x, int) for x in self.hidden_layer_indexes):
                 msg = "The hidden_layer_indexes parameter should be a list of ints."
