@@ -67,7 +67,7 @@ def test_batch_starting():
         # og = orig_api.files.create(**kwargs)
         # print(og)
         # print(og.dict())
-        return openai.types.FileObject.parse_obj(sample_file_resp)
+        return openai.types.FileObject.model_validate(sample_file_resp)
 
     def mock_batches_create(**kwargs):
         nonlocal calls
@@ -75,7 +75,7 @@ def test_batch_starting():
         print("Batches create")
         print(kwargs)
         assert kwargs["input_file_id"] == sample_file_resp["id"]
-        return openai.types.Batch.parse_obj(mock_batch_data)
+        return openai.types.Batch.model_validate(mock_batch_data)
 
     mock_api.files.create = mock_files_create
     mock_api.batches.create = mock_batches_create
@@ -111,7 +111,7 @@ def test_batch_starting_connection_error():
         assert kwargs["purpose"] == "batch"
         assert kwargs["file"] is not None
         print(kwargs["file"].getvalue().decode())
-        return openai.types.FileObject.parse_obj(sample_file_resp)
+        return openai.types.FileObject.model_validate(sample_file_resp)
 
     def mock_batches_create(**kwargs):
         nonlocal calls
@@ -119,7 +119,7 @@ def test_batch_starting_connection_error():
         print("Batches create")
         print(kwargs)
         assert kwargs["input_file_id"] == sample_file_resp["id"]
-        return openai.types.Batch.parse_obj(mock_batch_data)
+        return openai.types.Batch.model_validate(mock_batch_data)
 
     mock_api.files.create = mock_files_create
     mock_api.batches.create = mock_batches_create
@@ -157,13 +157,13 @@ def test_batch_dup_prompts():
         file_text = kwargs["file"].getvalue().decode()
         file_lines = file_text.split("\n")
         assert len(file_lines) == 1, "unexpected number of lines"
-        return openai.types.FileObject.parse_obj(sample_file_resp)
+        return openai.types.FileObject.model_validate(sample_file_resp)
 
     def mock_batches_create(**kwargs):
         nonlocal calls
         calls += 1
         assert kwargs["input_file_id"] == sample_file_resp["id"]
-        return openai.types.Batch.parse_obj(mock_batch_data)
+        return openai.types.Batch.model_validate(mock_batch_data)
 
     mock_api.files.create = mock_files_create
     mock_api.batches.create = mock_batches_create
