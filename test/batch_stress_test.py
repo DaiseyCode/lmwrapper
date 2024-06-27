@@ -1,15 +1,15 @@
+import os
 import time
-from typing import Iterable
+from collections.abc import Iterable
 
 import tiktoken
 
 from lmwrapper.batch_config import CompletionWindow
 from lmwrapper.caching import clear_cache_dir
-from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
+from lmwrapper.openai_wrapper import OpenAiModelNames, get_open_ai_lm
 from lmwrapper.openai_wrapper.batching import OpenAiBatchManager
 from lmwrapper.sqlcache import SqlBackedCache
 from lmwrapper.structs import LmPrompt
-import os
 
 IS_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
 
@@ -41,7 +41,9 @@ def simple():
     )
     assert len(predictions) == len(data)
     for ex, pred in zip(
-        data, predictions, strict=False
+        data,
+        predictions,
+        strict=False,
     ):  # Will wait for the batch to complete
         print(f"Country: {ex} --- Capital: {pred.completion_text}")
         assert {

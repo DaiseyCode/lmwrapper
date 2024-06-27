@@ -14,7 +14,6 @@ import time
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import TypeVar
 
 import openai.types
 import openai.types.chat
@@ -32,7 +31,6 @@ from lmwrapper.sqlcache import BatchRow, SqlBackedCache, prompt_to_text_and_samp
 from lmwrapper.sqlcache_struct import BatchPredictionPlaceholder
 from lmwrapper.structs import LmPrediction, LmPrompt
 from lmwrapper.utils import retry_func_on_exception
-
 
 _retry_func_on_connect_error = retry_func_on_exception(
     exception=openai.APIConnectionError,
@@ -298,10 +296,10 @@ class OpenAiBatchManager:
                 desc = f"Batch `{batch.api_id}` status: {retrieve_data.status}"
                 if retrieve_data.request_counts.failed:
                     desc += f" ({retrieve_data.request_counts.failed} failed)"
-                    #self._cancel_all_batches()
-                    #raise RuntimeError(
+                    # self._cancel_all_batches()
+                    # raise RuntimeError(
                     #    "Batch has failed prompts. This needs to be handled",
-                    #)
+                    # )
                 pbar.set_description(desc)
                 if self._handle_batch_if_failed(
                     batch,
@@ -489,8 +487,9 @@ class OpenAiBatchManager:
                 )
             if batch_data.request_counts.failed > 0:
                 self._cancel_all_batches()
-                raise NotImplementedError("All prompts in batch failed. "
-                                          "This is not currently handled")
+                raise NotImplementedError(
+                    "All prompts in batch failed. This is not currently handled",
+                )
 
         content = _retry_func_on_connect_error(self._cache.lm._api.files.content)(
             batch_data.output_file_id,
@@ -544,8 +543,8 @@ class OpenAiBatchManager:
             if not line:
                 continue
             data = json.loads(line)
-            body = data['response']["body"]
-            error = openai.types.ErrorObject.parse_obj(body['error'])
+            body = data["response"]["body"]
+            error = openai.types.ErrorObject.parse_obj(body["error"])
             custom_id = data["custom_id"]
             if custom_id not in self._prompt_hashes_to_index:
                 if not batch_monitor.fresh_in_this_manager:
@@ -560,7 +559,7 @@ class OpenAiBatchManager:
                 completion_text=None,
                 prompt=prompt,
                 metad=None,
-                error_message=json.dumps(body['error']),
+                error_message=json.dumps(body["error"]),
             )
             self._output[out_index] = pred
             self._cache.add_or_set(pred)

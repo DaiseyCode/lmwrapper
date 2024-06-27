@@ -1,15 +1,20 @@
+import os
+
+import pytest
+
 from lmwrapper.caching import clear_cache_dir
 from lmwrapper.openai_wrapper import OpenAiModelNames, get_open_ai_lm
 from lmwrapper.openai_wrapper.batching import OpenAiBatchManager
 from lmwrapper.sqlcache import SqlBackedCache
 from lmwrapper.structs import LmPrompt
-import os
-import pytest
 
 IS_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
 
 
-@pytest.mark.skipif(IS_GITHUB_ACTIONS, reason="Batches could take a long time so skip in CI")
+@pytest.mark.skipif(
+    IS_GITHUB_ACTIONS,
+    reason="Batches could take a long time so skip in CI",
+)
 def test_split_up_prompt_with_arithmetic():
     clear_cache_dir()
     model_name = OpenAiModelNames.gpt_3_5_turbo
@@ -48,7 +53,10 @@ def test_split_up_prompt_with_arithmetic():
     print("Done. All arithmetic correct.")
 
 
-@pytest.mark.skipif(IS_GITHUB_ACTIONS, reason="Batches could take a long time so skip in CI")
+@pytest.mark.skipif(
+    IS_GITHUB_ACTIONS,
+    reason="Batches could take a long time so skip in CI",
+)
 def test_failed_prompt():
     clear_cache_dir()
     model_name = OpenAiModelNames.gpt_3_5_turbo
@@ -72,8 +80,8 @@ def test_failed_prompt():
                 "Output only the next letter in the sequence: a b c d",
                 cache=True,
                 max_tokens=1,
-                temperature=0
-            )
+                temperature=0,
+            ),
         ],
         cache=cache,
     )
@@ -98,5 +106,5 @@ if __name__ == "__main__":
         # clear_cache_dir()
         # bigarthmatic()
         # token_queue_limit_try()
-        #failed_prompt()
+        # failed_prompt()
         pass

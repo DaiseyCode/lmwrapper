@@ -3,13 +3,12 @@ Tests to verify that any examples given in user-facing documentation
 will execute.
 """
 
+import concurrent.futures
 import re
 import sys
-import threading
 import traceback
 import types
 from pathlib import Path
-import concurrent.futures
 
 import pytest
 

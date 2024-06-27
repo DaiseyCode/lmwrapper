@@ -1,5 +1,6 @@
 import dataclasses
 import multiprocessing
+import os
 import random
 import tempfile
 from pathlib import Path
@@ -10,8 +11,6 @@ from lmwrapper.abstract_predictor import get_mock_predictor
 from lmwrapper.caching import set_cache_dir
 from lmwrapper.huggingface_wrapper.wrapper import get_huggingface_lm
 from lmwrapper.structs import LmPrompt
-import os
-
 
 IS_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
 
