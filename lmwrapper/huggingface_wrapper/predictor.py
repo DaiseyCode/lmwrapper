@@ -530,7 +530,10 @@ class HuggingFacePredictor(LmPredictor):
         return HuggingFacePrediction(
             completion_text=clean_generated_text,
             prompt=prompt,
-            metad=updated_output,
+            #metad=updated_output,
+            # Passing the updated_output is huge and has stuff like the whole logit
+            # array. I don't think we need that.
+            metad={},
             internals=internals,
             _completion_with_special_tok=generated_text,
             _num_prompt_tokens=(int(input_length) - (1 if will_have_bos else 0)),
