@@ -7,10 +7,11 @@ import numpy as np
 import pytest
 
 from lmwrapper.batch_config import CompletionWindow
-from lmwrapper.caching import clear_cache_dir
+from lmwrapper.caching import clear_cache_dir, cache_dir
 from lmwrapper.huggingface_wrapper.wrapper import get_huggingface_lm
 from lmwrapper.openai_wrapper.wrapper import OpenAiModelNames, get_open_ai_lm
 from lmwrapper.structs import LmPrompt
+import pickle
 
 ALL_MODELS = [
     get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct),
@@ -846,6 +847,57 @@ def test_num_completions_two(lm):
     pred2 = lm.predict(prompt)
     assert pred[0].completion_text != pred2[0].completion_text
     assert pred[1].completion_text != pred2[1].completion_text
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
+def test_object_size_is_reasonable(lm):
+    clear_cache_dir()
+    num_actual_tokens = 400
+    prompt = LmPrompt(
+        "Write a 1000 word long detailed story about a dog:",
+        max_tokens=num_actual_tokens,
+        cache=False,
+        temperature=0,
+        logprobs=1,
+        num_completions=1,
+    )
+    pred = lm.predict(prompt)
+    assert len(pred.completion_tokens) == num_actual_tokens, f"got {len(pred.completion_tokens)} tokens"
+    prompt_tokens = lm.tokenize(prompt.text)
+    assert 9 < len(prompt_tokens) < 20
+    total_tokens = len(prompt_tokens) + len(pred.completion_tokens)
+    # Optimal per token might be around 5 bytes (5 characters)
+    # for the token text, maybe like 4 bytes for the logprob,
+    # and maybe like 8 bytes for other random stuff. We will allow
+    # a generous margin over this since hasn't been optimized
+    # We'll also allow some prompt/other stuff static overhead
+    acceptable_bytes_per_token = 17 * 10  # Ideally would like to get this down.
+                                          #  The logprob choice objects are really big
+    acceptable_static_overhead = 512
+    acceptable_bytes = total_tokens * acceptable_bytes_per_token + acceptable_static_overhead
+    used_bytes = len(pickle.dumps(pred))
+    print(f"Used bytes: {used_bytes}, total tokens: {total_tokens}. Acceptable: {acceptable_bytes}")
+    assert used_bytes < acceptable_bytes
+    # Make sure the cache is reasonable size
+    num_runs = 5
+
+    def read_cache_size():
+        d = cache_dir()
+        return sum(f.stat().st_size for f in d.glob('**/*') if f.is_file())
+
+    for i in range(num_runs):
+        prompt = LmPrompt(
+            f"Write a {1000 + i} word long detailed story about a dog:",
+            max_tokens=num_actual_tokens,
+            cache=True,
+            temperature=0,
+            logprobs=1,
+            num_completions=1,
+        )
+        pred = lm.predict(prompt)
+        assert len(pred.completion_tokens) == num_actual_tokens
+    print("Cache size", read_cache_size())
+    assert read_cache_size() < (acceptable_bytes * num_runs) * 2
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
