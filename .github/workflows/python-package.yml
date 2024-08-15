@@ -6,8 +6,7 @@ name: Python package
 on:
   push:
     branches: [ "master", "dev" ]
-  #pull_request:
-  #  branches: [ "master" ]
+  workflow_dispatch:
 jobs:
   build:
     timeout-minutes: 15
