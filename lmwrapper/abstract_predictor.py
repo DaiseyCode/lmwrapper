@@ -28,7 +28,7 @@ class LmPredictor:
 
     def predict(
         self,
-        prompt: LmPrompt | str,
+        prompt: LmPrompt | str | LM_CHAT_DIALOG_COERCIBLE_TYPES,
     ) -> LmPrediction | list[LmPrediction]:
         prompt = self._cast_prompt(prompt)
         should_cache = self._cache_default if prompt.cache is None else prompt.cache
@@ -144,7 +144,26 @@ class LmPredictor:
     def _cast_prompt(self, prompt: str | LmPrompt) -> LmPrompt:
         if isinstance(prompt, str):
             return LmPrompt(prompt, 100)
-        return prompt
+        if isinstance(prompt, list):
+            if any(isinstance(e, LmPrompt) for e in prompt):
+                msg = ("The passed in prompt is a list that contains another prompt. "
+                       "This is not allowed. If you would like to predict multiple prompts,"
+                       " use the `predict_many` method.")
+                raise ValueError(msg)
+            if self.is_chat_model:
+                return LmPrompt(prompt)
+            else:
+                msg = (f"Passing a list into `predict` is interpreted as a conversation with "
+                       f"multiple turns. However, this LM ({self.model_name()}) is not a chat model.\n\n"
+                       f"If you were instead intending to predict on multiple prompts, use "
+                       f"the `predict_many` method.")
+                raise ValueError(msg)
+        elif isinstance(prompt, LmPrompt):
+            return prompt
+        else:
+            msg = (f"The prompt input should be a `LmPrompt`, a string, or if a chat model, "
+                   f"something coercible to a chat dialog. Got type: {type(prompt)}")
+            raise ValueError(msg)
 
     def estimate_tokens_in_prompt(self, prompt: LmPrompt) -> int:
         raise NotImplementedError

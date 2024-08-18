@@ -20,12 +20,13 @@ ALL_MODELS = [
 ]
 
 ALL_MODELS_OLD = [
-    get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct),
-    get_huggingface_lm("gpt2"),
+    *ALL_MODELS[:2],
     get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo),
 ]
 
 COMPLETION_MODELS = ALL_MODELS[:-1]
+
+CHAT_MODELS = [ALL_MODELS[2]]
 
 
 ECHOABLE_MODELS = [
@@ -915,6 +916,21 @@ def test_object_size_is_reasonable(lm):
         assert len(pred.completion_tokens) == num_actual_tokens
     print("Cache size", read_cache_size())
     assert read_cache_size() < (acceptable_bytes * num_runs) * 2
+
+
+@pytest.mark.parametrize("lm", CHAT_MODELS)
+def test_cast_convo(lm):
+    pred = lm.predict([
+        "What is 2+2",
+        "4",
+        "What is 4+8",
+        "12",
+        "What is 3+5",
+        "8",
+        "What is 3+2",
+    ])
+    assert pred.completion_text.strip() == "5"
+
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
