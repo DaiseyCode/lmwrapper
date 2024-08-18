@@ -98,10 +98,13 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
     non-English languages of any of our models. GPT-4o is available in 
     the OpenAI API to paying customers.
 
-    Currently points to gpt-4o-2024-05-13.
-    Up to Oct 2023
+    Point can change
     """
     gpt_4o_2024_05_13 = OpenAiModelInfo("gpt-4o-2024-05-13", True, 128_000)
+    gpt_4o_mini = OpenAiModelInfo("gpt-4o-mini", True, 128_000)
+    """Our affordable and intelligent small model for fast, lightweight tasks. 
+    GPT-4o mini is cheaper and more capable than GPT-3.5 Turbo. """
+    gpt_4o_mini_2024_07_18 = OpenAiModelInfo("gpt-4o-mini-2024-07-18", True, 128_000)
 
     @classmethod
     def name_to_info(cls, name: str) -> OpenAiModelInfo | None:
@@ -114,7 +117,7 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
 
 
 def get_open_ai_lm(
-    model_name: str = OpenAiModelNames.gpt_3_5_turbo_instruct,
+    model_name: str = OpenAiModelNames.gpt_4o_mini,
     api_key_secret: SecretInterface = None,
     organization: str | None = None,
     cache_outputs_default: bool = False,
@@ -456,8 +459,8 @@ class OpenAIPredictor(LmPredictor):
             raise completion
 
         preds = self.prediction_from_api_response(completion, prompt)
-        if len(preds) == 1:
-            return preds[0]
+        #if prompt.num_completions is None:
+        #    return preds[0]
         return preds
 
     def prediction_from_api_response(
@@ -488,9 +491,10 @@ class OpenAIPredictor(LmPredictor):
 
     def predict_many(
         self,
-        prompts: list[str | LmPrompt],
+        prompts: list[LmPrompt],
         completion_window: CompletionWindow,
     ) -> Iterable[LmPrediction | list[LmPrediction]]:
+        self._validate_predict_many_prompts(prompts)
         if completion_window == CompletionWindow.BATCH_ANY:
             from lmwrapper.openai_wrapper import batching
 
@@ -595,7 +599,7 @@ def prompt_to_openai_args_dict(
             model=engine_name,
             logprobs=prompt.logprobs > 0,
             max_tokens=max_toks,
-            n=prompt.num_completions,
+            n=prompt.num_completions or 1,
             presence_penalty=prompt.presence_penalty,
             stop=prompt.stop,
             temperature=prompt.temperature,
@@ -614,6 +618,6 @@ def prompt_to_openai_args_dict(
             temperature=prompt.temperature,
             top_p=prompt.top_p,
             presence_penalty=prompt.presence_penalty,
-            n=prompt.num_completions,
+            n=prompt.num_completions or 1,
             echo=prompt.echo,
         )

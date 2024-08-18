@@ -114,7 +114,7 @@ class OpenAiBatchManager:
         needed = []
         # api_id_to_batch = {}
         for i, prompt in enumerate(prompts):
-            if prompt.num_completions != 1:
+            if (prompt.num_completions or 1) != 1:
                 raise NotImplementedError
             value = self._cache.get(prompt)
             if isinstance(value, list):
@@ -606,9 +606,9 @@ class OpenAiBatchManager:
                 "All prompts must have caching enabled with `LmPrompt(cache=True)`"
                 " currently to use batching manager",
             )
-        if not all(prompt.num_completions == 1 for prompt in prompts):
+        if not all((prompt.num_completions or 1) == 1 for prompt in prompts):
             raise NotImplementedError(
-                "Only num_completions of 1 is currently supported in batches (need to"
+                "Only num_completions of 1 (or None) is currently supported in batches (need to"
                 " be fixed)",
             )
 

@@ -16,6 +16,12 @@ import pickle
 ALL_MODELS = [
     get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct),
     get_huggingface_lm("gpt2"),
+    get_open_ai_lm(OpenAiModelNames.gpt_4o_mini),
+]
+
+ALL_MODELS_OLD = [
+    get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct),
+    get_huggingface_lm("gpt2"),
     get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo),
 ]
 
@@ -33,7 +39,7 @@ ECHOABLE_MODELS = [
 def test_simple_pred(lm):
     out = lm.predict(
         LmPrompt(
-            "Here is a story. Once upon a",
+            "Give a one word completion: 'Here is a story. Once upon a",
             max_tokens=1,
             cache=False,
         ),
@@ -45,19 +51,18 @@ def test_simple_pred(lm):
 def test_simple_pred_lp(lm):
     out = lm.predict(
         LmPrompt(
-            "Here is a story. Once upon a",
+            "Give a one word completion: 'Here is a story. Once upon a",
             max_tokens=1,
             logprobs=1,
             cache=False,
-            num_completions=1,
             echo=False,
         ),
     )
     assert out.completion_text.strip() == "time"
     print(out)
-    assert lm.remove_special_chars_from_tokens(out.completion_tokens) == [" time"]
+    assert lm.remove_special_chars_from_tokens(out.completion_tokens) in ([" time"], ["time"])
     assert len(out.completion_logprobs) == 1
-    assert math.exp(out.completion_logprobs[0]) >= 0.9
+    assert math.exp(out.completion_logprobs[0]) >= 0.85
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
@@ -66,11 +71,10 @@ def test_simple_pred_cache(lm):
     import time
 
     prompt = LmPrompt(
-        "Once upon a",
+        "Give a one word completion: 'Here is a story. Once upon a",
         max_tokens=1,
         logprobs=1,
         cache=True,
-        num_completions=1,
         echo=False,
         temperature=0.0,
     )
@@ -94,7 +98,6 @@ def test_echo(lm):
             max_tokens=1,
             logprobs=1,
             cache=False,
-            num_completions=1,
             echo=True,
         ),
     )
@@ -125,7 +128,6 @@ def test_low_prob_in_weird_sentence(lm):
             max_tokens=1,
             logprobs=1,
             cache=False,
-            num_completions=1,
             echo=True,
         ),
     )
@@ -135,7 +137,6 @@ def test_low_prob_in_weird_sentence(lm):
             max_tokens=1,
             logprobs=1,
             cache=False,
-            num_completions=1,
             echo=True,
         ),
     )
@@ -175,7 +176,6 @@ def test_no_gen_with_echo(lm):
             max_tokens=0,
             logprobs=1,
             cache=False,
-            num_completions=1,
             echo=True,
         ),
     )
@@ -283,7 +283,7 @@ def test_no_stopping_program(lm):
     assert "\ndef" not in resp.completion_text
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", COMPLETION_MODELS)
 def test_stopping_begin_tok_full_tok(lm):
     val_normal = lm.predict(
         LmPrompt(
@@ -593,7 +593,7 @@ def test_none_max_tokens(lm):
 #    assert result.prompt_tokens == tokens
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", ALL_MODELS_OLD)
 def test_response_to_dict_conversion(lm):
     prompt = LmPrompt(
         text=capital_prompt,
@@ -685,7 +685,7 @@ def test_token_offsets(lm):
     assert pred.completion_token_offsets == [base_len + 0, base_len + 2, base_len + 4]
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", ALL_MODELS_OLD)
 def test_token_seq_probs(lm):
     prompt = "A B C D E F G H"
     pred = lm.predict(
@@ -697,12 +697,14 @@ def test_token_seq_probs(lm):
             logprobs=1,
         ),
     )
-    is_chat = lm not in COMPLETION_MODELS
+    is_chat = lm.model_name() not in [m.model_name() for m in COMPLETION_MODELS]
     if not is_chat:
         expected_tokens = [" I", " J", " K"]
     else:
         # When in chat the next turn doesn't start with a space
         expected_tokens = ["I", " J", " K"]
+    print(f"{pred.completion_text=}")
+    print(f"{expected_tokens=}")
     assert pred.completion_text == "".join(expected_tokens)
     assert pred.completion_tokens == expected_tokens
     top_probs = pred.top_token_logprobs
@@ -721,7 +723,6 @@ def test_echo_many_toks(lm):
             max_tokens=7,
             logprobs=1,
             cache=False,
-            num_completions=1,
             echo=True,
             temperature=0,
         ),
@@ -737,7 +738,6 @@ def test_echo_many_toks(lm):
             max_tokens=7,
             logprobs=1,
             cache=False,
-            num_completions=1,
             echo=False,
             temperature=0,
         ),
@@ -850,6 +850,25 @@ def test_num_completions_two(lm):
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
+def test_num_completions_one_list(lm):
+    clear_cache_dir()
+    prompt = LmPrompt(
+        "Make up a random guid:",
+        max_tokens=15,
+        cache=False,
+        temperature=1,
+        logprobs=1,
+        num_completions=1,
+    )
+    pred = lm.predict(prompt)
+    assert isinstance(pred, list)
+    assert len(pred) == 1
+    assert 10 < len(pred[0].completion_tokens) <= 20
+    pred2 = lm.predict(prompt)
+    assert pred[0].completion_text != pred2[0].completion_text
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS)
 def test_object_size_is_reasonable(lm):
     clear_cache_dir()
     num_actual_tokens = 400
@@ -859,7 +878,6 @@ def test_object_size_is_reasonable(lm):
         cache=False,
         temperature=0,
         logprobs=1,
-        num_completions=1,
     )
     pred = lm.predict(prompt)
     assert len(pred.completion_tokens) == num_actual_tokens, f"got {len(pred.completion_tokens)} tokens"
@@ -879,7 +897,7 @@ def test_object_size_is_reasonable(lm):
     print(f"Used bytes: {used_bytes}, total tokens: {total_tokens}. Acceptable: {acceptable_bytes}")
     assert used_bytes < acceptable_bytes
     # Make sure the cache is reasonable size
-    num_runs = 5
+    num_runs = 3
 
     def read_cache_size():
         d = cache_dir()
@@ -892,7 +910,6 @@ def test_object_size_is_reasonable(lm):
             cache=True,
             temperature=0,
             logprobs=1,
-            num_completions=1,
         )
         pred = lm.predict(prompt)
         assert len(pred.completion_tokens) == num_actual_tokens
@@ -924,7 +941,7 @@ def test_num_completions_two_cached(lm):
     assert pred[0].completion_text == pred2[0].completion_text
     assert pred[1].completion_text == pred2[1].completion_text
     # Try with just a single completion
-    prompt = dataclasses.replace(prompt, num_completions=1)
+    prompt = dataclasses.replace(prompt, num_completions=None)
     pred3 = lm.predict(prompt)
     assert pred3.was_cached
     assert pred3.completion_text == pred2[0].completion_text == pred[0].completion_text

@@ -114,7 +114,7 @@ class HuggingFacePredictor(LmPredictor):
     def _predict_hf(
         self,
         prompt: LmPrompt,
-    ) -> LmPrediction | list[LmPrediction]:
+    ) -> list[LmPrediction]:
         self._verify_initial_prompt(prompt)
 
         patch_model_forward = False
@@ -242,7 +242,7 @@ class HuggingFacePredictor(LmPredictor):
             **optional_generation_kwargs,
         )
         outputs = []
-        for gen_num in range(prompt.num_completions):
+        for gen_num in range(prompt.num_completions or 1):
             outputs.append(
                 self._do_actual_generate(
                     prompt,
@@ -256,8 +256,8 @@ class HuggingFacePredictor(LmPredictor):
             )
         del encoded_input
 
-        if len(outputs) == 1:
-            return outputs[0]
+        #if prompt.num_completions is None:
+        #    return outputs[0]
         return outputs
 
     def _do_actual_generate(
