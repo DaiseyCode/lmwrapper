@@ -1,9 +1,9 @@
 `lmwrapper` provides a wrapper around OpenAI API and Hugging Face Language models, focusing
 on being a clean, object-oriented, and user-friendly interface. It has two main goals:
 
-A) Make it easier to use the OpenAI API
+A) Make it easier to use the OpenAI API.
 
-B) Make it easy to reuse your code for other language models with minimal changes.
+B) Make it easier to reuse your code for other language models with minimal changes.
 
 Some key features currently include local caching of responses, and super simple
 use of the OpenAI batching API which can save 50% on costs.
@@ -42,6 +42,7 @@ Please note that this method is for development and not supported.
 
 ## Example usage
 
+<!---
 ### Basic Completion and Prompting
 
 ```python
@@ -67,6 +68,7 @@ prediction = lm.predict(
 print(prediction.completion_text)
 # " time, there were three of us." - Example. This will change with each sample.
 ```
+-->
 
 ### Chat
 
@@ -74,11 +76,27 @@ print(prediction.completion_text)
 from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
 from lmwrapper.structs import LmPrompt, LmChatTurn
 
-lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo)
+lm = get_open_ai_lm(
+    model_name=OpenAiModelNames.gpt_4o_mini,
+    api_key_secret=None,  # By default, this will read from the OPENAI_API_KEY environment variable.
+    # If that isn't set, it will try the file ~/oai_key.txt
+    # You need to place the key in one of these places,
+    # or pass in a different location. You can get an API
+    # key at (https://platform.openai.com/account/api-keys)
+)
 
 # Single user utterance
 pred = lm.predict("What is 2+2?")
-print(pred.completion_text)  # "2+2 is equal to 4."
+print(pred.completion_text)  # "2 + 2 equals 4."
+
+
+# Use a LmPrompt to have more control of the parameters
+pred = lm.predict(LmPrompt(
+    "What is 2+6?",
+    max_tokens=10,
+    temperature=0, # Set this to 0 for deterministic completions
+))
+print(pred.completion_text)  # "2 + 6 equals 8."
 
 # Conversation alternating between `user` and `assistant`.
 pred = lm.predict(LmPrompt(
@@ -90,7 +108,7 @@ pred = lm.predict(LmPrompt(
         "What is 4+4?"  # user turn
         # We use few-shot turns to encourage the answer to be our desired format.
         #   If you don't give example turns you might get something like
-        #   "The answer is 8." instead of just "8".
+        #   "4 + 4 equals 8." instead of just "8" as desired.
     ],
     max_tokens=10,
 ))
@@ -109,38 +127,14 @@ print(pred.completion_text)
 # "Arr, me matey! Bitcoin be a digital currency that be workin' on a technology called blockchain..."
 ```
 
-### Hugging Face models
-
-Local Causal LM models on Hugging Face models can be used interchangeably with the
-OpenAI models.
-
-```python
-from lmwrapper.huggingface_wrapper import get_huggingface_lm
-from lmwrapper.structs import LmPrompt
-
-lm = get_huggingface_lm("gpt2")  # Download the smallest 124M parameter model
-
-prediction = lm.predict(LmPrompt(
-    "The capital of Germany is Berlin. The capital of France is",
-    max_tokens=1,
-    temperature=0,
-))
-print(prediction.completion_text)
-assert prediction.completion_text == " Paris"
-```
-<!-- Model internals -->
-
-Additionally, with HuggingFace models `lmwrapper` provides an interface for
-accessing the model internal states.
-
-Note: The universe of Huggingface models is diverse and inconsistent. Some (especially the non-completion ones) might require special prompt formatting to work as expected.
-
 ## Caching
 
 Add `caching = True` in the prompt to cache the output to disk. Any
 subsequent calls with this prompt will return the same value. Note that
 this might be unexpected behavior if your temperature is non-zero. (You
-will always sample the same output on reruns.)
+will always sample the same output on reruns). If you want to get multiple
+samples at a non-zero temperature while still using the cache, you 
+set `num_completions > 1` in a `LmPrompt`.
 
 
 ## OpenAI Batching
@@ -247,6 +241,32 @@ Please open an issue if you want to discuss one of these or something else.
 
 Note, in the progress bars in PyCharm can be bit cleaner if you enable 
 [terminal emulation](https://stackoverflow.com/a/64727188) in your run configuration.
+
+## Hugging Face models
+
+Local Causal LM models on Hugging Face models can be used interchangeably with the
+OpenAI models.
+
+Note: The universe of Huggingface models is diverse and inconsistent. Some (especially the non-completion ones) might require special prompt formatting to work as expected. Some models might not work at all.
+
+```python
+from lmwrapper.huggingface_wrapper import get_huggingface_lm
+from lmwrapper.structs import LmPrompt
+
+lm = get_huggingface_lm("gpt2")  # Download the smallest 124M parameter model
+
+prediction = lm.predict(LmPrompt(
+    "The capital of Germany is Berlin. The capital of France is",
+    max_tokens=1,
+    temperature=0,
+))
+print(prediction.completion_text)
+assert prediction.completion_text == " Paris"
+```
+<!-- Model internals -->
+
+Additionally, with HuggingFace models `lmwrapper` provides an interface for
+accessing the model internal states.
 
 ### Retries on rate limit
 

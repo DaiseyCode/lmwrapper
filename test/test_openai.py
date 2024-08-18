@@ -23,7 +23,6 @@ def play_with_probs():
             max_tokens=2,
             logprobs=5,
             cache=True,
-            num_completions=1,
             echo=False,
         ),
     )
@@ -43,7 +42,6 @@ def test_with_probs_gpt35():
             max_tokens=2,
             logprobs=5,
             cache=False,
-            num_completions=1,
             echo=False,
             temperature=1,
         ),
@@ -70,7 +68,6 @@ def test_too_large_logprob():
                 max_tokens=1,
                 logprobs=5,
                 cache=False,
-                num_completions=1,
                 echo=False,
             ),
         )
@@ -82,7 +79,6 @@ def test_too_large_logprob():
                 max_tokens=1,
                 logprobs=10,
                 cache=False,
-                num_completions=1,
                 echo=False,
             ),
         )
@@ -94,7 +90,6 @@ def test_simple_chat_mode():
         LmPrompt(
             "What is 2+2? Answer with just one number.",
             max_tokens=1,
-            num_completions=1,
             temperature=0.0,
             cache=False,
         ),
@@ -108,7 +103,6 @@ def test_chat_nologprob_exception():
         LmPrompt(
             "What is 2+2? Answer with just one number.",
             max_tokens=1,
-            num_completions=1,
             temperature=0.0,
             cache=False,
             logprobs=0,
@@ -139,7 +133,6 @@ def test_simple_chat_mode_multiturn():
         LmPrompt(
             prompt,
             max_tokens=1,
-            num_completions=1,
             cache=False,
         ),
     )
@@ -165,7 +158,6 @@ def test_multiturn_chat_logprobs():
         LmPrompt(
             prompt,
             max_tokens=2,
-            num_completions=1,
             temperature=0,
             cache=False,
             logprobs=2,
@@ -340,7 +332,6 @@ def test_simple_chat_mode_multiturn_4turbo(model_name):
         LmPrompt(
             prompt,
             max_tokens=1,
-            num_completions=1,
             cache=False,
         ),
     )

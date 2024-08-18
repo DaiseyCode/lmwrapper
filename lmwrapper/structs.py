@@ -94,8 +94,10 @@ class LmPrompt:
     It is a value that is added to the log-probability of a token each time it occurs in
     the generated text. A higher frequency_penalty value will result in the model being
     more conservative in its use of repeated tokens."""
-    num_completions: int = 1
-    """How many completions to generate for each prompt."""
+    num_completions: int | None = None
+    """How many completions to generate for each prompt. The default `None` will
+    just return a single LmPrediction object. If it is an integer than a list
+    of completion objects will be returned."""
     cache: bool = None
     """Whether to attempt to cache the model output. This overrides any default
     settings of the model. This can be useful in saving computation but means
@@ -131,6 +133,15 @@ class LmPrompt:
         if self.max_tokens is not None and not isinstance(self.max_tokens, int):
             msg = "The max_tokens parameter should be an int."
             raise ValueError(msg)
+        if self.num_completions is not None and (
+            not isinstance(self.num_completions, int) or self.num_completions <= 0
+        ):
+            msg = (
+                "The num_completions parameter should be an "
+                "int greater than 0 or None (in which case a single "
+                "non-list item will be returned)"
+            )
+            raise ValueError(msg)
         if self.stop is not None:
             if not isinstance(self.stop, list):
                 msg = "The stop parameter should be a list of strings on where to stop."
@@ -155,9 +166,6 @@ class LmPrompt:
             raise ValueError(msg)
         if not isinstance(self.presence_penalty, float):
             msg = "The presence_penalty parameter should be a float."
-            raise ValueError(msg)
-        if not isinstance(self.num_completions, int):
-            msg = "The num_completions parameter should be an int."
             raise ValueError(msg)
         if self.cache is not None and not isinstance(self.cache, bool):
             msg = "The cache parameter should be a bool."

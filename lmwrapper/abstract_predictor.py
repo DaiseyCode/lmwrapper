@@ -7,7 +7,7 @@ from ratemate import RateLimit
 
 from lmwrapper.batch_config import CompletionWindow
 from lmwrapper.sqlcache_struct import BatchPredictionPlaceholder
-from lmwrapper.structs import LmPrediction, LmPrompt
+from lmwrapper.structs import LM_CHAT_DIALOG_COERCIBLE_TYPES, LmPrediction, LmPrompt
 
 
 class LmPredictor:
@@ -28,32 +28,30 @@ class LmPredictor:
 
     def predict(
         self,
-        prompt: str | LmPrompt,
+        prompt: LmPrompt | str | LM_CHAT_DIALOG_COERCIBLE_TYPES,
     ) -> LmPrediction | list[LmPrediction]:
         prompt = self._cast_prompt(prompt)
-        # if prompt.num_completions > 1:
-        #    raise NotImplementedError(
-        #        "Changes with with caching and batching means we need to test `num_completions > 1`."
-        #    )
         should_cache = self._cache_default if prompt.cache is None else prompt.cache
         if should_cache and prompt.model_internals_request is not None:
             raise NotImplementedError(
                 "Cannot yet cache predictions with model internals request",
             )
         self._validate_prompt(prompt, raise_on_invalid=True)
+        num_completions = prompt.num_completions or 1
         if should_cache:
             cached_vals = self._read_cached_values(prompt)
-            if len(cached_vals) >= prompt.num_completions:
-                assert len(cached_vals) == prompt.num_completions
-                if len(cached_vals) == 1:
+            if len(cached_vals) >= num_completions:
+                assert len(cached_vals) == num_completions
+                if prompt.num_completions is None:
+                    assert len(cached_vals) == 1
                     return cached_vals[0]
                 return cached_vals
             # There are some missing values. Let's predict for the missing ones.
-            need_new_completions = prompt.num_completions - len(cached_vals)
-            if need_new_completions != prompt.num_completions:
+            need_new_completions = num_completions - len(cached_vals)
+            if need_new_completions != num_completions:
                 new_prompt = dataclasses.replace(
                     prompt,
-                    num_completions=prompt.num_completions - len(cached_vals),
+                    num_completions=num_completions - len(cached_vals),
                 )
             else:
                 new_prompt = prompt
@@ -69,11 +67,12 @@ class LmPredictor:
                 except OperationalError as e:
                     print("Failed to cache", e)
             vals = cached_vals + new_vals
-            if len(vals) == 1:
-                return vals[0]
-            return vals
         else:
-            return self._predict_maybe_cached(prompt)
+            vals = self._predict_maybe_cached(prompt)
+        if prompt.num_completions is None and isinstance(vals, list):
+            assert len(vals) >= 1
+            return vals[0]
+        return vals
 
     def _read_cached_values(self, prompt: LmPrompt) -> list[LmPrediction]:
         """
@@ -102,12 +101,27 @@ class LmPredictor:
 
     def predict_many(
         self,
-        prompts: list[str | LmPrompt],
+        prompts: list[LmPrompt],
         completion_window: CompletionWindow,
     ) -> Iterable[LmPrediction | list[LmPrediction]]:
+        self._validate_predict_many_prompts(prompts)
         for prompt in prompts:
             val = self.predict(prompt)
             yield val
+
+    def _validate_predict_many_prompts(self, prompts):
+        if not isinstance(prompts, list):
+            msg = (
+                "prompts input to predict_many must be a list of LmPrompt objects. "
+                "Got type: {type(prompts)}"
+            )
+            raise ValueError(msg)
+        for i, prompt in enumerate(prompts):
+            if not isinstance(prompt, LmPrompt):
+                msg = (
+                    f"prompts[{i}] must be a LmPrompt object. Got type: {type(prompt)}"
+                )
+                raise ValueError(msg)
 
     def remove_prompt_from_cache(
         self,
@@ -127,13 +141,39 @@ class LmPredictor:
     def _predict_maybe_cached(
         self,
         prompt: LmPrompt,
-    ) -> LmPrediction | list[LmPrediction]:
+    ) -> list[LmPrediction]:
         pass
 
     def _cast_prompt(self, prompt: str | LmPrompt) -> LmPrompt:
         if isinstance(prompt, str):
             return LmPrompt(prompt, 100)
-        return prompt
+        if isinstance(prompt, list):
+            if any(isinstance(e, LmPrompt) for e in prompt):
+                msg = (
+                    "The passed in prompt is a list that contains another prompt. This"
+                    " is not allowed. If you would like to predict multiple prompts,"
+                    " use the `predict_many` method."
+                )
+                raise ValueError(msg)
+            if self.is_chat_model:
+                return LmPrompt(prompt)
+            else:
+                msg = (
+                    "Passing a list into `predict` is interpreted as a conversation"
+                    f" with multiple turns. However, this LM ({self.model_name()}) is"
+                    " not a chat model.\n\nIf you were instead intending to predict on"
+                    " multiple prompts, use the `predict_many` method."
+                )
+                raise ValueError(msg)
+        elif isinstance(prompt, LmPrompt):
+            return prompt
+        else:
+            msg = (
+                "The prompt input should be a `LmPrompt`, a string, or if a chat"
+                " model, something coercible to a chat dialog. Got type:"
+                f" {type(prompt)}"
+            )
+            raise ValueError(msg)
 
     def estimate_tokens_in_prompt(self, prompt: LmPrompt) -> int:
         raise NotImplementedError

@@ -75,7 +75,7 @@ def get_unique_texts(n: int, model_name: str) -> Iterable[str]:
 
 def over50k():
     clear_cache_dir()
-    model_name = OpenAiModelNames.gpt_3_5_turbo
+    model_name = OpenAiModelNames.gpt_4o_mini
     lm = get_open_ai_lm(model_name)
     cache = SqlBackedCache(lm=lm)
     batching_manager = OpenAiBatchManager(
