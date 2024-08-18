@@ -132,7 +132,10 @@ print(pred.completion_text)
 Add `caching = True` in the prompt to cache the output to disk. Any
 subsequent calls with this prompt will return the same value. Note that
 this might be unexpected behavior if your temperature is non-zero. (You
-will always sample the same output on reruns).
+will always sample the same output on reruns). If you want to get multiple
+samples at a non-zero temperature while still using the cache, you 
+set `num_completions > 1` in a `LmPrompt`.
+
 
 ## OpenAI Batching
 
