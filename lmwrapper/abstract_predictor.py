@@ -7,7 +7,7 @@ from ratemate import RateLimit
 
 from lmwrapper.batch_config import CompletionWindow
 from lmwrapper.sqlcache_struct import BatchPredictionPlaceholder
-from lmwrapper.structs import LmPrediction, LmPrompt, LM_CHAT_DIALOG_COERCIBLE_TYPES
+from lmwrapper.structs import LM_CHAT_DIALOG_COERCIBLE_TYPES, LmPrediction, LmPrompt
 
 
 class LmPredictor:
@@ -111,14 +111,17 @@ class LmPredictor:
 
     def _validate_predict_many_prompts(self, prompts):
         if not isinstance(prompts, list):
-            msg = ("prompts input to predict_many must be a list of LmPrompt objects. "
-                   "Got type: {type(prompts)}")
+            msg = (
+                "prompts input to predict_many must be a list of LmPrompt objects. "
+                "Got type: {type(prompts)}"
+            )
             raise ValueError(msg)
         for i, prompt in enumerate(prompts):
             if not isinstance(prompt, LmPrompt):
-                msg = (f"prompts[{i}] must be a LmPrompt object. Got type: {type(prompt)}")
+                msg = (
+                    f"prompts[{i}] must be a LmPrompt object. Got type: {type(prompt)}"
+                )
                 raise ValueError(msg)
-
 
     def remove_prompt_from_cache(
         self,
@@ -146,23 +149,30 @@ class LmPredictor:
             return LmPrompt(prompt, 100)
         if isinstance(prompt, list):
             if any(isinstance(e, LmPrompt) for e in prompt):
-                msg = ("The passed in prompt is a list that contains another prompt. "
-                       "This is not allowed. If you would like to predict multiple prompts,"
-                       " use the `predict_many` method.")
+                msg = (
+                    "The passed in prompt is a list that contains another prompt. This"
+                    " is not allowed. If you would like to predict multiple prompts,"
+                    " use the `predict_many` method."
+                )
                 raise ValueError(msg)
             if self.is_chat_model:
                 return LmPrompt(prompt)
             else:
-                msg = (f"Passing a list into `predict` is interpreted as a conversation with "
-                       f"multiple turns. However, this LM ({self.model_name()}) is not a chat model.\n\n"
-                       f"If you were instead intending to predict on multiple prompts, use "
-                       f"the `predict_many` method.")
+                msg = (
+                    "Passing a list into `predict` is interpreted as a conversation"
+                    f" with multiple turns. However, this LM ({self.model_name()}) is"
+                    " not a chat model.\n\nIf you were instead intending to predict on"
+                    " multiple prompts, use the `predict_many` method."
+                )
                 raise ValueError(msg)
         elif isinstance(prompt, LmPrompt):
             return prompt
         else:
-            msg = (f"The prompt input should be a `LmPrompt`, a string, or if a chat model, "
-                   f"something coercible to a chat dialog. Got type: {type(prompt)}")
+            msg = (
+                "The prompt input should be a `LmPrompt`, a string, or if a chat"
+                " model, something coercible to a chat dialog. Got type:"
+                f" {type(prompt)}"
+            )
             raise ValueError(msg)
 
     def estimate_tokens_in_prompt(self, prompt: LmPrompt) -> int:

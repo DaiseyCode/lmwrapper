@@ -608,8 +608,8 @@ class OpenAiBatchManager:
             )
         if not all((prompt.num_completions or 1) == 1 for prompt in prompts):
             raise NotImplementedError(
-                "Only num_completions of 1 (or None) is currently supported in batches (need to"
-                " be fixed)",
+                "Only num_completions of 1 (or None) is currently supported in batches"
+                " (need to be fixed)",
             )
 
 

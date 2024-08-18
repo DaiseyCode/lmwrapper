@@ -1,5 +1,6 @@
 import dataclasses
 import math
+import pickle
 import threading
 import time
 
@@ -7,11 +8,10 @@ import numpy as np
 import pytest
 
 from lmwrapper.batch_config import CompletionWindow
-from lmwrapper.caching import clear_cache_dir, cache_dir
+from lmwrapper.caching import cache_dir, clear_cache_dir
 from lmwrapper.huggingface_wrapper.wrapper import get_huggingface_lm
 from lmwrapper.openai_wrapper.wrapper import OpenAiModelNames, get_open_ai_lm
 from lmwrapper.structs import LmPrompt
-import pickle
 
 ALL_MODELS = [
     get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct),
@@ -61,7 +61,10 @@ def test_simple_pred_lp(lm):
     )
     assert out.completion_text.strip() == "time"
     print(out)
-    assert lm.remove_special_chars_from_tokens(out.completion_tokens) in ([" time"], ["time"])
+    assert lm.remove_special_chars_from_tokens(out.completion_tokens) in (
+        [" time"],
+        ["time"],
+    )
     assert len(out.completion_logprobs) == 1
     assert math.exp(out.completion_logprobs[0]) >= 0.85
 
@@ -881,7 +884,9 @@ def test_object_size_is_reasonable(lm):
         logprobs=1,
     )
     pred = lm.predict(prompt)
-    assert len(pred.completion_tokens) == num_actual_tokens, f"got {len(pred.completion_tokens)} tokens"
+    assert (
+        len(pred.completion_tokens) == num_actual_tokens
+    ), f"got {len(pred.completion_tokens)} tokens"
     prompt_tokens = lm.tokenize(prompt.text)
     assert 9 < len(prompt_tokens) < 20
     total_tokens = len(prompt_tokens) + len(pred.completion_tokens)
@@ -891,18 +896,23 @@ def test_object_size_is_reasonable(lm):
     # a generous margin over this since hasn't been optimized
     # We'll also allow some prompt/other stuff static overhead
     acceptable_bytes_per_token = 17 * 10  # Ideally would like to get this down.
-                                          #  The logprob choice objects are really big
+    #  The logprob choice objects are really big
     acceptable_static_overhead = 512
-    acceptable_bytes = total_tokens * acceptable_bytes_per_token + acceptable_static_overhead
+    acceptable_bytes = (
+        total_tokens * acceptable_bytes_per_token + acceptable_static_overhead
+    )
     used_bytes = len(pickle.dumps(pred))
-    print(f"Used bytes: {used_bytes}, total tokens: {total_tokens}. Acceptable: {acceptable_bytes}")
+    print(
+        f"Used bytes: {used_bytes}, total tokens: {total_tokens}. Acceptable:"
+        f" {acceptable_bytes}",
+    )
     assert used_bytes < acceptable_bytes
     # Make sure the cache is reasonable size
     num_runs = 3
 
     def read_cache_size():
         d = cache_dir()
-        return sum(f.stat().st_size for f in d.glob('**/*') if f.is_file())
+        return sum(f.stat().st_size for f in d.glob("**/*") if f.is_file())
 
     for i in range(num_runs):
         prompt = LmPrompt(
@@ -920,17 +930,18 @@ def test_object_size_is_reasonable(lm):
 
 @pytest.mark.parametrize("lm", CHAT_MODELS)
 def test_cast_convo(lm):
-    pred = lm.predict([
-        "What is 2+2",
-        "4",
-        "What is 4+8",
-        "12",
-        "What is 3+5",
-        "8",
-        "What is 3+2",
-    ])
+    pred = lm.predict(
+        [
+            "What is 2+2",
+            "4",
+            "What is 4+8",
+            "12",
+            "What is 3+5",
+            "8",
+            "What is 3+2",
+        ],
+    )
     assert pred.completion_text.strip() == "5"
-
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS)

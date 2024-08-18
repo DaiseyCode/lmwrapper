@@ -133,16 +133,14 @@ class LmPrompt:
         if self.max_tokens is not None and not isinstance(self.max_tokens, int):
             msg = "The max_tokens parameter should be an int."
             raise ValueError(msg)
-        if (
-            self.num_completions is not None
-            and (
-                not isinstance(self.num_completions, int)
-                or self.num_completions <= 0
-            )
+        if self.num_completions is not None and (
+            not isinstance(self.num_completions, int) or self.num_completions <= 0
         ):
-            msg = ("The num_completions parameter should be an "
-                   "int greater than 0 or None (in which case a single "
-                   "non-list item will be returned)")
+            msg = (
+                "The num_completions parameter should be an "
+                "int greater than 0 or None (in which case a single "
+                "non-list item will be returned)"
+            )
             raise ValueError(msg)
         if self.stop is not None:
             if not isinstance(self.stop, list):

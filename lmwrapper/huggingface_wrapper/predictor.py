@@ -256,7 +256,7 @@ class HuggingFacePredictor(LmPredictor):
             )
         del encoded_input
 
-        #if prompt.num_completions is None:
+        # if prompt.num_completions is None:
         #    return outputs[0]
         return outputs
 
@@ -530,7 +530,7 @@ class HuggingFacePredictor(LmPredictor):
         return HuggingFacePrediction(
             completion_text=clean_generated_text,
             prompt=prompt,
-            #metad=updated_output,
+            # metad=updated_output,
             # Passing the updated_output is huge and has stuff like the whole logit
             # array. I don't think we need that.
             metad={},

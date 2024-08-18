@@ -459,7 +459,7 @@ class OpenAIPredictor(LmPredictor):
             raise completion
 
         preds = self.prediction_from_api_response(completion, prompt)
-        #if prompt.num_completions is None:
+        # if prompt.num_completions is None:
         #    return preds[0]
         return preds
 
