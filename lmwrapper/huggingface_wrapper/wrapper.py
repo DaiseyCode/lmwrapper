@@ -16,6 +16,13 @@ try:
     import torch
 
     assert version.parse(torch.__version__) >= version.parse("2.0")
+except ModuleNotFoundError:
+    msg = ('`torch` package is not found. Note, you can '
+           'install lmwrapper with `pip install "lmwrapper[hf]"` to install the '
+           'required huggingface dependencies.')
+    raise ModuleNotFoundError(
+        msg,
+    )
 except ImportError:
     msg = "Expect to work on torch. Please see https://pytorch.org/ for install info."
     raise ImportError(
