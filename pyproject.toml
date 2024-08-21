@@ -35,7 +35,8 @@ dependencies = [
     "ratemate~=0.1",
     "humanize~=4.8.0",
     "xxhash~=3.4",
-    "numpy~=1.24"
+    "numpy~=1.24",
+    "packaging>=22.0",
 ]
 
 [project.optional-dependencies]
