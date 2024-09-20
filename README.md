@@ -253,7 +253,8 @@ Note: The universe of Huggingface models is diverse and inconsistent. Some (espe
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
 from lmwrapper.structs import LmPrompt
 
-lm = get_huggingface_lm("gpt2")  # Download the smallest 124M parameter model
+# Download a small model for demo
+lm = get_huggingface_lm("gpt2") # 124M parameters
 
 prediction = lm.predict(LmPrompt(
     "The capital of Germany is Berlin. The capital of France is",

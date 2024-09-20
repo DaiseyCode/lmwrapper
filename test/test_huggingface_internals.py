@@ -29,7 +29,7 @@ def test_get_internals_hidden_states(pytestconfig, model_name_layers_hidden):
     is_run_slow = pytestconfig.getoption("--runslow")
     if IS_GITHUB_ACTIONS and model_name != Models.GPT2:
         pytest.skip(
-            "We are only going to test gpt2 here. "
+            "We are only going to test small here. "
             "The other models are either large or use a similar attention pattern.",
         )
     if IS_GITHUB_ACTIONS and model_name in BIG_MODELS:

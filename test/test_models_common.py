@@ -12,10 +12,11 @@ from lmwrapper.caching import cache_dir, clear_cache_dir
 from lmwrapper.huggingface_wrapper.wrapper import get_huggingface_lm
 from lmwrapper.openai_wrapper.wrapper import OpenAiModelNames, get_open_ai_lm
 from lmwrapper.structs import LmPrompt
+from test.test_params import DEFAULT_SMALL
 
 ALL_MODELS = [
     get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct),
-    get_huggingface_lm("gpt2"),
+    get_huggingface_lm(DEFAULT_SMALL),
     get_open_ai_lm(OpenAiModelNames.gpt_4o_mini),
 ]
 
@@ -40,7 +41,7 @@ ECHOABLE_MODELS = [
 def test_simple_pred(lm):
     out = lm.predict(
         LmPrompt(
-            "Give a one word completion: 'Here is a story. Once upon a",
+            "Give a one word completion: 'Here is a fairytale story. Once upon a",
             max_tokens=1,
             cache=False,
         ),
