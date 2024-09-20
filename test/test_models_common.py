@@ -81,6 +81,25 @@ def test_simple_pred_lp(lm):
         ),
     )
     assert math.exp(out.completion_logprobs[0]) <= 0.95
+    # Lowish temp
+    out = lm.predict(
+        LmPrompt(
+            "Give a one word completion: 'Here is a fairytale story. Once upon a",
+            max_tokens=1,
+            logprobs=1,
+            cache=False,
+            echo=False,
+            temperature=0.2,
+        ),
+    )
+    assert out.completion_text.strip() == "time"
+    print(out)
+    assert lm.remove_special_chars_from_tokens(out.completion_tokens) in (
+        [" time"],
+        ["time"],
+    )
+    assert len(out.completion_logprobs) == 1
+    assert math.exp(out.completion_logprobs[0]) >= 0.80
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
