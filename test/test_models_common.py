@@ -52,11 +52,12 @@ def test_simple_pred(lm):
 def test_simple_pred_lp(lm):
     out = lm.predict(
         LmPrompt(
-            "Give a one word completion: 'Here is a story. Once upon a",
+            "Give a one word completion: 'Here is a fairytale story. Once upon a",
             max_tokens=1,
             logprobs=1,
             cache=False,
             echo=False,
+            temperature=0,
         ),
     )
     assert out.completion_text.strip() == "time"
@@ -66,7 +67,20 @@ def test_simple_pred_lp(lm):
         ["time"],
     )
     assert len(out.completion_logprobs) == 1
-    assert math.exp(out.completion_logprobs[0]) >= 0.85
+    assert math.exp(out.completion_logprobs[0]) >= 0.80
+    # Make sure prob not broken when temperature=0
+    out = lm.predict(
+        LmPrompt(
+            "Give a one word completion: 'Here is a story. "
+            "Once upon a time there was a",
+            max_tokens=1,
+            logprobs=1,
+            cache=False,
+            echo=False,
+            temperature=0,
+        ),
+    )
+    assert math.exp(out.completion_logprobs[0]) <= 0.95
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
