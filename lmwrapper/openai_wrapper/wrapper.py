@@ -514,13 +514,15 @@ class OpenAIPredictor(LmPredictor):
         return tokens
 
     @property
-    def default_tokens_generated(self) -> int:
+    def default_tokens_generated(self) -> int | None:
         # For the completion models it used to 16.
         # https://platform.openai.com/docs/api-reference/completions/create#completions/create-max_tokens
         # However, now there does not appear to be a limit for the chat models
         # https://platform.openai.com/docs/api-reference/chat/create#chat-create-max_completion_tokens
         # We'll just switch over to no limit (or the total limit of the model)
-        return self.token_limit
+        if not self.is_chat_model:
+            return 16
+        return None
 
 
 class OpenAiInstantiationHook(ABC):
@@ -592,7 +594,7 @@ def prompt_to_openai_args_dict(
     prompt: LmPrompt,
     engine_name: str,
     chat_model: bool,
-    default_tokens_generated: int = 20,
+    default_tokens_generated: int | None = 20,
 ) -> dict[str, Any]:
     max_toks = (
         prompt.max_tokens if prompt.max_tokens is not None else default_tokens_generated

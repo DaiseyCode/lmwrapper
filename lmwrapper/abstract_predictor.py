@@ -238,7 +238,7 @@ class LmPredictor:
         raise NotImplementedError
 
     @property
-    def default_tokens_generated(self) -> int:
+    def default_tokens_generated(self) -> int | None:
         return self.token_limit // 16
 
 
