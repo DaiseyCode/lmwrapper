@@ -644,14 +644,9 @@ def prompt_to_openai_args_dict(
         return dict(
             messages=prompt.get_text_as_chat().as_dicts(),
             model=engine_name,
-            # logprobs=prompt.logprobs > 0,
-            # max_tokens=max_toks,
             max_completion_tokens=prompt.max_completion_tokens,
             n=prompt.num_completions or 1,
             presence_penalty=prompt.presence_penalty,
-            # stop=prompt.stop,
-            # temperature=prompt.temperature,
-            # top_logprobs accepts ints 0 to 20, logprobs must be a boolean true
             top_logprobs=prompt.logprobs if prompt.logprobs > 0 else None,
             top_p=prompt.top_p,
         )
