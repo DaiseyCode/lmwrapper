@@ -44,7 +44,7 @@ class OpenAiModelInfo(str):
     ):
         instance = super().__new__(cls, name)
         instance._is_chat_model = is_chat_model
-        instance.is_o1_model = is_o1_model
+        instance._is_o1_model = is_o1_model
         instance._token_limit = token_limit
         return instance
 
@@ -347,7 +347,7 @@ class OpenAIPredictor(LmPredictor):
         self._retry_on_rate_limit = retry_on_rate_limit
         info = OpenAiModelNames.name_to_info(engine_name)
         self._chat_mode = info.is_chat_model if chat_mode is None else chat_mode
-        self._o1_mode = info.is_o1_model if o1_mode is None else o1_mode
+        self._o1_mode = info._is_o1_model if o1_mode is None else o1_mode
         if self._chat_mode is None:
             msg = (
                 "`chat_mode` is not provided as a parameter and cannot be inferred from"
@@ -377,28 +377,38 @@ class OpenAIPredictor(LmPredictor):
 
     def _validate_prompt(self, prompt: LmPrompt, raise_on_invalid: bool = True) -> bool:
         if prompt.logprobs is not None and prompt.logprobs > MAX_LOG_PROB_PARM:
-            warnings.warn(
+            message = (
                 f"Openai limits logprobs to be <= {MAX_LOG_PROB_PARM}. Larger values"
                 " might cause unexpected behavior if you later are dependingon more"
-                " returns",
+                " returns"
             )
-            return False
+            if raise_on_invalid:
+                raise ValueError(message)
+            else:
+                warnings.warn(message)
+                return False
         if self._o1_mode:
-            if prompt.max_tokens:
-                warnings.warn(
-                    f"o1 type models use `max_completion_tokens` instead of `max_tokens` but you have set max tokens to f{prompt.max_tokens}. Instead, `max_completion_tokens` will be used. `max_completion_tokens` is currently set to: {prompt.max_completion_tokens}"
-                )
-                return False
+            # if prompt.max_tokens:
+            #     message = f"o1 type models use `max_completion_tokens` instead of `max_tokens` but you have set max tokens to f{prompt.max_tokens}. Instead, `max_completion_tokens` will be used. `max_completion_tokens` is currently set to: {prompt.max_completion_tokens}"
+            #     if raise_on_invalid:
+            #         raise ValueError(message)
+            #     else:
+            #         warnings.warn(message)
+            #         return False
             if prompt.temperature != 1.0:
-                warnings.warn(
-                    f"Temperature is set to {prompt.temperature} but o1 models do not support temperature. This will be ignored and a value of 1.0 will be used instead."
-                )
-                return False
+                message = f"Temperature is set to {prompt.temperature} but o1 models do not support temperature. This will be ignored and a value of 1.0 will be used instead."
+                if raise_on_invalid:
+                    raise ValueError(message)
+                else:
+                    warnings.warn(message)
+                    return False
             if prompt.stop:
-                warnings.warn(
-                    f"Stop is set to {prompt.stop} but o1 models do not support stop tokens. This will be ignored."
-                )
-                return False
+                message = f"Stop is set to {prompt.stop} but o1 models do not support stop tokens. This will be ignored."
+                if raise_on_invalid:
+                    raise ValueError(message)
+                else:
+                    warnings.warn(message)
+                    return False
         return True
 
     def model_name(self):

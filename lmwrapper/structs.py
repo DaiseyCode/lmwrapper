@@ -241,11 +241,6 @@ class ChatGptRoles(StrEnum):
     assistant = "assistant"
     function = "function"
 
-class GptO1Roles(StrEnum):
-    user = "user"
-    assistant = "assistant"
-    function = "function"
-
 
 @dataclass
 class LmChatTurn:
