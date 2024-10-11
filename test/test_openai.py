@@ -97,6 +97,20 @@ def test_simple_chat_mode():
     assert out.completion_text.strip() == "4"
 
 
+def test_o1_mode():
+    lm = get_open_ai_lm(OpenAiModelNames.o1_preview_2024_09_12)
+    out = lm.predict(
+        LmPrompt(
+            "What is 2+2? Answer with just one number.",
+            # max_tokens=100,
+            max_completion_tokens=1000,
+            cache=False,
+            logprobs=0,
+        ),
+    )
+    assert out.completion_text.strip() == "4"
+
+
 def test_chat_nologprob_exception():
     lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo)
     out = lm.predict(

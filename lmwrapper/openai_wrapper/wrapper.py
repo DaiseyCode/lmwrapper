@@ -395,15 +395,21 @@ class OpenAIPredictor(LmPredictor):
             #     else:
             #         warnings.warn(message)
             #         return False
+            if prompt.logprobs is not None and prompt.logprobs > 0:
+                message = f"logprobs is set to {prompt.logprobs} but o1 models do not support logprobs. This will be ignored and a value of `None` will be used instead."
+                if raise_on_invalid:
+                    raise ValueError(message)
+                else:
+                    warnings.warn(message)
             if prompt.temperature != 1.0:
-                message = f"Temperature is set to {prompt.temperature} but o1 models do not support temperature. This will be ignored and a value of 1.0 will be used instead."
+                message = f"temperature is set to {prompt.temperature} but o1 models do not support temperature. This will be ignored and a value of 1.0 will be used instead."
                 if raise_on_invalid:
                     raise ValueError(message)
                 else:
                     warnings.warn(message)
                     return False
             if prompt.stop:
-                message = f"Stop is set to {prompt.stop} but o1 models do not support stop tokens. This will be ignored."
+                message = f"stop is set to {prompt.stop} but o1 models do not support stop tokens. This will be ignored."
                 if raise_on_invalid:
                     raise ValueError(message)
                 else:
@@ -657,8 +663,9 @@ def prompt_to_openai_args_dict(
             max_completion_tokens=prompt.max_completion_tokens,
             n=prompt.num_completions or 1,
             presence_penalty=prompt.presence_penalty,
-            top_logprobs=prompt.logprobs if prompt.logprobs > 0 else None,
+            top_logprobs=None,
             top_p=prompt.top_p,
+            logprobs=None,
         )
     # all o1 models are chat models
     elif chat_model:
