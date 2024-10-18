@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 jobs:
   build:
-    timeout-minutes: 15
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     environment:
       name: lmwrapper_my_env
