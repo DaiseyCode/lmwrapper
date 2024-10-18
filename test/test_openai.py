@@ -72,7 +72,7 @@ def test_too_large_logprob():
             ),
         )
 
-    with pytest.warns(UserWarning):
+    with pytest.raises(ValueError):
         lm.predict(
             LmPrompt(
                 "Once",
