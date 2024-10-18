@@ -98,7 +98,7 @@ def test_simple_chat_mode():
 
 
 def test_o1_mode():
-    lm = get_open_ai_lm(OpenAiModelNames.o1_preview_2024_09_12)
+    lm = get_open_ai_lm(OpenAiModelNames.o1_mini_2024_09_12)
     out = lm.predict(
         LmPrompt(
             "What is 2+2? Answer with just one number.",
