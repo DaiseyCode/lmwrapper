@@ -668,6 +668,7 @@ def _prompt_to_arg_dict_for_batch(
         prompt,
         engine_name=lm.model_name(),
         chat_model=lm.is_chat_model,
+        o1_model=lm.is_o1_model,
     )
     request = {
         "body": args,

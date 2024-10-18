@@ -429,6 +429,10 @@ class OpenAIPredictor(LmPredictor):
     @property
     def is_chat_model(self):
         return self._chat_mode
+    
+    @property
+    def is_o1_model(self):
+        return self._o1_mode
 
     @property
     def token_limit(self):
