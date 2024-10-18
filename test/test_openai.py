@@ -72,7 +72,7 @@ def test_too_large_logprob():
             ),
         )
 
-    with pytest.warns(UserWarning):
+    with pytest.raises(ValueError):
         lm.predict(
             LmPrompt(
                 "Once",
@@ -92,6 +92,20 @@ def test_simple_chat_mode():
             max_tokens=1,
             temperature=0.0,
             cache=False,
+        ),
+    )
+    assert out.completion_text.strip() == "4"
+
+
+def test_o1_mode():
+    lm = get_open_ai_lm(OpenAiModelNames.o1_mini_2024_09_12)
+    out = lm.predict(
+        LmPrompt(
+            "What is 2+2? Answer with just one number.",
+            # max_tokens=100,
+            max_completion_tokens=1000,
+            cache=False,
+            logprobs=0,
         ),
     )
     assert out.completion_text.strip() == "4"
