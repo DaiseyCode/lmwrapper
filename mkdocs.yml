@@ -1,0 +1,52 @@
+site_name: lmwrapper
+repo_url: https://github.com/DaiseyCode/lmwrapper
+repo_name: DaiseyCode/lmwrapper
+
+nav:
+  - Home: README.md
+  #- API Reference: api.md
+
+theme:
+  name: material
+  features:
+    # Adds a "Back to top" button that appears when scrolling up
+    - navigation.top
+
+    # Updates the URL hash as you scroll through the page, useful for sharing links to specific sections
+    #- navigation.tracking
+
+    # Shows tooltip previews when hovering over internal links
+    - content.tooltips
+
+    - version.select
+
+    - content.code.copy
+
+extra:
+  version:
+    provider: mike
+    default: latest
+
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [lmwrapper]
+          options:
+            show_source: true
+
+markdown_extensions:
+  - tables
+  - fenced_code
+  - toc:
+      permalink: true
+      toc_depth: 4
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences

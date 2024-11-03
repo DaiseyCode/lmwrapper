@@ -43,6 +43,12 @@ dependencies = [
 dev = ["black~=23.10.0", "ruff~=0.1.1", "pytest~=7.4.2", "pytest-cov~=4.1.0"]
 quant = ["bitsandbytes~=0.41.1"]
 hf = ["torch~=2.1.0", "transformers~=4.34.1"]
+docs = [
+    "mkdocs>=1.4.0",
+    "mkdocstrings[python]>=0.24.0",
+    "mkdocs-material>=9.0.0",
+    "mike>=1.1.2",
+]
 # Torch nightlies can be installed as follows:
 # CPU: pip3 install --pre torch --index-url https://download.pytorch.org/whl/nightly/cpu
 # CUDA: pip3 install --pre torch --index-url https://download.pytorch.org/whl/nightly/cu121

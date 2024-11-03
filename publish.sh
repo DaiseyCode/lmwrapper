@@ -2,7 +2,7 @@
 skip_checks=false
 
 for arg in "$@"; do
-    if [[ $arg == "--skipchecks" ]]; then
+    i [[ $arg == "--skipchecks" ]]; then
         skip_checks=true
         echo "skipping checks"
         break
@@ -102,9 +102,22 @@ if [ "$1" == "--prod" ]; then
     exit 1
   fi
   python3 -m twine upload dist/*
+  if [ $? -ne 0 ]; then
+    echo "PyPI upload failed. Aborting documentation deployment."
+    exit 1
+  fi
+
+
+  # Deploy documentation after successful PyPI production release
+  echo "Publishing documentation..."
+  ./deploy_docs.sh
 else
   echo "Publishing to PyPI test..."
   python3 -m twine upload --repository testpypi dist/*
+  if [ $? -ne 0 ]; then
+    echo "TestPyPI upload failed."
+    exit 1
+  fi
 fi
 
 echo "Done 🎉"
