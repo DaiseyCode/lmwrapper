@@ -384,6 +384,10 @@ class LmPrediction:
         )
 
     @property
+    def usage_output_tokens(self):
+        return len(self.completion_tokens)
+
+    @property
     def completion_logprobs(self) -> list[float]:
         msg = "This version of prediction does not support completion logprobs"
         raise NotImplementedError(

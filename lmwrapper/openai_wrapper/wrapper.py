@@ -375,6 +375,10 @@ class OpenAIPredictor(LmPredictor):
         #    return OpenAiLmChatPrediction
         return OpenAiLmPrediction
 
+    @property
+    def supports_token_operations(self) -> bool:
+        return True
+
     def _validate_prompt(self, prompt: LmPrompt, raise_on_invalid: bool = True) -> bool:
         if prompt.logprobs is not None and prompt.logprobs > MAX_LOG_PROB_PARM:
             message = (

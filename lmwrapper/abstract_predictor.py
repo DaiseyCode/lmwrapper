@@ -137,6 +137,11 @@ class LmPredictor:
     def get_model_cache_key(self):
         return type(self).__name__
 
+    @property
+    def supports_token_operations(self) -> bool:
+        """Whether this lm exposes tokenizations"""
+        return False
+
     @abstractmethod
     def _predict_maybe_cached(
         self,

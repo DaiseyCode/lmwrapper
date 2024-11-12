@@ -24,10 +24,20 @@ For usage with HuggingFace models as well:
 pip install 'lmwrapper[hf]'
 ```
 
+For usage with Claude models from Anthropic:
+```bash
+pip install 'lmwrapper[anthropic]'
+```
+
 For development dependencies:
 
 ```bash
 pip install 'lmwrapper[dev]'
+```
+
+The above args can be combined. For example:
+```bash
+pip install 'lmwrapper[hf,anthropic]'
 ```
 
 <!---
@@ -230,6 +240,7 @@ to sort out / TODOs:
 - [X] Handle if openai batch expires unfinished in 24hrs (though not actually tested or observed this)
 - [X] Automatically splitting up batch when exceeding 100MB prompts limit
 - [X] Handling of failed prompts (like when have too many tokens). Use LmPrediction.has_errors and LmPrediction.error_message to check for an error on a response.
+- [ ] Claude batching
 - [ ] Handle when there are duplicate prompts in batch submission
 - [ ] Handle when a given prompt has `num_completions>1`
 - [ ] Automatically clean up API files after done (right now end up with a lot of file in [storage](https://platform.openai.com/storage/files). There isn't an obvious cost for these batch files, but this might change and it would be better to clean them up.)
@@ -268,6 +279,17 @@ assert prediction.completion_text == " Paris"
 
 Additionally, with HuggingFace models `lmwrapper` provides an interface for
 accessing the model internal states.
+
+## Claude
+```python
+from lmwrapper.claude_wrapper.wrapper import (
+    get_claude_lm, ClaudeModelNames
+)
+lm = get_claude_lm(ClaudeModelNames.claude_3_5_haiku)
+prediction = lm.predict("Define 'anthropology' in one short sentence") 
+print(prediction.completion_text) # Anthropology is the scientific study of human cultures, societies, behaviors, and...
+```
+Note Anthropic does not expose any information about the tokenization for Claude.
 
 ### Retries on rate limit
 
@@ -308,7 +330,7 @@ please make a Github Issue.
 - [X] Redesign cache away from generic `diskcache` to make it easier to manage
 - [X] Smart caching when num_completions > 1 (reusing prior completions)
 - [X] OpenAI batching interface (experimental)
-- [ ] Anthropic interface
+- [X] Anthropic interface (basic)
 - [ ] Be able to add user metadata to a prompt
 - [ ] Use the huggingface chat templates for chat models if available
 - [ ] Automatic cache eviction to limit count or disk size (right now have to run a SQL query to delete entries before a certain time or matching your criteria)

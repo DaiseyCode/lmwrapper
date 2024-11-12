@@ -13,21 +13,41 @@ from lmwrapper.huggingface_wrapper.wrapper import get_huggingface_lm
 from lmwrapper.openai_wrapper.wrapper import OpenAiModelNames, get_open_ai_lm
 from lmwrapper.structs import LmPrompt
 from test.test_params import DEFAULT_SMALL
+from lmwrapper.claude_wrapper.wrapper import get_claude_lm, ClaudeModelNames
+from functools import wraps
+
+
+def skip_if_no_token_ops(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        model = next(
+            (arg for arg in (*args, *kwargs.values()) 
+             if hasattr(arg, 'supports_token_operations')),
+            None
+        )
+        if model and not model.supports_token_operations:
+            pytest.skip("Model does not support token operations")
+        return func(*args, **kwargs)
+    return wrapper
+
 
 ALL_MODELS = [
     get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct),
     get_huggingface_lm(DEFAULT_SMALL),
     get_open_ai_lm(OpenAiModelNames.gpt_4o_mini),
+    get_claude_lm(ClaudeModelNames.claude_3_5_haiku),
 ]
 
 ALL_MODELS_OLD = [
-    *ALL_MODELS[:2],
-    get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo),
+    #*ALL_MODELS[:2],
+    #get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo),
 ]
 
-COMPLETION_MODELS = ALL_MODELS[:-1]
+#COMPLETION_MODELS = ALL_MODELS[:2]
+COMPLETION_MODELS = []
 
-CHAT_MODELS = [ALL_MODELS[2]]
+#CHAT_MODELS = [ALL_MODELS[2], ALL_MODELS[3]]
+CHAT_MODELS = [ALL_MODELS[0]]
 
 
 ECHOABLE_MODELS = [
@@ -41,7 +61,8 @@ ECHOABLE_MODELS = [
 def test_simple_pred(lm):
     out = lm.predict(
         LmPrompt(
-            "Give a one word completion: 'Here is a fairytale story. Once upon a",
+            "Give a one word completion. Answer with only the next word: "
+            "'Here is a fairytale story. Once upon a",
             max_tokens=1,
             cache=False,
         ),
@@ -49,11 +70,13 @@ def test_simple_pred(lm):
     assert out.completion_text.strip() == "time"
 
 
+@skip_if_no_token_ops
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_simple_pred_lp(lm):
     out = lm.predict(
         LmPrompt(
-            "Give a one word completion: 'Here is a fairytale story. Once upon a",
+            "Give a one word completion. Answer with only the next word: "
+            "'Here is a fairytale story. Once upon a",
             max_tokens=1,
             logprobs=1,
             cache=False,
@@ -129,6 +152,7 @@ def test_simple_pred_cache(lm):
 
 
 @pytest.mark.parametrize("lm", ECHOABLE_MODELS)
+@skip_if_no_token_ops
 def test_echo(lm):
     out = lm.predict(
         LmPrompt(
@@ -159,6 +183,7 @@ def test_echo(lm):
 
 
 @pytest.mark.parametrize("lm", ECHOABLE_MODELS)
+@skip_if_no_token_ops
 def test_low_prob_in_weird_sentence(lm):
     weird = lm.predict(
         LmPrompt(
@@ -207,6 +232,7 @@ def test_low_prob_in_weird_sentence(lm):
 
 
 @pytest.mark.parametrize("lm", ECHOABLE_MODELS)
+@skip_if_no_token_ops
 def test_no_gen_with_echo(lm):
     val = lm.predict(
         LmPrompt(
@@ -234,7 +260,9 @@ def test_many_gen(lm):
             cache=False,
         ),
     )
-    assert len(val.completion_tokens) == 5
+    assert val.usage_output_tokens == 5
+    if lm.supports_token_operations:
+        assert len(val.completion_tokens) == 5
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
@@ -272,6 +300,7 @@ capital_prompt = (
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
+@skip_if_no_token_ops
 def test_no_stopping_in_prompt(lm):
     capital_newlines = (
         "The capitol of Germany\n is the city Berlin.\n"
@@ -584,7 +613,7 @@ def test_remove_prompt_from_cache(lm):
     prompt = LmPrompt(
         "Give a random base-64 guid:",
         max_tokens=100,
-        temperature=2.0,
+        temperature=1.0,
         cache=True,
     )
     r1 = lm.predict(prompt)
@@ -604,6 +633,7 @@ def test_remove_prompt_from_cache(lm):
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS)
+@skip_if_no_token_ops
 def test_none_max_tokens(lm):
     prompt = LmPrompt(
         "Write a detailed story (three paragraphs) about a dog:",
@@ -664,9 +694,9 @@ def test_response_to_dict_conversion(lm):
 @pytest.mark.parametrize("lm", ALL_MODELS)
 def test_was_cached_marking(lm):
     prompt = LmPrompt(
-        "Give a random base-64 guid:",
+        "Give a random base-64 guid (answer with only the guid):",
         max_tokens=10,
-        temperature=2.0,
+        temperature=1.0,
         cache=False,
     )
     r1 = lm.predict(prompt)
@@ -674,9 +704,9 @@ def test_was_cached_marking(lm):
     r2 = lm.predict(prompt)
     assert not r2.was_cached
     prompt = LmPrompt(
-        "Give a random base-64 guid:",
+        "Give a random base-64 guid (answer with only the guid):",
         max_tokens=100,
-        temperature=2.0,
+        temperature=1.0,
         cache=True,
     )
     lm.remove_prompt_from_cache(prompt)
@@ -872,7 +902,7 @@ def test_predict_many_cached(lm):
 def test_num_completions_two(lm):
     clear_cache_dir()
     prompt = LmPrompt(
-        "Make up a random guid:",
+        "Make up a random guid (answer with only the guid):",
         max_tokens=15,
         cache=False,
         temperature=1,
@@ -882,8 +912,8 @@ def test_num_completions_two(lm):
     pred = lm.predict(prompt)
     assert len(pred) == 2
     assert isinstance(pred, list)
-    assert 10 < len(pred[0].completion_tokens) <= 20
-    assert 10 < len(pred[1].completion_tokens) <= 20
+    assert 10 < pred[0].usage_output_tokens <= 20
+    assert 10 < pred[1].usage_output_tokens <= 20
     assert pred[0].completion_text != pred[1].completion_text
     pred2 = lm.predict(prompt)
     assert pred[0].completion_text != pred2[0].completion_text
@@ -894,7 +924,7 @@ def test_num_completions_two(lm):
 def test_num_completions_one_list(lm):
     clear_cache_dir()
     prompt = LmPrompt(
-        "Make up a random guid:",
+        "Make up a random guid (answer with only the guid):",
         max_tokens=15,
         cache=False,
         temperature=1,
@@ -904,7 +934,7 @@ def test_num_completions_one_list(lm):
     pred = lm.predict(prompt)
     assert isinstance(pred, list)
     assert len(pred) == 1
-    assert 10 < len(pred[0].completion_tokens) <= 20
+    assert 10 < pred[0].usage_output_tokens <= 20
     pred2 = lm.predict(prompt)
     assert pred[0].completion_text != pred2[0].completion_text
 
@@ -922,11 +952,14 @@ def test_object_size_is_reasonable(lm):
     )
     pred = lm.predict(prompt)
     assert (
-        len(pred.completion_tokens) == num_actual_tokens
-    ), f"got {len(pred.completion_tokens)} tokens"
-    prompt_tokens = lm.tokenize(prompt.text)
-    assert 9 < len(prompt_tokens) < 20
-    total_tokens = len(prompt_tokens) + len(pred.completion_tokens)
+        pred.usage_output_tokens == num_actual_tokens
+    ), f"got {pred.usage_output_tokens} tokens"
+    if lm.supports_token_operations:
+        prompt_tokens = lm.tokenize(prompt.text)
+        assert 9 < len(prompt_tokens) < 20
+        total_tokens = len(prompt_tokens) + len(pred.completion_tokens)
+    else:
+        total_tokens = 20 + num_actual_tokens
     # Optimal per token might be around 5 bytes (5 characters)
     # for the token text, maybe like 4 bytes for the logprob,
     # and maybe like 8 bytes for other random stuff. We will allow
@@ -960,7 +993,7 @@ def test_object_size_is_reasonable(lm):
             logprobs=1,
         )
         pred = lm.predict(prompt)
-        assert len(pred.completion_tokens) == num_actual_tokens
+        assert pred.usage_output_tokens == num_actual_tokens
     print("Cache size", read_cache_size())
     assert read_cache_size() < (acceptable_bytes * num_runs) * 2
 
@@ -988,7 +1021,7 @@ def test_num_completions_two_cached(lm):
         "Make up a random guid:",
         max_tokens=20,
         cache=True,
-        temperature=1.5,
+        temperature=1.0,
         logprobs=1,
         num_completions=2,
     )

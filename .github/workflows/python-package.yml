@@ -29,7 +29,7 @@ jobs:
         python -m pip install --upgrade pip
     - name: Install my own pacakge
       run: |
-        pip install -e .[hf,dev]
+        pip install -e .[hf,dev,anthropic]
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names

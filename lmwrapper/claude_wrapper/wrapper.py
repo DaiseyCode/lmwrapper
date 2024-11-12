@@ -1,4 +1,9 @@
+import pickle
+from typing import Any, Iterable
+import warnings
+from anthropic.types import Usage
 from lmwrapper.abstract_predictor import LmPredictor
+from dataclasses import dataclass, field
 from pprint import pprint
 import anthropic
 from anthropic.types.text_block import TextBlock
@@ -6,7 +11,53 @@ from pathlib import Path
 from lmwrapper.abstract_predictor import (
     LmPredictor, LmPrompt, LmPrediction
 )
+from lmwrapper.batch_config import CompletionWindow
 from lmwrapper.secrets_manager import SecretEnvVar, SecretFile, SecretInterface, assert_is_a_secret
+
+
+@dataclass
+class ClaudePrediction(LmPrediction):
+    def __init__(
+        self,
+        completion_text: str,
+        prompt: LmPrompt,
+        error_message: str | None = None,
+        usage: Usage | None = None,
+    ):
+        super().__init__(
+            completion_text=completion_text,
+            prompt=prompt,
+            metad={
+                "usage": usage.model_dump(),
+            },
+            error_message=error_message,
+        )
+
+
+    @classmethod
+    def parse_from_cache(
+        cls,
+        completion_text: str,
+        prompt: LmPrompt,
+        metad_bytes: bytes,
+        error_message: str | None,
+    ):
+        metad = pickle.loads(metad_bytes)
+        print(metad)
+        usage = Usage(**metad["usage"])
+        return cls(
+            completion_text=completion_text,
+            prompt=prompt,
+            error_message=error_message,
+            usage=usage,
+        )
+
+    def serialize_metad_for_cache(self) -> bytes:
+        return pickle.dumps(self.metad)
+
+    @property
+    def usage_output_tokens(self):
+        return self.metad["usage"]['output_tokens']
 
 
 class ClaudePredictor(LmPredictor):
@@ -21,46 +72,70 @@ class ClaudePredictor(LmPredictor):
         self._model = model
 
     def find_prediction_class(self, prompt):
-        return ClaudePredictor
+        return ClaudePrediction
+
+    @property
+    def supports_token_operations(self) -> bool:
+        return False
 
     def model_name(self):
         return self._model
 
+    def get_model_cache_key(self):
+        return self.model_name()
+
+    def is_chat_model(self) -> bool:
+        return True
+
+    @property
+    def token_limit(self):
+        return ClaudeModelNames.name_to_info(self._model).token_limit
+
+    def predict_many(
+        self,
+        prompts: list[LmPrompt],
+        completion_window: CompletionWindow,
+    ) -> Iterable[LmPrediction | list[LmPrediction]]:
+        if completion_window == CompletionWindow.BATCH_ANY:
+            warnings.warn("Batching for claude not yet implemented")
+        yield from super().predict_many(prompts, completion_window)
+
     def _predict_maybe_cached(
         self,
         prompt: LmPrompt,
-    ) -> LmPrediction | list[LmPrediction]:
+    ) -> ClaudePrediction | list[ClaudePrediction]:
         messages = prompt.get_text_as_chat().as_dicts()
-        
-        try:
+        predictions = []
+        for _ in range(prompt.num_completions or 1):
+            # Claude doesn't actually support num_completions, so we just loop
             response = self._api.messages.create(
                 model=self._model,
-                max_tokens=prompt.max_tokens,
+                max_tokens=(
+                    prompt.max_tokens if prompt.max_tokens is not None
+                    else self.default_tokens_generated
+                ),
                 temperature=prompt.temperature,
                 messages=messages,
+                top_p=prompt.top_p,
                 #system=prompt.system_prompt or "",
             )
-            
+
             # Create predictions for each choice
             assert len(response.content) == 1
             content = response.content[0]
             assert isinstance(content, TextBlock)
-            print(type(content))
             text = content.text
-            predictions = [
-                LmPrediction(
+            pprint(response)
+            predictions.append(
+                ClaudePrediction(
                     completion_text=text,
                     prompt=prompt,
-                    metad=response,
-                    internals=None
+                    usage=response.usage,
                 )
-            ]
+            )
+
+        return predictions[0] if prompt.num_completions is None else predictions
             
-            return predictions[0] if prompt.num_completions is None else predictions
-            
-        except Exception as e:
-            # Re-raise with context
-            raise RuntimeError(f"Claude API call failed: {str(e)}") from e
 
 
 class _ModelNamesMeta(type):
@@ -141,16 +216,9 @@ def get_claude_lm(
 
 if __name__ == "__main__":
     print("hello world")
-
-    key = Path("~/anthropic_key.txt").expanduser().read_text().strip()
-    client = anthropic.Anthropic(api_key=key)
-
-    pred = ClaudePredictor(
-        api=client,
-        model=ClaudeModelNames.claude_3_5_haiku,
-        cache_outputs_default=False,
-    )
-    print(pred.predict("What is 2+2?"))
+    lm = get_claude_lm(model_name=ClaudeModelNames.claude_3_5_haiku)
+    print(lm.predict("What is 2+2?"))
+    print(lm.predict("Define 'anthropology' in one short sentence"))
     exit()
 
     message = client.messages.create(

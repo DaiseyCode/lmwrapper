@@ -45,6 +45,10 @@ class HuggingFacePredictor(LmPredictor):
     def get_model_cache_key(self):
         return self._model.name_or_path
 
+    @property
+    def supports_token_operations(self) -> bool:
+        return True
+
     def _verify_initial_prompt(self, prompt: LmPrompt):
         if not isinstance(prompt.text, str) and len(prompt.text) != 1:
             msg = "Prompt batches other than size 1 are not supported."
