@@ -139,7 +139,7 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
 
 def get_open_ai_lm(
     model_name: str = OpenAiModelNames.gpt_4o_mini,
-    api_key_secret: SecretInterface = None,
+    api_key_secret: SecretInterface | None = None,
     organization: str | None = None,
     cache_outputs_default: bool = False,
     retry_on_rate_limit: bool = False,
