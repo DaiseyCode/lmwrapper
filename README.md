@@ -327,16 +327,17 @@ please make a Github Issue.
 - [X] Huggingface interface
 - [X] Huggingface device checking on PyTorch
 - [X] Move cache to be per project
-- [X] Redesign cache away from generic `diskcache` to make it easier to manage
+- [X] Redesign cache away from generic `diskcache` to make it easier to manage as an sqlite db
 - [X] Smart caching when num_completions > 1 (reusing prior completions)
 - [X] OpenAI batching interface (experimental)
 - [X] Anthropic interface (basic)
-- [ ] Be able to add user metadata to a prompt
+    - [ ] Claude system messages
 - [ ] Use the huggingface chat templates for chat models if available
+- [ ] Be able to add user metadata to a prompt
 - [ ] Automatic cache eviction to limit count or disk size (right now have to run a SQL query to delete entries before a certain time or matching your criteria)
 - [ ] Multimodal/images in super easy format (like automatically process pil, opencv, etc)
 - [ ] sort through usage of quantized models
-- [ ] Cost estimation of a prompt before running / log total cost
+- [ ] Cost estimation of a prompt before running / "observability" monitoring of total cost
 - [ ] Additional Huggingface runtimes (TensorRT, BetterTransformers, etc)
 - [ ] async / streaming (not a top priority for non-interactive research use cases)
 - [ ] some lightweight utilities to help with tool use
