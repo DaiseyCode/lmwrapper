@@ -2,7 +2,7 @@
 skip_checks=false
 
 for arg in "$@"; do
-    i [[ $arg == "--skipchecks" ]]; then
+    if [[ $arg == "--skipchecks" ]]; then
         skip_checks=true
         echo "skipping checks"
         break
