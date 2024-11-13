@@ -72,6 +72,9 @@ ECHOABLE_MODELS = [
     get_huggingface_lm("gpt2"),
 ]
 
+random_prompt = ("Give a random base-64 guid (answer with only the guid). "
+                 "Then give 10 truely random words:")
+
 
 def get_model_name(model):
     # Find the name by checking which value in MODEL_NAMES matches the model
@@ -639,7 +642,7 @@ def test_stopping_span_subtoks_multiple(lm):
 @pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
 def test_remove_prompt_from_cache(lm):
     prompt = LmPrompt(
-        "Give a random base-64 guid:",
+        random_prompt,
         max_tokens=100,
         temperature=1.0,
         cache=True,
@@ -722,8 +725,8 @@ def test_response_to_dict_conversion(lm):
 @pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
 def test_was_cached_marking(lm):
     prompt = LmPrompt(
-        "Give a random base-64 guid (answer with only the guid):",
-        max_tokens=10,
+        random_prompt,
+        max_tokens=30,
         temperature=1.0,
         cache=False,
     )
@@ -732,7 +735,7 @@ def test_was_cached_marking(lm):
     r2 = lm.predict(prompt)
     assert not r2.was_cached
     prompt = LmPrompt(
-        "Give a random base-64 guid (answer with only the guid):",
+        random_prompt,
         max_tokens=100,
         temperature=1.0,
         cache=True,
@@ -931,8 +934,8 @@ def test_num_completions_two(lm):
     print(lm.get_model_cache_key())
     clear_cache_dir()
     prompt = LmPrompt(
-        "Make up a random guid (answer with only the guid):",
-        max_tokens=15,
+        random_prompt,
+        max_tokens=25,
         cache=False,
         temperature=1,
         logprobs=1,
@@ -941,8 +944,8 @@ def test_num_completions_two(lm):
     pred = lm.predict(prompt)
     assert len(pred) == 2
     assert isinstance(pred, list)
-    assert 10 < pred[0].usage_output_tokens <= 20
-    assert 10 < pred[1].usage_output_tokens <= 20
+    assert 10 < pred[0].usage_output_tokens <= 25
+    assert 10 < pred[1].usage_output_tokens <= 25
     assert pred[0].completion_text != pred[1].completion_text
     pred2 = lm.predict(prompt)
     assert pred[0].completion_text != pred2[0].completion_text
@@ -953,8 +956,8 @@ def test_num_completions_two(lm):
 def test_num_completions_one_list(lm):
     clear_cache_dir()
     prompt = LmPrompt(
-        "Make up a random guid (answer with only the guid):",
-        max_tokens=15,
+        random_prompt,
+        max_tokens=25,
         cache=False,
         temperature=1,
         logprobs=1,
@@ -963,7 +966,7 @@ def test_num_completions_one_list(lm):
     pred = lm.predict(prompt)
     assert isinstance(pred, list)
     assert len(pred) == 1
-    assert 10 < pred[0].usage_output_tokens <= 20
+    assert 10 < pred[0].usage_output_tokens <= 25
     pred2 = lm.predict(prompt)
     assert pred[0].completion_text != pred2[0].completion_text
 
@@ -1047,8 +1050,8 @@ def test_cast_convo(lm):
 def test_num_completions_two_cached(lm):
     clear_cache_dir()
     prompt = LmPrompt(
-        "Make up a random guid:",
-        max_tokens=20,
+        random_prompt,
+        max_tokens=25,
         cache=True,
         temperature=1.0,
         logprobs=1,
