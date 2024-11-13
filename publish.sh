@@ -59,6 +59,8 @@ if [ "$skip_checks" = false ]; then
     git push origin "$REPLY"
   fi
 
+  rm dist/*
+
 
   # Build
   ./build.sh
