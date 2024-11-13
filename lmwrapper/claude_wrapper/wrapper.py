@@ -105,10 +105,12 @@ class ClaudePredictor(LmPredictor):
         prompt: LmPrompt,
     ) -> ClaudePrediction | list[ClaudePrediction]:
         messages = prompt.get_text_as_chat().as_dicts()
+        # Claude treats system message not as a message but as a separate field
+        messages, system_message = pull_system_message_out_of_messages(messages)
         predictions = []
         for _ in range(prompt.num_completions or 1):
             # Claude doesn't actually support num_completions, so we just loop
-            response = self._api.messages.create(
+            response = dict(
                 model=self._model,
                 max_tokens=(
                     prompt.max_tokens if prompt.max_tokens is not None
@@ -117,9 +119,10 @@ class ClaudePredictor(LmPredictor):
                 temperature=prompt.temperature,
                 messages=messages,
                 top_p=prompt.top_p,
-                #system=prompt.system_prompt or "",
             )
-
+            if system_message is not None:
+                response["system"] = system_message['content']
+            response = self._api.messages.create(**response)
             # Create predictions for each choice
             assert len(response.content) == 1
             content = response.content[0]
@@ -135,7 +138,19 @@ class ClaudePredictor(LmPredictor):
             )
 
         return predictions[0] if prompt.num_completions is None else predictions
-            
+
+
+def pull_system_message_out_of_messages(messages):
+    new_messages = []
+    system_message = None
+    for message in messages:
+        if message['role'] == "system":
+            if system_message is not None:
+                raise ValueError("More than one system message found")
+            system_message = message
+        else:
+            new_messages.append(message)
+    return new_messages, system_message
 
 
 class _ModelNamesMeta(type):
@@ -219,26 +234,3 @@ if __name__ == "__main__":
     lm = get_claude_lm(model_name=ClaudeModelNames.claude_3_5_haiku)
     print(lm.predict("What is 2+2?"))
     print(lm.predict("Define 'anthropology' in one short sentence"))
-    exit()
-
-    message = client.messages.create(
-        model="claude-3-5-sonnet-20241022",
-        max_tokens=1000,
-        temperature=0,
-        system="",
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "Write an example nvim plugin in python. Explain some of the important considerations when writing them",
-                    }
-                ]
-           },
-        ],
-    )
-    pprint(message)
-    exit()
-    print(message.content)
-

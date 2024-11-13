@@ -331,7 +331,7 @@ please make a Github Issue.
 - [X] Smart caching when num_completions > 1 (reusing prior completions)
 - [X] OpenAI batching interface (experimental)
 - [X] Anthropic interface (basic)
-    - [ ] Claude system messages
+    - [X] Claude system messages
 - [ ] Use the huggingface chat templates for chat models if available
 - [ ] Be able to add user metadata to a prompt
 - [ ] Automatic cache eviction to limit count or disk size (right now have to run a SQL query to delete entries before a certain time or matching your criteria)

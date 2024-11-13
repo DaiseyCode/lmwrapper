@@ -13,7 +13,7 @@ from lmwrapper.huggingface_wrapper import get_huggingface_lm
 from lmwrapper.huggingface_wrapper.wrapper import get_huggingface_lm
 from lmwrapper.openai_wrapper import get_open_ai_lm
 from lmwrapper.openai_wrapper.wrapper import OpenAiModelNames, get_open_ai_lm
-from lmwrapper.structs import LmPrompt
+from lmwrapper.structs import LmPrompt, LmChatTurn, ChatGptRoles
 from test.test_params import DEFAULT_SMALL
 from lmwrapper.claude_wrapper.wrapper import get_claude_lm, ClaudeModelNames
 from functools import wraps
@@ -1084,3 +1084,18 @@ def test_num_completions_two_cached(lm):
     assert pred4[1].completion_text == pred[1].completion_text
     assert pred4[2].completion_text != pred[0].completion_text
     assert pred4[2].completion_text != pred[1].completion_text
+
+
+@pytest.mark.parametrize("lm", CHAT_MODELS, ids=get_model_name)
+def test_system_prompt(lm):
+    pred = lm.predict(
+        LmPrompt(
+            [
+                LmChatTurn(ChatGptRoles.system, "Always answer with only a single word in all capital letters"),
+                LmChatTurn(ChatGptRoles.user, "what is the capital of france"),
+            ],
+            max_tokens=10,
+            cache=False,
+        ),
+    )
+    assert pred.completion_text.strip() == "PARIS"
