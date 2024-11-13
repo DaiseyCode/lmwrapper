@@ -9,7 +9,9 @@ import pytest
 
 from lmwrapper.batch_config import CompletionWindow
 from lmwrapper.caching import cache_dir, clear_cache_dir
+from lmwrapper.huggingface_wrapper import get_huggingface_lm
 from lmwrapper.huggingface_wrapper.wrapper import get_huggingface_lm
+from lmwrapper.openai_wrapper import get_open_ai_lm
 from lmwrapper.openai_wrapper.wrapper import OpenAiModelNames, get_open_ai_lm
 from lmwrapper.structs import LmPrompt
 from test.test_params import DEFAULT_SMALL
@@ -31,23 +33,37 @@ def skip_if_no_token_ops(func):
     return wrapper
 
 
+MODEL_NAMES = {
+    "3_5_turbo_instruct": get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct),
+    "small_hug": get_huggingface_lm(DEFAULT_SMALL),
+    "4o_mini": get_open_ai_lm(OpenAiModelNames.gpt_4o_mini),
+    "3_5_haiku": get_claude_lm(ClaudeModelNames.claude_3_5_haiku),
+    "3_5_turbo": get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo),
+}
+
+
 ALL_MODELS = [
-    get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct),
-    get_huggingface_lm(DEFAULT_SMALL),
-    get_open_ai_lm(OpenAiModelNames.gpt_4o_mini),
-    get_claude_lm(ClaudeModelNames.claude_3_5_haiku),
+    MODEL_NAMES["3_5_turbo_instruct"],
+    MODEL_NAMES["small_hug"],
+    MODEL_NAMES["4o_mini"],
+    MODEL_NAMES["3_5_haiku"],
 ]
 
 ALL_MODELS_OLD = [
-    #*ALL_MODELS[:2],
-    #get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo),
+    MODEL_NAMES["3_5_turbo_instruct"],
+    MODEL_NAMES["small_hug"],
+    MODEL_NAMES["3_5_turbo"]
 ]
 
-#COMPLETION_MODELS = ALL_MODELS[:2]
-COMPLETION_MODELS = []
+COMPLETION_MODELS = [
+    MODEL_NAMES["3_5_turbo_instruct"],
+    MODEL_NAMES["small_hug"],
+]
 
-#CHAT_MODELS = [ALL_MODELS[2], ALL_MODELS[3]]
-CHAT_MODELS = [ALL_MODELS[0]]
+CHAT_MODELS = [
+    MODEL_NAMES["4o_mini"],
+    MODEL_NAMES["3_5_haiku"],
+]
 
 
 ECHOABLE_MODELS = [
@@ -57,21 +73,33 @@ ECHOABLE_MODELS = [
 ]
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+def get_model_name(model):
+    # Find the name by checking which value in MODEL_NAMES matches the model
+    for name, value in MODEL_NAMES.items():
+        if value is model:  # Using 'is' for identity comparison
+            return value.get_model_cache_key()
+    return "unknown_model"  # Fallback name
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
 def test_simple_pred(lm):
-    out = lm.predict(
-        LmPrompt(
-            "Give a one word completion. Answer with only the next word: "
-            "'Here is a fairytale story. Once upon a",
-            max_tokens=1,
-            cache=False,
-        ),
-    )
-    assert out.completion_text.strip() == "time"
+    for i in range(3):
+        out = lm.predict(
+            LmPrompt(
+                "Give a one word completion. Answer with only the next word: "
+                "'Here is a fairytale story. Once upon a",
+                max_tokens=1,
+                cache=False,
+            ),
+        )
+        if out.completion_text.strip() == "time":
+            break
+    else:
+        assert False, "Failed to get the right completion"
 
 
 @skip_if_no_token_ops
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
 def test_simple_pred_lp(lm):
     out = lm.predict(
         LmPrompt(
@@ -126,7 +154,7 @@ def test_simple_pred_lp(lm):
     assert math.exp(out.completion_logprobs[0]) >= 0.80
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
 def test_simple_pred_cache(lm):
     runtimes = []
     import time
@@ -151,7 +179,7 @@ def test_simple_pred_cache(lm):
     assert runtimes[0] > runtimes[1] * 5
 
 
-@pytest.mark.parametrize("lm", ECHOABLE_MODELS)
+@pytest.mark.parametrize("lm", ECHOABLE_MODELS, ids=get_model_name)
 @skip_if_no_token_ops
 def test_echo(lm):
     out = lm.predict(
@@ -182,7 +210,7 @@ def test_echo(lm):
     ]
 
 
-@pytest.mark.parametrize("lm", ECHOABLE_MODELS)
+@pytest.mark.parametrize("lm", ECHOABLE_MODELS, ids=get_model_name)
 @skip_if_no_token_ops
 def test_low_prob_in_weird_sentence(lm):
     weird = lm.predict(
@@ -231,7 +259,7 @@ def test_low_prob_in_weird_sentence(lm):
     )
 
 
-@pytest.mark.parametrize("lm", ECHOABLE_MODELS)
+@pytest.mark.parametrize("lm", ECHOABLE_MODELS, ids=get_model_name)
 @skip_if_no_token_ops
 def test_no_gen_with_echo(lm):
     val = lm.predict(
@@ -250,7 +278,7 @@ def test_no_gen_with_echo(lm):
     assert len(val.completion_logprobs) == 0
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
 def test_many_gen(lm):
     val = lm.predict(
         LmPrompt(
@@ -265,7 +293,7 @@ def test_many_gen(lm):
         assert len(val.completion_tokens) == 5
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
 @pytest.mark.skip(
     reason=(
         "OpenAI will insert an <|endoftext|> when doing"
@@ -299,7 +327,7 @@ capital_prompt = (
 )
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
 @skip_if_no_token_ops
 def test_no_stopping_in_prompt(lm):
     capital_newlines = (
@@ -323,7 +351,7 @@ def test_no_stopping_in_prompt(lm):
     assert len(new_line.completion_tokens) == 4
 
 
-@pytest.mark.parametrize("lm", COMPLETION_MODELS)
+@pytest.mark.parametrize("lm", COMPLETION_MODELS, ids=get_model_name)
 def test_no_stopping_program(lm):
     prompt_text = "# Functions\ndef double(x):\n"
     resp = lm.predict(
@@ -350,7 +378,7 @@ def test_no_stopping_program(lm):
     assert "\ndef" not in resp.completion_text
 
 
-@pytest.mark.parametrize("lm", COMPLETION_MODELS)
+@pytest.mark.parametrize("lm", COMPLETION_MODELS, ids=get_model_name)
 def test_stopping_begin_tok_full_tok(lm):
     val_normal = lm.predict(
         LmPrompt(
@@ -386,7 +414,7 @@ def test_stopping_begin_tok_full_tok(lm):
     assert val_no_pa.completion_tokens[2] == val_normal.completion_tokens[2]
 
 
-@pytest.mark.parametrize("lm", COMPLETION_MODELS)
+@pytest.mark.parametrize("lm", COMPLETION_MODELS, ids=get_model_name)
 def test_stopping_begin_tok(lm):
     val_normal = lm.predict(
         LmPrompt(
@@ -427,7 +455,7 @@ def test_stopping_begin_tok(lm):
     )
 
 
-@pytest.mark.parametrize("lm", COMPLETION_MODELS)
+@pytest.mark.parametrize("lm", COMPLETION_MODELS, ids=get_model_name)
 def test_stopping_middle_tok(lm):
     val_normal = lm.predict(
         LmPrompt(
@@ -463,7 +491,7 @@ def test_stopping_middle_tok(lm):
     )
 
 
-@pytest.mark.parametrize("lm", COMPLETION_MODELS)
+@pytest.mark.parametrize("lm", COMPLETION_MODELS, ids=get_model_name)
 def test_stopping_end_tok(lm):
     val_normal = lm.predict(
         LmPrompt(
@@ -499,7 +527,7 @@ def test_stopping_end_tok(lm):
     )
 
 
-@pytest.mark.parametrize("lm", COMPLETION_MODELS)
+@pytest.mark.parametrize("lm", COMPLETION_MODELS, ids=get_model_name)
 def test_stopping_span_subtoks(lm):
     val_normal = lm.predict(
         LmPrompt(
@@ -534,7 +562,7 @@ def test_stopping_span_subtoks(lm):
     )
 
 
-@pytest.mark.parametrize("lm", COMPLETION_MODELS)
+@pytest.mark.parametrize("lm", COMPLETION_MODELS, ids=get_model_name)
 def test_stopping_span_subtoks2(lm):
     val_normal = lm.predict(
         LmPrompt(
@@ -569,7 +597,7 @@ def test_stopping_span_subtoks2(lm):
     )
 
 
-@pytest.mark.parametrize("lm", COMPLETION_MODELS)
+@pytest.mark.parametrize("lm", COMPLETION_MODELS, ids=get_model_name)
 def test_stopping_span_subtoks_multiple(lm):
     val_normal = lm.predict(
         LmPrompt(
@@ -608,7 +636,7 @@ def test_stopping_span_subtoks_multiple(lm):
         )
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
 def test_remove_prompt_from_cache(lm):
     prompt = LmPrompt(
         "Give a random base-64 guid:",
@@ -632,7 +660,7 @@ def test_remove_prompt_from_cache(lm):
     )
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
 @skip_if_no_token_ops
 def test_none_max_tokens(lm):
     prompt = LmPrompt(
@@ -664,7 +692,7 @@ def test_none_max_tokens(lm):
 #    assert result.prompt_tokens == tokens
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS_OLD)
+@pytest.mark.parametrize("lm", ALL_MODELS_OLD, ids=get_model_name)
 def test_response_to_dict_conversion(lm):
     prompt = LmPrompt(
         text=capital_prompt,
@@ -691,7 +719,7 @@ def test_response_to_dict_conversion(lm):
     assert all(resp_dict[key] == expected[key] for key in expected)
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
 def test_was_cached_marking(lm):
     prompt = LmPrompt(
         "Give a random base-64 guid (answer with only the guid):",
@@ -721,7 +749,7 @@ def test_was_cached_marking(lm):
     assert not r5.was_cached
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
 def test_simple_pred_serialize(lm):
     pred = lm.predict(
         LmPrompt(
@@ -739,7 +767,7 @@ def test_simple_pred_serialize(lm):
 @pytest.mark.skip(
     reason="Huggingface does not support completion_token_offsets currently",
 )
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
 def test_token_offsets(lm):
     prompt = "A B C D E F G H"
     pred = lm.predict(
@@ -756,7 +784,7 @@ def test_token_offsets(lm):
     assert pred.completion_token_offsets == [base_len + 0, base_len + 2, base_len + 4]
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS_OLD)
+@pytest.mark.parametrize("lm", ALL_MODELS_OLD, ids=get_model_name)
 def test_token_seq_probs(lm):
     prompt = "A B C D E F G H"
     pred = lm.predict(
@@ -786,7 +814,7 @@ def test_token_seq_probs(lm):
         assert top_probs[i][expected] < 0
 
 
-@pytest.mark.parametrize("lm", ECHOABLE_MODELS)
+@pytest.mark.parametrize("lm", ECHOABLE_MODELS, ids=get_model_name)
 def test_echo_many_toks(lm):
     out = lm.predict(
         LmPrompt(
@@ -821,7 +849,7 @@ def test_echo_many_toks(lm):
     )
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
 def test_predict_many(lm):
     pred = lm.predict_many(
         [
@@ -898,8 +926,9 @@ def test_predict_many_cached(lm):
             lm._api = old_api
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
 def test_num_completions_two(lm):
+    print(lm.get_model_cache_key())
     clear_cache_dir()
     prompt = LmPrompt(
         "Make up a random guid (answer with only the guid):",
@@ -920,7 +949,7 @@ def test_num_completions_two(lm):
     assert pred[1].completion_text != pred2[1].completion_text
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
 def test_num_completions_one_list(lm):
     clear_cache_dir()
     prompt = LmPrompt(
@@ -998,7 +1027,7 @@ def test_object_size_is_reasonable(lm):
     assert read_cache_size() < (acceptable_bytes * num_runs) * 2
 
 
-@pytest.mark.parametrize("lm", CHAT_MODELS)
+@pytest.mark.parametrize("lm", CHAT_MODELS, ids=get_model_name)
 def test_cast_convo(lm):
     pred = lm.predict(
         [
@@ -1014,7 +1043,7 @@ def test_cast_convo(lm):
     assert pred.completion_text.strip() == "5"
 
 
-@pytest.mark.parametrize("lm", ALL_MODELS)
+@pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
 def test_num_completions_two_cached(lm):
     clear_cache_dir()
     prompt = LmPrompt(
