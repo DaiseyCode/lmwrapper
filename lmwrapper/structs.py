@@ -188,7 +188,7 @@ class LmPrompt:
     def is_deterministic_sampling(self) -> bool:
         return (self.temperature < 1e-4) or (self.top_p < 1e-4)
 
-    def replace(self, **kwargs):
+    def replace(self, **kwargs) -> "LmPrompt":
         """Returns a new prompt with the given parameters replaced."""
         return dataclasses.replace(self, **kwargs)
 

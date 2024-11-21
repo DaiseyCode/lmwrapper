@@ -139,12 +139,39 @@ print(pred.completion_text)
 
 ## Caching
 
-Add `caching = True` in the prompt to cache the output to disk. Any
+Add `cache = True` in the prompt to cache the output to disk. Any
 subsequent calls with this prompt will return the same value. Note that
 this might be unexpected behavior if your temperature is non-zero. (You
-will always sample the same output on reruns). If you want to get multiple
-samples at a non-zero temperature while still using the cache, you 
-set `num_completions > 1` in a `LmPrompt`.
+will always sample the same output on reruns).
+
+```python
+from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
+from lmwrapper.structs import LmPrompt
+
+lm = get_open_ai_lm(OpenAiModelNames.gpt_4o_mini)
+
+prompt = LmPrompt(
+  "Describe Paris in one sentence", 
+  cache=True,
+  temperature=1,
+  max_tokens=10,
+)
+first_prediction = lm.predict(prompt)
+print(first_prediction.completion_text) 
+# ... eg, "Paris is a city of romance and art, renowned for its iconic landmarks, vibrant culture, and rich history."
+
+# The response to this prompt is now saved to the disk.
+# You could rerun this script and you would load from cache near-instantly.
+# This can simplify running experimentation and data processing scripts
+# where you are running a dataset through a model and doing analysis.
+# You then only have to actually query the model once.
+repredict = lm.predict(prompt)
+print(repredict.completion_text)
+assert first_prediction.completion_text == repredict.completion_text
+lm.remove_prompt_from_cache(prompt)
+pred_after_clear = lm.predict(prompt)
+assert pred_after_clear.completion_text != first_prediction.completion_text
+```
 
 
 ## OpenAI Batching
