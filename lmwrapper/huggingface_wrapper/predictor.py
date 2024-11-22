@@ -37,7 +37,6 @@ class HuggingFacePredictor(LmPredictor):
         self._tokenizer = tokenizer
         self._model = model
         self._device = device
-        self._is_chat_model = False
         self.runtime = runtime
         self.allow_patch_model_forward = allow_patch_model_forward
         self.prompt_trimmer = prompt_trimmer
@@ -800,7 +799,7 @@ class HuggingFacePredictor(LmPredictor):
 
     @property
     def is_chat_model(self):
-        return self._is_chat_model
+        return self._use_chat_mode
 
 
 def _check_tokenizer_to_see_if_adds_bos(
