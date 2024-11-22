@@ -39,6 +39,7 @@ MODEL_NAMES = {
     "4o_mini": get_open_ai_lm(OpenAiModelNames.gpt_4o_mini),
     "3_5_haiku": get_claude_lm(ClaudeModelNames.claude_3_5_haiku),
     "3_5_turbo": get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo),
+    "qwen25_500M_instruct": get_huggingface_lm("Qwen/Qwen2.5-0.5B-Instruct"),
 }
 
 
@@ -63,6 +64,7 @@ COMPLETION_MODELS = [
 CHAT_MODELS = [
     MODEL_NAMES["4o_mini"],
     MODEL_NAMES["3_5_haiku"],
+    MODEL_NAMES["qwen25_500M_instruct"]
 ]
 
 
@@ -1099,3 +1101,15 @@ def test_system_prompt(lm):
         ),
     )
     assert pred.completion_text.strip() == "PARIS"
+
+
+@pytest.mark.parametrize("lm", CHAT_MODELS, ids=get_model_name)
+def test_prefilled_prompt(lm):
+    if not lm.supports_prefilled_chat:
+        pytest.skip("Model does not support prefilled chat")
+    pred = lm.predict(LmPrompt([
+        "What is the capital of France?",
+        "Oui oui, the capital of France is Paris. The most famous landmark is the Eiffel",
+    ], max_tokens=1, cache=False))
+    assert pred.completion_text.strip() == "Tower"
+

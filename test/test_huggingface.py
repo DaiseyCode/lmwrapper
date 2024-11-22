@@ -29,7 +29,7 @@ class Models(StrEnum):
     CodeLLama_7B_Instruct = "codellama/CodeLlama-7b-Instruct-hf"
     DistilGPT2 = "distilgpt2"
     GPT2 = "gpt2"
-    SMOLLM_135M = "HuggingFaceTB/SmolLM-135M-Instruct"
+    SMOLLM2_135M = "HuggingFaceTB/SmolLM2-135M-Instruct"
     Mistral_7B = "mistralai/Mistral-7B-v0.1"
     qwen25_500M_instruct = "Qwen/Qwen2.5-0.5B-Instruct"
 
@@ -50,6 +50,7 @@ BIG_MODELS = BIG_SEQ2SEQ_MODELS | BIG_CAUSAL_MODELS
 CHAT_MODELS = {
     Models.qwen25_500M_instruct,
     #Models.SMOLLM_135M
+    #Models.SMOLLM2_135M
 }
 ALL_MODELS = SEQ2SEQ_MODELS | CAUSAL_MODELS | BIG_MODELS | CHAT_MODELS
 
@@ -1054,6 +1055,7 @@ def test_check_tokenizer_check():
     assert not _check_tokenizer_to_see_if_adds_bos(gpt2_tokenizer, True)
 
 
+#@pytest.mark.skipif(IS_GITHUB_ACTIONS, reason="reduce load github actions")
 def test_chat_qwen():
     model = Models.qwen25_500M_instruct
     lm = get_huggingface_lm(
@@ -1081,3 +1083,29 @@ def test_chat_qwen():
         temperature=0,
     ))
     assert pred.completion_text == "4"
+
+
+def test_chat_smol():
+    model = Models.SMOLLM2_135M
+    lm = get_huggingface_lm(
+        model,
+    )
+    pred = lm.predict(LmPrompt(
+        [
+            "What is 2+2?",
+            "4",
+            "What is 5+3?",
+            "8",
+            "What is 1+4?",
+            "5",
+            "What is 4+4?",
+            "8"
+            "What is 5+2?",
+            "7",
+            "What is 4+4?"
+        ],
+        max_tokens=10,
+        temperature=0,
+    ))
+    assert pred.completion_text.strip() == "8"
+    assert pred.prompt_tokens == ['<|im_start|>', 'system', '\n', 'You', ' are', ' a', ' helpful', ' AI', ' assistant', ' named', ' Sm', 'ol', 'LM', ',', ' trained', ' by', ' H', 'ugging', ' Face', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '2', '+', '2', '?', '<|im_end|>', '\n', '<|im_start|>', 'ass', 'istant', '\n', '4', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '5', '+', '3', '?', '<|im_end|>', '\n', '<|im_start|>', 'ass', 'istant', '\n', '8', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '1', '+', '4', '?', '<|im_end|>', '\n', '<|im_start|>', 'ass', 'istant', '\n', '5', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '4', '+', '4', '?', '<|im_end|>', '\n', '<|im_start|>', 'ass', 'istant', '\n', '8', 'What', ' is', ' ', '5', '+', '2', '?', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', '7', '<|im_end|>', '\n', '<|im_start|>', 'ass', 'istant', '\n', 'What', ' is', ' ', '4', '+', '4', '?', '<|im_end|>', '\n', '<|im_start|>', 'ass', 'istant', '\n']

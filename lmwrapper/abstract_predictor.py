@@ -246,6 +246,13 @@ class LmPredictor:
     def default_tokens_generated(self) -> int | None:
         return self.token_limit // 16
 
+    @property
+    def supports_prefilled_chat(self) -> bool:
+        """Whether the predictor supports partially prefilled
+        chat responses. This can be used to guide the model towards
+        a specific format of response."""
+        return False
+
 
 def get_mock_predictor(
     predict_func: Callable[[LmPrompt], LmPrediction] = None,

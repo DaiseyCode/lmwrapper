@@ -5,7 +5,7 @@ A) Make it easier to use the OpenAI API.
 
 B) Make it easier to reuse your code for other language models with minimal changes.
 
-C) Simplifying and support research-focused use cases (like help when running on large datasets, and allow research that requires accessing model internals of local models).
+C) Simplifying and support research-focused use cases (like help when running on datasets, and allow research that requires accessing model internals of local models).
 
 Some key features currently include local disk caching of responses, and super simple
 use of the OpenAI batching API which can save 50% on costs.

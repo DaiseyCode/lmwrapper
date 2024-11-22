@@ -139,6 +139,10 @@ class ClaudePredictor(LmPredictor):
 
         return predictions[0] if prompt.num_completions is None else predictions
 
+    @property
+    def supports_prefilled_chat(self) -> bool:
+        return True
+
 
 def pull_system_message_out_of_messages(messages):
     new_messages = []
