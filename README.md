@@ -1,11 +1,13 @@
 `lmwrapper` provides a wrapper around OpenAI API and Hugging Face Language models, focusing
-on being a clean, object-oriented, and user-friendly interface. It has two main goals:
+on being a clean, object-oriented, and user-friendly interface. It has three main goals:
 
 A) Make it easier to use the OpenAI API.
 
 B) Make it easier to reuse your code for other language models with minimal changes.
 
-Some key features currently include local caching of responses, and super simple
+C) Simplifying and support research-focused use cases (like help when running on large datasets, and allow research that requires accessing model internals of local models).
+
+Some key features currently include local disk caching of responses, and super simple
 use of the OpenAI batching API which can save 50% on costs.
 
 `lmwrapper` is lightweight and can serve as a flexible stand-in for the OpenAI API.
@@ -354,12 +356,12 @@ please make a Github Issue.
 - [X] Huggingface interface
 - [X] Huggingface device checking on PyTorch
 - [X] Move cache to be per project
-- [X] Redesign cache away from generic `diskcache` to make it easier to manage as an sqlite db
+- [X] Redesign cache away from generic `diskcache` to make it easier to manage as a sqlite db
 - [X] Smart caching when num_completions > 1 (reusing prior completions)
 - [X] OpenAI batching interface (experimental)
 - [X] Anthropic interface (basic)
     - [X] Claude system messages
-- [ ] Use the huggingface chat templates for chat models if available
+- [X] Use the huggingface chat templates for chat models if available
 - [ ] Be able to add user metadata to a prompt
 - [ ] Automatic cache eviction to limit count or disk size (right now have to run a SQL query to delete entries before a certain time or matching your criteria)
 - [ ] Multimodal/images in super easy format (like automatically process pil, opencv, etc)

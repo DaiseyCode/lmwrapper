@@ -31,6 +31,7 @@ class HuggingFacePredictor(LmPredictor):
         runtime: Runtime,
         allow_patch_model_forward: bool,
         prompt_trimmer: PromptTrimmer,
+        use_chat_mode: bool | None = None,
     ):
         super().__init__()
         self._tokenizer = tokenizer
@@ -41,6 +42,9 @@ class HuggingFacePredictor(LmPredictor):
         self.allow_patch_model_forward = allow_patch_model_forward
         self.prompt_trimmer = prompt_trimmer
         self._tokenizer_already_adds_bos = {}
+        if use_chat_mode is None:
+            use_chat_mode = self._tokenizer.chat_template is not None
+        self._use_chat_mode = use_chat_mode
 
     def get_model_cache_key(self):
         return self._model.name_or_path
@@ -50,11 +54,12 @@ class HuggingFacePredictor(LmPredictor):
         return True
 
     def _verify_initial_prompt(self, prompt: LmPrompt):
-        if not isinstance(prompt.text, str) and len(prompt.text) != 1:
-            msg = "Prompt batches other than size 1 are not supported."
-            raise NotImplementedError(
-                msg,
+        if prompt.is_text_a_chat() and not self._use_chat_mode:
+            msg = (
+                "The model is not configured for chat mode, but the prompt is a chat"
+                " prompt."
             )
+            raise ValueError(msg)
 
         if prompt.echo and not self.allow_patch_model_forward:
             msg = (
@@ -63,6 +68,7 @@ class HuggingFacePredictor(LmPredictor):
             raise NotImplementedError(
                 msg,
             )
+
         if prompt.logprobs is not None and prompt.logprobs > 1:
             msg = (
                 "Retrieving more than 1 logprob is not yet supported for HuggingFace"
@@ -81,7 +87,7 @@ class HuggingFacePredictor(LmPredictor):
     def _will_add_and_have_bos(self, prompt: LmPrompt):
         will_add_bos = prompt.add_bos_token or (
             prompt.add_bos_token is None
-            and self._tokenizer.bos_token
+            and self._tokenizer.bos_token is not None
             and not self.is_encoder_decoder
             and not self._does_this_tokenizer_seem_add_a_bos(prompt.add_special_tokens)
         )
@@ -127,11 +133,18 @@ class HuggingFacePredictor(LmPredictor):
 
         will_add_bos, will_have_bos = self._will_add_and_have_bos(prompt)
 
-        if will_add_bos:
-            assert self._tokenizer.bos_token
-            prompt_text = self._tokenizer.bos_token + prompt.text
+        if self._use_chat_mode:
+            prompt_text = self._tokenizer.apply_chat_template(
+                prompt.get_text_as_chat().as_dicts(),
+                tokenize=False,
+                add_generation_prompt=True,
+            )
         else:
             prompt_text = prompt.text
+
+        if will_add_bos:
+            assert self._tokenizer.bos_token
+            prompt_text = self._tokenizer.bos_token + prompt_text
 
         model_parameters = set(inspect.signature(self._model.forward).parameters.keys())
         model_requires_attention_mask = "attention_mask" in model_parameters
@@ -236,13 +249,20 @@ class HuggingFacePredictor(LmPredictor):
 
         # Ref https://gist.github.com/kinoc/8a042d8c5683725aa8c372274c02ea2f
         gen_config = GenerationConfig(
-            max_new_tokens=(
-                self.default_tokens_generated
-                if prompt.max_tokens is None
-                else prompt.max_tokens
+            max_new_tokens=max(
+                (
+                    self.default_tokens_generated
+                    if prompt.max_tokens is None
+                    else prompt.max_tokens
+                ),
+                # Transformers v4.38+ throws an exception when
+                # max_new_tokens is set to 0 due to a change in #28621.
+                # As a hack fix we can set it to 1 and trim later.
+                1,
             ),
             return_dict_in_generate=True,
             output_scores=need_log_prob,
+            retun_legacy_cache=True,
             **optional_generation_kwargs,
         )
         outputs = []
@@ -325,6 +345,10 @@ class HuggingFacePredictor(LmPredictor):
         logging.info("Generation output type:" + str(type(generation_output)))
         logging.debug("Post generate")
         log_cuda_mem()
+        #if prompt.max_completion_tokens == 0:
+        #    # Trim output to 0 tokens
+        #    generation_output.sequences = generation_output.sequences[:, :0]
+        #    generation_output.scores = generation_output.scores[:, :0]
 
         if patch_model_forward:
             self._model.forward = old_forward
@@ -490,7 +514,7 @@ class HuggingFacePredictor(LmPredictor):
                 )
 
         if prompt.max_tokens == 0:
-            # Huggingface seems to default to one token always return an extra token
+            # We will have set max tokens to 1 to avoid bug. Now trim back to 0
             output_tokens = output_tokens[:-1]
             logprobs = logprobs[:-1]
             generated_text = ""
