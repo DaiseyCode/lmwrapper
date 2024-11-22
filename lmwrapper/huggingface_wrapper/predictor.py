@@ -345,10 +345,6 @@ class HuggingFacePredictor(LmPredictor):
         logging.info("Generation output type:" + str(type(generation_output)))
         logging.debug("Post generate")
         log_cuda_mem()
-        #if prompt.max_completion_tokens == 0:
-        #    # Trim output to 0 tokens
-        #    generation_output.sequences = generation_output.sequences[:, :0]
-        #    generation_output.scores = generation_output.scores[:, :0]
 
         if patch_model_forward:
             self._model.forward = old_forward
