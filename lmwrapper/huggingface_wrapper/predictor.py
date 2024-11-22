@@ -16,7 +16,7 @@ from lmwrapper.huggingface_wrapper.utilstorch import log_cuda_mem
 from lmwrapper.interals import ModelInternalsRequest, ModelInternalsResults
 from lmwrapper.prompt_trimming import PromptTrimmer
 from lmwrapper.runtime import Runtime
-from lmwrapper.structs import LmPrediction, LmPrompt
+from lmwrapper.structs import LmPrediction, LmPrompt, ChatGptRoles
 
 if TYPE_CHECKING:
     from transformers.generation.utils import GenerateOutput
@@ -110,6 +110,10 @@ class HuggingFacePredictor(LmPredictor):
     def is_encoder_decoder(self) -> bool:
         return self._model.config.is_encoder_decoder
 
+    @property
+    def supports_prefilled_chat(self) -> bool:
+        return self.is_chat_model
+
     def _optional_args_for_internals(self, prompt: LmPrompt):
         args = {}
         if prompt.model_internals_request is None:
@@ -133,10 +137,13 @@ class HuggingFacePredictor(LmPredictor):
         will_add_bos, will_have_bos = self._will_add_and_have_bos(prompt)
 
         if self._use_chat_mode:
+            chat = prompt.get_text_as_chat()
+            is_prefill = chat[-1].role == ChatGptRoles.assistant
             prompt_text = self._tokenizer.apply_chat_template(
                 prompt.get_text_as_chat().as_dicts(),
                 tokenize=False,
-                add_generation_prompt=True,
+                add_generation_prompt=not is_prefill,
+                continue_final_message=is_prefill,
             )
         else:
             prompt_text = prompt.text
