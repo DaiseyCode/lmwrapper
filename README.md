@@ -1,11 +1,13 @@
 `lmwrapper` provides a wrapper around OpenAI API and Hugging Face Language models, focusing
-on being a clean, object-oriented, and user-friendly interface. It has two main goals:
+on being a clean, object-oriented, and user-friendly interface. It has three main goals:
 
 A) Make it easier to use the OpenAI API.
 
 B) Make it easier to reuse your code for other language models with minimal changes.
 
-Some key features currently include local caching of responses, and super simple
+C) Simplifying and support research-focused use cases (like help when running on large datasets, and allow research that requires accessing model internals of local models).
+
+Some key features currently include local disk caching of responses, and super simple
 use of the OpenAI batching API which can save 50% on costs.
 
 `lmwrapper` is lightweight and can serve as a flexible stand-in for the OpenAI API.
@@ -139,12 +141,39 @@ print(pred.completion_text)
 
 ## Caching
 
-Add `caching = True` in the prompt to cache the output to disk. Any
+Add `cache = True` in the prompt to cache the output to disk. Any
 subsequent calls with this prompt will return the same value. Note that
 this might be unexpected behavior if your temperature is non-zero. (You
-will always sample the same output on reruns). If you want to get multiple
-samples at a non-zero temperature while still using the cache, you 
-set `num_completions > 1` in a `LmPrompt`.
+will always sample the same output on reruns).
+
+```python
+from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
+from lmwrapper.structs import LmPrompt
+
+lm = get_open_ai_lm(OpenAiModelNames.gpt_4o_mini)
+
+prompt = LmPrompt(
+  "Describe Paris in one sentence", 
+  cache=True,
+  temperature=1,
+  max_tokens=10,
+)
+first_prediction = lm.predict(prompt)
+print(first_prediction.completion_text) 
+# ... eg, "Paris is a city of romance and art, renowned for its iconic landmarks, vibrant culture, and rich history."
+
+# The response to this prompt is now saved to the disk.
+# You could rerun this script and you would load from cache near-instantly.
+# This can simplify running experimentation and data processing scripts
+# where you are running a dataset through a model and doing analysis.
+# You then only have to actually query the model once.
+repredict = lm.predict(prompt)
+print(repredict.completion_text)
+assert first_prediction.completion_text == repredict.completion_text
+lm.remove_prompt_from_cache(prompt)
+pred_after_clear = lm.predict(prompt)
+assert pred_after_clear.completion_text != first_prediction.completion_text
+```
 
 
 ## OpenAI Batching
@@ -327,12 +356,12 @@ please make a Github Issue.
 - [X] Huggingface interface
 - [X] Huggingface device checking on PyTorch
 - [X] Move cache to be per project
-- [X] Redesign cache away from generic `diskcache` to make it easier to manage as an sqlite db
+- [X] Redesign cache away from generic `diskcache` to make it easier to manage as a sqlite db
 - [X] Smart caching when num_completions > 1 (reusing prior completions)
 - [X] OpenAI batching interface (experimental)
 - [X] Anthropic interface (basic)
     - [X] Claude system messages
-- [ ] Use the huggingface chat templates for chat models if available
+- [X] Use the huggingface chat templates for chat models if available
 - [ ] Be able to add user metadata to a prompt
 - [ ] Automatic cache eviction to limit count or disk size (right now have to run a SQL query to delete entries before a certain time or matching your criteria)
 - [ ] Multimodal/images in super easy format (like automatically process pil, opencv, etc)

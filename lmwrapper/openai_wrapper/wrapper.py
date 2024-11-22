@@ -105,6 +105,7 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
 
     Point can change
     """
+    gpt_4o_2024_11_20 = OpenAiModelInfo("gpt-4o-2024-11-20", True, False, 128_000)
     gpt_4o_2024_05_13 = OpenAiModelInfo("gpt-4o-2024-05-13", True, False, 128_000)
     gpt_4o_mini = OpenAiModelInfo("gpt-4o-mini", True, False, 128_000)
     """Our affordable and intelligent small model for fast, lightweight tasks. 

@@ -14,7 +14,7 @@ from lmwrapper.huggingface_wrapper.predictor import (
 )
 from lmwrapper.prompt_trimming import HfTokenTrimmer
 from lmwrapper.runtime import Runtime
-from lmwrapper.structs import LmPrompt
+from lmwrapper.structs import LmPrompt, LmChatTurn, ChatGptRoles
 from lmwrapper.utils import StrEnum
 
 
@@ -31,6 +31,7 @@ class Models(StrEnum):
     GPT2 = "gpt2"
     SMOLLM_135M = "HuggingFaceTB/SmolLM-135M-Instruct"
     Mistral_7B = "mistralai/Mistral-7B-v0.1"
+    qwen25_500M_instruct = "Qwen/Qwen2.5-0.5B-Instruct"
 
 
 CUDA_UNAVAILABLE = not torch.cuda.is_available()
@@ -42,11 +43,15 @@ except RuntimeError:
     SMALL_GPU = True
 
 SEQ2SEQ_MODELS = {Models.CodeT5plus_220M}
-CAUSAL_MODELS = {Models.DistilGPT2, Models.GPT2, Models.SMOLLM_135M}
+CAUSAL_MODELS = {Models.GPT2,}
 BIG_SEQ2SEQ_MODELS = {Models.CodeT5plus_6B, Models.InstructCodeT5plus_16B}
 BIG_CAUSAL_MODELS = {Models.CodeGen2_1B, Models.CodeGen2_3_7B, Models.Mistral_7B}
 BIG_MODELS = BIG_SEQ2SEQ_MODELS | BIG_CAUSAL_MODELS
-ALL_MODELS = SEQ2SEQ_MODELS | CAUSAL_MODELS | BIG_MODELS
+CHAT_MODELS = {
+    Models.qwen25_500M_instruct,
+    #Models.SMOLLM_135M
+}
+ALL_MODELS = SEQ2SEQ_MODELS | CAUSAL_MODELS | BIG_MODELS | CHAT_MODELS
 
 IS_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
 
@@ -1047,3 +1052,32 @@ def test_check_tokenizer_check():
     assert _check_tokenizer_to_see_if_adds_bos(mistral_tokenizer, True)
     gpt2_tokenizer = AutoTokenizer.from_pretrained(Models.DistilGPT2, use_fast=True)
     assert not _check_tokenizer_to_see_if_adds_bos(gpt2_tokenizer, True)
+
+
+def test_chat_qwen():
+    model = Models.qwen25_500M_instruct
+    lm = get_huggingface_lm(
+        model,
+    )
+    pred = lm.predict(LmPrompt(
+        [
+            "What is 2+2?",
+            "4",
+            "What is 5+3?",
+            "8",
+            "What is 4+4?"
+        ],
+        max_tokens=10,
+        temperature=0,
+    ))
+    assert pred.completion_text == "8"
+    assert pred.prompt_tokens == ['<|im_start|>', 'system', '\n', 'You', ' are', ' Q', 'wen', ',', ' created', ' by', ' Alibaba', ' Cloud', '.', ' You', ' are', ' a', ' helpful', ' assistant', '.', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '2', '+', '2', '?', '<|im_end|>', '\n', '<|im_start|>', 'assistant', '\n', '4', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '5', '+', '3', '?', '<|im_end|>', '\n', '<|im_start|>', 'assistant', '\n', '8', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '4', '+', '4', '?', '<|im_end|>', '\n', '<|im_start|>', 'assistant', '\n']
+    pred = lm.predict(LmPrompt(
+        [
+            LmChatTurn(ChatGptRoles.system, "You are a calculator assistant. Please only respond with the number answer and nothing else."),
+            "What is 2+2?",
+        ],
+        max_tokens=5,
+        temperature=0,
+    ))
+    assert pred.completion_text == "4"

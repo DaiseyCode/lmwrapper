@@ -189,6 +189,7 @@ def get_huggingface_lm(
     allow_patch_model_forward: bool = True,
     prompt_trimmer: PromptTrimmer = None,
     device: torch.device | str = None,
+    use_chat_mode: bool = None,
 ) -> HuggingFacePredictor:
     """
     Initialize and return a Hugging Face language model for prediction.
@@ -301,6 +302,7 @@ def get_huggingface_lm(
         allow_patch_model_forward=allow_patch_model_forward,
         prompt_trimmer=prompt_trimmer,
         device=device,
+        use_chat_mode=use_chat_mode,
         _kwargs=_kwargs,
     )
 
@@ -431,13 +433,14 @@ def get_ort_model(model: type[PreTrainedModel]) -> type["ORTModel"]:
     return ORTModelForCausalLM
 
 
-def get_huggingface_predictor(
+def _get_huggingface_predictor(
     tokenizer: PreTrainedTokenizerFast,
     model: PreTrainedModel,
     device: torch.device,
     runtime: Runtime = Runtime.PYTORCH,
     allow_patch_model_forward: bool = False,
     prompt_trimmer: PromptTrimmer | None = None,
+    use_chat_mode: bool = None,
 ) -> HuggingFacePredictor:
     """
     Creates and returns a HuggingFacePredictor object configured with the specified parameters.
@@ -459,8 +462,15 @@ def get_huggingface_predictor(
     allow_patch_model_forward : bool, optional
         If True, allows the forward pass of the model to be patched. Default is False.
 
+    use_chat_mode : bool, optional
+        Whether to apply the chat template to the prompt and treat
+        the input as chat turns. If None, the behavior is determined
+        by whether the tokenizer has a chat template.
+
     prompt_trimmer : PromptTrimmer | None, optional
         An optional utility to trim prompts before feeding them to the model. None if no trimming is needed.
+        This is somewhat messy right now since tokenizer also does some stuff
+        with the prompt. This should probably be refactored.
 
     Returns
     -------
@@ -469,7 +479,7 @@ def get_huggingface_predictor(
 
     Examples
     --------
-    >>> predictor = get_huggingface_predictor(tokenizer, model, device=torch.device('cuda'))
+    >>> predictor = _get_huggingface_predictor(tokenizer, model, device=torch.device('cuda'))
     >>> type(predictor)
     <class 'HuggingFacePredictor'>
 
@@ -481,6 +491,7 @@ def get_huggingface_predictor(
         runtime=runtime,
         allow_patch_model_forward=allow_patch_model_forward,
         prompt_trimmer=prompt_trimmer,
+        use_chat_mode=use_chat_mode,
     )
 
 
@@ -493,6 +504,7 @@ def _initialize_hf_model(
     allow_patch_model_forward: bool = True,
     prompt_trimmer: PromptTrimmer = None,
     device: torch.device = None,
+    use_chat_mode: bool = None,
     _kwargs: dict = {},
 ) -> HuggingFacePredictor:
     """
@@ -520,6 +532,8 @@ def _initialize_hf_model(
 
     prompt_trimmer : PromptTrimmer, optional
         Instance of a prompt trimmer class. Default is None.
+        This is somewhat messy right now since tokenizer also does some stuff
+        with the prompt. This should probably be refactored.
 
     device : torch.device, optional
         Torch device to run the model on. Default is auto-detected.
@@ -693,13 +707,14 @@ def _initialize_hf_model(
     if runtime in {Runtime.PYTORCH, Runtime.BETTER_TRANSFORMER}:
         model.to(torch_device)  # Ensure model is on device
 
-    predictor = get_huggingface_predictor(
+    predictor = _get_huggingface_predictor(
         tokenizer=tokenizer,
         model=model,
         device=torch_device,
         runtime=runtime,
         allow_patch_model_forward=allow_patch_model_forward,
         prompt_trimmer=prompt_trimmer,
+        use_chat_mode=use_chat_mode,
     )
 
     if runtime == Runtime.ORT_TENSORRT:
