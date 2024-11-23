@@ -1115,5 +1115,4 @@ def test_prefilled_prompt(lm):
         "What is the capital of France?",
         "Oui oui, the capital of France is Paris. The most famous landmark is the Eiffel",
     ], max_tokens=1, cache=False))
-    print(pred.prompt_tokens)
     assert pred.completion_text.strip() == "Tower"
