@@ -11,6 +11,7 @@ from transformers.utils.generic import TensorType
 
 from lmwrapper._TokenStoppingCriteria import _TokenStoppingCriteria
 from lmwrapper.abstract_predictor import LmPredictor
+from lmwrapper.compatibility import check_transformers_compatibility
 from lmwrapper.huggingface_wrapper.prediction import HuggingFacePrediction
 from lmwrapper.huggingface_wrapper.utilstorch import log_cuda_mem
 from lmwrapper.interals import ModelInternalsRequest, ModelInternalsResults
@@ -128,6 +129,7 @@ class HuggingFacePredictor(LmPredictor):
         self,
         prompt: LmPrompt,
     ) -> list[LmPrediction]:
+        check_transformers_compatibility()
         self._verify_initial_prompt(prompt)
 
         patch_model_forward = False

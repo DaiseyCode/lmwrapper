@@ -6,6 +6,7 @@ import pytest
 import torch
 from transformers import AutoTokenizer
 
+from lmwrapper.compatibility import has_transformers_compatibility_issues
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
 from lmwrapper.huggingface_wrapper.predictor import (
     _check_tokenizer_to_see_if_adds_bos,
@@ -443,6 +444,7 @@ def test_logprobs_echo_stop_codegen2():
     }
 
 
+@pytest.mark.skipif(has_transformers_compatibility_issues(), reason="Transformers compatibility issues")
 def test_stop_token_removal():
     prompt_str = """Please list the capitals of the following countries
 
@@ -643,6 +645,7 @@ def test_stop_token_removal():
     assert "I like to eat candy" not in out.completion_text
 
 
+@pytest.mark.skipif(has_transformers_compatibility_issues(), reason="Transformers compatibility issues")
 def test_degenerate_offsets():
     lm = get_huggingface_lm(Models.DistilGPT2)
     token_ids = [13, 198, 198]
@@ -650,6 +653,7 @@ def test_degenerate_offsets():
     assert offsets == [(0, 1), (1, 2), (2, 3)]
 
 
+@pytest.mark.skipif(has_transformers_compatibility_issues(), reason="Transformers compatibility issues")
 def test_stop_tokens():
     # Load model
     lm = get_huggingface_lm(Models.DistilGPT2, runtime=Runtime.PYTORCH)
@@ -711,6 +715,7 @@ def test_stop_tokens():
     assert "\n\n\n" not in out.completion_text
 
 
+@pytest.mark.skipif(has_transformers_compatibility_issues(), reason="Transformers compatibility issues")
 def test_distilgpt2_pytorch_runtime():
     prompt = LmPrompt(
         "print('Hello world",
