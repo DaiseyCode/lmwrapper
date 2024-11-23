@@ -1,4 +1,5 @@
 import dataclasses
+import warnings
 import math
 import pickle
 import threading
@@ -1112,4 +1113,3 @@ def test_prefilled_prompt(lm):
         "Oui oui, the capital of France is Paris. The most famous landmark is the Eiffel",
     ], max_tokens=1, cache=False))
     assert pred.completion_text.strip() == "Tower"
-

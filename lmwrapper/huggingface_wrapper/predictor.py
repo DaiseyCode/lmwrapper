@@ -347,6 +347,7 @@ class HuggingFacePredictor(LmPredictor):
                 **encoded_input,
                 generation_config=gen_config,
                 stopping_criteria=stopping_criteria,
+                return_legacy_cache=True,
             )
         logging.info("Generation output type:" + str(type(generation_output)))
         logging.debug("Post generate")
