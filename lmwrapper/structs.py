@@ -284,11 +284,12 @@ class LmChatDialog(list[LmChatTurn]):
                     raise ValueError(
                         msg,
                     )
-            current_role = (
-                ChatGptRoles.user
-                if observe_role == ChatGptRoles.assistant
-                else ChatGptRoles.assistant
-            )
+            if observe_role != ChatGptRoles.system:
+                current_role = (
+                    ChatGptRoles.user
+                    if observe_role == ChatGptRoles.assistant
+                    else ChatGptRoles.assistant
+                )
         super().__init__(out)
 
     def as_dicts(self) -> list[dict]:

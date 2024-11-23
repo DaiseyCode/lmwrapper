@@ -1072,8 +1072,8 @@ def test_chat_qwen():
         max_tokens=10,
         temperature=0,
     ))
-    assert pred.completion_text == "8"
     assert pred.prompt_tokens == ['<|im_start|>', 'system', '\n', 'You', ' are', ' Q', 'wen', ',', ' created', ' by', ' Alibaba', ' Cloud', '.', ' You', ' are', ' a', ' helpful', ' assistant', '.', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '2', '+', '2', '?', '<|im_end|>', '\n', '<|im_start|>', 'assistant', '\n', '4', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '5', '+', '3', '?', '<|im_end|>', '\n', '<|im_start|>', 'assistant', '\n', '8', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '4', '+', '4', '?', '<|im_end|>', '\n', '<|im_start|>', 'assistant', '\n']
+    assert pred.completion_text.strip() == "8"
     pred = lm.predict(LmPrompt(
         [
             LmChatTurn(ChatGptRoles.system, "You are a calculator assistant. Please only respond with the number answer and nothing else."),
@@ -1082,7 +1082,7 @@ def test_chat_qwen():
         max_tokens=5,
         temperature=0,
     ))
-    assert pred.completion_text == "4"
+    assert pred.completion_text.strip() == "4"
 
 
 def test_chat_smol():
@@ -1099,7 +1099,7 @@ def test_chat_smol():
             "What is 1+4?",
             "5",
             "What is 4+4?",
-            "8"
+            "8",
             "What is 5+2?",
             "7",
             "What is 4+4?"
@@ -1108,4 +1108,20 @@ def test_chat_smol():
         temperature=0,
     ))
     assert pred.completion_text.strip() == "8"
-    assert pred.prompt_tokens == ['<|im_start|>', 'system', '\n', 'You', ' are', ' a', ' helpful', ' AI', ' assistant', ' named', ' Sm', 'ol', 'LM', ',', ' trained', ' by', ' H', 'ugging', ' Face', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '2', '+', '2', '?', '<|im_end|>', '\n', '<|im_start|>', 'ass', 'istant', '\n', '4', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '5', '+', '3', '?', '<|im_end|>', '\n', '<|im_start|>', 'ass', 'istant', '\n', '8', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '1', '+', '4', '?', '<|im_end|>', '\n', '<|im_start|>', 'ass', 'istant', '\n', '5', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '4', '+', '4', '?', '<|im_end|>', '\n', '<|im_start|>', 'ass', 'istant', '\n', '8', 'What', ' is', ' ', '5', '+', '2', '?', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', '7', '<|im_end|>', '\n', '<|im_start|>', 'ass', 'istant', '\n', 'What', ' is', ' ', '4', '+', '4', '?', '<|im_end|>', '\n', '<|im_start|>', 'ass', 'istant', '\n']
+    print(pred.prompt_tokens)
+    assert pred.prompt_tokens == ['<|im_start|>', 'system', '\n', 'You', ' are', ' a', ' helpful', ' AI', ' assistant', ' named', ' Sm', 'ol', 'LM', ',', ' trained', ' by', ' H', 'ugging', ' Face', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '2', '+', '2', '?', '<|im_end|>', '\n', '<|im_start|>', 'ass', 'istant', '\n', '4', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '5', '+', '3', '?', '<|im_end|>', '\n', '<|im_start|>', 'ass', 'istant', '\n', '8', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '1', '+', '4', '?', '<|im_end|>', '\n', '<|im_start|>', 'ass', 'istant', '\n', '5', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '4', '+', '4', '?', '<|im_end|>', '\n', '<|im_start|>', 'ass', 'istant', '\n', '8', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '5', '+', '2', '?', '<|im_end|>', '\n', '<|im_start|>', 'ass', 'istant', '\n', '7', '<|im_end|>', '\n', '<|im_start|>', 'user', '\n', 'What', ' is', ' ', '4', '+', '4', '?', '<|im_end|>', '\n', '<|im_start|>', 'ass', 'istant', '\n']
+
+# so mac works 4.42.2 but not continue_final_message...
+def test_smol_continue_chat():
+    model = Models.SMOLLM2_135M
+    lm = get_huggingface_lm(
+        model,
+    )
+    print(lm._tokenizer.chat_template)
+    pred = lm.predict(LmPrompt([
+        "What is the capital of France?",
+        "Oui oui, the capital of France is Paris. The most famous landmark is the Eiffel",
+    ], max_tokens=1, cache=False))
+    print(pred.prompt_tokens)
+    assert pred.prompt_tokens[-1] == "iffel"
+    assert pred.completion_text.strip() == "Tower"

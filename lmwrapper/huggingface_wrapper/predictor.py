@@ -140,9 +140,9 @@ class HuggingFacePredictor(LmPredictor):
             chat = prompt.get_text_as_chat()
             is_prefill = chat[-1].role == ChatGptRoles.assistant
             prompt_text = self._tokenizer.apply_chat_template(
-                prompt.get_text_as_chat().as_dicts(),
+                chat.as_dicts(),
                 tokenize=False,
-                add_generation_prompt=not is_prefill,
+                add_generation_prompt=None if is_prefill else True,
                 continue_final_message=is_prefill,
             )
         else:
@@ -268,7 +268,7 @@ class HuggingFacePredictor(LmPredictor):
             ),
             return_dict_in_generate=True,
             output_scores=need_log_prob,
-            retun_legacy_cache=True,
+            return_legacy_cache=True,
             **optional_generation_kwargs,
         )
         outputs = []

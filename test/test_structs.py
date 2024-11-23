@@ -82,3 +82,35 @@ def test_chat_serialize_2():
             add_special_tokens=True,
         )
         prompt.dict_serialize()
+
+
+def test_sys_message():
+    prompt = LmPrompt(
+        [
+            LmChatTurn(ChatGptRoles.system, "You are a calculator assistant. Please only respond with the number answer and nothing else."),
+            "What is 2+2?",
+        ],
+    )
+    chat = prompt.get_text_as_chat()
+    assert chat[0].role == ChatGptRoles.system
+    assert chat[0].content == "You are a calculator assistant. Please only respond with the number answer and nothing else."
+    assert chat[1].role == ChatGptRoles.user
+    assert chat[1].content == "What is 2+2?"
+
+
+def test_chat_roles():
+    prompt = LmPrompt(
+        [
+            "What is 2+2?",
+            "4",
+            "What is 5+3?",
+            "8",
+            "What is 1+4?",
+        ],
+    )
+    chat = prompt.get_text_as_chat()
+    assert chat[0].role == ChatGptRoles.user
+    assert chat[1].role == ChatGptRoles.assistant
+    assert chat[2].role == ChatGptRoles.user
+    assert chat[3].role == ChatGptRoles.assistant
+    assert chat[4].role == ChatGptRoles.user
