@@ -43,6 +43,7 @@ dependencies = [
 dev = [
     "black~=23.10.0", "ruff~=0.1.1", "pytest~=7.4.2", "pytest-cov~=4.1.0",
     "build~=1.0.3",
+    "twine~=5.1.1",
 ]
 quant = ["bitsandbytes~=0.41.1"]
 hf = [
