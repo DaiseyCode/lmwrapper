@@ -42,7 +42,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["black~=23.10.0", "ruff~=0.1.1", "pytest~=7.4.2", "pytest-cov~=4.1.0"]
 quant = ["bitsandbytes~=0.41.1"]
-hf = ["torch~=2.1.0", "transformers~=4.44.2"]
+hf = ["torch~=2.1.0", "transformers~=4.46.3"]
 anthropic = ["anthropic~=0.39.0"]
 docs = [
     "mkdocs>=1.4.0",
