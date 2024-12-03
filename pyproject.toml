@@ -17,7 +17,7 @@ include = ["lmwrapper*"]
 
 [project]
 name = "lmwrapper"
-version = "0.15.0.3"
+version = "0.15.0.4"
 authors = [
     { name = "David Gros" },
     { name = "Claudio Spiess" },
@@ -51,7 +51,7 @@ hf = [
     #"transformers~=4.42.4"
     "transformers~=4.46.3"
 ]
-anthropic = ["anthropic~=0.39.0"]
+anthropic = ["anthropic~=0.40.0"]
 docs = [
     "mkdocs>=1.4.0",
     "mkdocstrings[python]>=0.24.0",
