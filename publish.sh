@@ -43,22 +43,6 @@ if [ "$skip_checks" = false ]; then
     exit 1
   fi
 
-
-  # Verify that the current version is tagged
-  if [ -z "$(git tag --points-at HEAD)" ]; then
-    echo "Current version is not tagged."
-    echo "We will now make a new tag. Ctrl-C to abort."
-    read -p "Enter the tag version: " -r
-    echo
-    git tag -a $REPLY -m "Version $REPLY"
-    if [ -z "$(git tag --points-at HEAD)" ]; then
-      echo "Tagging failed. Abort."
-      exit 1
-    fi
-    echo "Pushing tag"
-    git push origin "$REPLY"
-  fi
-
   rm dist/*
 
 
@@ -75,6 +59,23 @@ if [ "$skip_checks" = false ]; then
     echo "Tests failed. Abort."
     exit 1
   fi
+
+
+  # Verify that the current version is tagged
+  if [ -z "$(git tag --points-at HEAD)" ]; then
+    echo "Current version is not tagged."
+    echo "We will now make a new tag. Ctrl-C to abort."
+    read -p "Enter the tag version: " -r
+    echo
+    git tag -a $REPLY -m "Version $REPLY"
+    if [ -z "$(git tag --points-at HEAD)" ]; then
+      echo "Tagging failed. Abort."
+      exit 1
+    fi
+    echo "Pushing tag"
+    git push origin "$REPLY"
+  fi
+
 
   # Hacky ask the user to check whether has passed CI. Works for now 🤷
   read -p "Please ensure that CI has passed. Type 'green' to confirm: " -r
