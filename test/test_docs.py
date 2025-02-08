@@ -4,6 +4,7 @@ will execute.
 """
 
 import concurrent.futures
+import os
 import re
 import sys
 import traceback
@@ -20,9 +21,27 @@ cur_file = Path(__file__).parent.absolute()
 def extract_code_blocks(file):
     with open(file) as f:
         content = f.read()
-    pattern = re.compile(r"(<!-- skip ?test -->\s*)?```python\r?\n(.*?)```", re.DOTALL)
-    blocks = pattern.findall(content)
-    return [code for skip, code in blocks if not skip]
+    # This regex captures an optional skip marker and then the code block.
+    # It matches:
+    #   <!-- skip test -->      (always skip)
+    #   <!-- skip gh-action --!> (skip only on GitHub Actions)
+    pattern = re.compile(
+        r"(<!--\s*(?P<skip>skip(?:\s+(?P<type>test|gh-action))?)\s*(?:-->|--!>)\s*)?"
+        r"```python\r?\n(?P<code>.*?)```",
+        re.DOTALL,
+    )
+    blocks = []
+    for m in pattern.finditer(content):
+        skip = m.group("skip")
+        skip_type = m.group("type")
+        code = m.group("code")
+        # Always skip blocks marked with "skip test"
+        if skip and skip_type == "test":
+            continue
+        # Mark blocks for GitHub Actions skip if "gh-action" is specified
+        skip_gh_action = bool(skip and skip_type == "gh-action")
+        blocks.append((code, skip_gh_action))
+    return blocks
 
 
 def run_code(code):
@@ -38,10 +57,14 @@ def run_code(code):
 
 
 @pytest.mark.parametrize(
-    "code",
+    "code, skip_gh_action",
     extract_code_blocks(cur_file / "../README.md"),
 )
-def test_readme_code(code):
+def test_readme_code(code, skip_gh_action):
+    # If the block is marked to skip on GitHub Actions and we're on GitHub Actions, skip the test.
+    if skip_gh_action and os.environ.get("GITHUB_ACTIONS") == "true":
+        pytest.skip("Skipping this test on GitHub Actions")
+
     clear_cache_dir()
     print("### CODE BLOCK")
     print(code)
