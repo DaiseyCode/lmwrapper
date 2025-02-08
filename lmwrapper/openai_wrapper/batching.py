@@ -222,7 +222,7 @@ class OpenAiBatchManager:
             waiting_for_a_result=True,
             created_at=batch_data.created_at,
             total_inputs=len(batch.prompts),
-            api_json_data=json.dumps(batch_data.dict()),
+            api_json_data=json.dumps(batch_data.model_dump()),
         )
         place_holders = self._cache.put_batch_placeholders(batch_row, batch.prompts)
         for place_holder in place_holders:
@@ -751,7 +751,7 @@ class _BatchToMonitor:
 
 
 def main():
-    lm = get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo)
+    lm = get_open_ai_lm(OpenAiModelNames.gpt_4o_mini)
     clear_cache_dir()
     prompts = [
         LmPrompt("hello world", cache=True),
