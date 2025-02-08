@@ -40,12 +40,16 @@ class _ModelNamesMeta(type):
 
 class OpenAiModelInfo(str):
     def __new__(
-        cls, name: str, is_chat_model: bool, is_o1_model: bool, token_limit: int
+        cls,
+        name: str,
+        is_chat_model: bool,
+        is_o1_model: bool,
+        token_limit_input: int,
     ):
         instance = super().__new__(cls, name)
         instance._is_chat_model = is_chat_model
         instance._is_o1_model = is_o1_model
-        instance._token_limit = token_limit
+        instance._token_limit_input = token_limit_input
         return instance
 
     @property
@@ -54,7 +58,7 @@ class OpenAiModelInfo(str):
 
     @property
     def token_limit(self):
-        return self._token_limit
+        return self._token_limit_input
 
 
 class OpenAiModelNames(metaclass=_ModelNamesMeta):
@@ -114,19 +118,20 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
         "gpt-4o-mini-2024-07-18", True, False, 128_000
     )
 
+    o1 = OpenAiModelInfo("o1", True, True, 200_000)
     """
     The o1 series of large language models are trained with reinforcement learning to perform complex reasoning. o1 models think before they answer, producing a long internal chain of thought before responding to the user.
-
-    Previews may change. Points to o1-preview-2024-09-12	as of 2024-10-01.
     """
-    """o1-preview: reasoning model designed to solve hard problems across domains."""
     o1_preview = OpenAiModelInfo("o1-preview", True, True, 128_000)
+    """o1-preview: reasoning model designed to solve hard problems across domains."""
     o1_preview_2024_09_12 = OpenAiModelInfo(
         "o1-preview-2024-09-12", True, True, 128_000
     )
     """o1-mini: faster and cheaper reasoning model particularly good at coding, math, and science."""
     o1_mini = OpenAiModelInfo("o1-mini", True, True, 128_000)
     o1_mini_2024_09_12 = OpenAiModelInfo("o1-mini-2024-09-12", True, True, 128_000)
+
+    o3_mini = OpenAiModelInfo("o3-mini", True, True, 200_000)
 
     @classmethod
     def name_to_info(cls, name: str) -> OpenAiModelInfo | None:
@@ -674,7 +679,6 @@ def prompt_to_openai_args_dict(
             presence_penalty=prompt.presence_penalty,
             top_logprobs=None,
             top_p=prompt.top_p,
-            logprobs=None,
         )
     # all o1 models are chat models
     elif chat_model:
