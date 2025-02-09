@@ -67,13 +67,13 @@ def test_failed_prompt():
             LmPrompt(
                 "a",
                 cache=True,
-                max_tokens=10_000,  # output too big
+                max_tokens=300_000,  # output too big
                 temperature=0,
             ),
             LmPrompt(
                 "a",
                 cache=True,
-                max_tokens=10_000,  # output too big
+                max_tokens=300_000,  # output too big
                 temperature=1000,  # Bad temp
             ),
             LmPrompt(  # A good prompt
