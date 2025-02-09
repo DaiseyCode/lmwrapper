@@ -725,7 +725,7 @@ will always sample the same output on reruns).</p>
 <p>The OpenAI <a href="https://platform.openai.com/docs/guides/batch">batching API</a> has a 50% reduced cost when willing to accept a 24-hour turnaround. This makes it good for processing datasets or other non-interactive tasks (which is the main target for <code>lmwrapper</code> currently).</p>
 <p><code>lmwrapper</code> takes care of managing the batch files and other details so that it's as easy 
 as the normal API.</p>
-<!-- noskip test -->
+<!-- skip gh-action -->
 <div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span> <span class="nn">lmwrapper.openai_wrapper</span> <span class="kn">import</span> <span class="n">get_open_ai_lm</span><span class="p">,</span> <span class="n">OpenAiModelNames</span>
 </span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="kn">from</span> <span class="nn">lmwrapper.structs</span> <span class="kn">import</span> <span class="n">LmPrompt</span>
 </span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="kn">from</span> <span class="nn">lmwrapper.batch_config</span> <span class="kn">import</span> <span class="n">CompletionWindow</span>
