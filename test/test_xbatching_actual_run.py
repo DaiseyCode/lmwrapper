@@ -59,7 +59,7 @@ def test_split_up_prompt_with_arithmetic():
 )
 def test_failed_prompt():
     clear_cache_dir()
-    model_name = OpenAiModelNames.gpt_4o_mini
+    model_name = OpenAiModelNames.gpt_3_5_turbo
     lm = get_open_ai_lm(model_name)
     cache = SqlBackedCache(lm=lm)
     batching_manager = OpenAiBatchManager(
@@ -67,13 +67,13 @@ def test_failed_prompt():
             LmPrompt(
                 "a",
                 cache=True,
-                max_tokens=300_000,  # output too big
+                max_tokens=30_000,  # output too big
                 temperature=0,
             ),
             LmPrompt(
                 "a",
                 cache=True,
-                max_tokens=300_000,  # output too big
+                max_tokens=30_000,  # output too big
                 temperature=1000,  # Bad temp
             ),
             LmPrompt(  # A good prompt
