@@ -7,7 +7,7 @@ import pytest
 import torch
 
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
-from lmwrapper.interals import ModelInternalsRequest
+from lmwrapper.internals import ModelInternalsRequest
 from lmwrapper.structs import LmPrompt
 
 IS_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"

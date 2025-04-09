@@ -14,7 +14,7 @@ from lmwrapper.abstract_predictor import LmPredictor
 from lmwrapper.compatibility import check_transformers_compatibility
 from lmwrapper.huggingface_wrapper.prediction import HuggingFacePrediction
 from lmwrapper.huggingface_wrapper.utilstorch import log_cuda_mem
-from lmwrapper.interals import ModelInternalsRequest, ModelInternalsResults
+from lmwrapper.internals import ModelInternalsRequest, ModelInternalsResults
 from lmwrapper.prompt_trimming import PromptTrimmer
 from lmwrapper.runtime import Runtime
 from lmwrapper.structs import LmPrediction, LmPrompt, ChatGptRoles

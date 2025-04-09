@@ -5,7 +5,7 @@ import statistics
 from dataclasses import dataclass, field
 from typing import Any, Optional, Union
 
-from lmwrapper.interals import ModelInternalsResults
+from lmwrapper.internals import ModelInternalsResults
 from lmwrapper.utils import StrEnum
 
 LM_CHAT_DIALOG_COERCIBLE_TYPES = Union[
