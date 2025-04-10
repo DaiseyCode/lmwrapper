@@ -351,7 +351,7 @@ class HuggingFacePredictor(LmPredictor):
                 stopping_criteria=stopping_criteria,
                 return_legacy_cache=True,
             )
-        logging.info("Generation output type:" + str(type(generation_output)))
+        #logging.info("Generation output type:" + str(type(generation_output)))
         logging.debug("Post generate")
         log_cuda_mem()
 
@@ -470,7 +470,13 @@ class HuggingFacePredictor(LmPredictor):
                 if stop_token_idx_output and stop_token_idx_output > 0:
                     logprobs = logprobs[: stop_token_idx_output - 1]
 
-                assert len(output_sequence) == len(logprobs)
+                if not will_have_bos:
+                    # There's no BOS, so we won't have logprob for the first
+                    # token. We will just fill it with NaN
+                    nan_tensor = torch.tensor([float("nan")], device=logprobs.device)
+                    logprobs = torch.cat([nan_tensor, logprobs], dim=0)
+
+                assert len(output_sequence) == len(logprobs), f"{len(output_sequence)} {len(logprobs)}\n{output_sequence}\n{self._tokenizer.decode(output_sequence)}\n{self._tokenizer.decode(generated_sequence)}"
             else:
                 output_logprobs = self._model.compute_transition_scores(
                     generation_output.sequences,

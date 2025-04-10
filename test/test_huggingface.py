@@ -1,4 +1,5 @@
-# test
+import math
+import pytest
 import os
 
 import numpy as np
@@ -13,6 +14,7 @@ from lmwrapper.huggingface_wrapper.predictor import (
     _expand_offsets_to_a_token_index_for_every_text_index,
     _get_token_offsets,
 )
+from lmwrapper.internals import ModelInternalsRequest
 from lmwrapper.prompt_trimming import HfTokenTrimmer
 from lmwrapper.runtime import Runtime
 from lmwrapper.structs import LmPrompt, LmChatTurn, ChatGptRoles
@@ -33,6 +35,8 @@ class Models(StrEnum):
     SMOLLM2_135M = "HuggingFaceTB/SmolLM2-135M-Instruct"
     Mistral_7B = "mistralai/Mistral-7B-v0.1"
     qwen25_500M_instruct = "Qwen/Qwen2.5-0.5B-Instruct"
+    QwenCoder25_500M = "Qwen/Qwen2.5-Coder-0.5B"
+
 
 
 CUDA_UNAVAILABLE = not torch.cuda.is_available()
@@ -1130,3 +1134,128 @@ def test_smol_continue_chat():
     print(pred.prompt_tokens)
     assert pred.prompt_tokens[-1] == "iffel"
     assert pred.completion_text.strip() == "Tower"
+
+
+def test_echo_none():
+    model = Models.qwen25_500M_instruct
+    is_chat = True
+    lm = get_huggingface_lm(model)
+    print(lm._tokenizer.chat_template)
+    assert lm.is_chat_model == is_chat
+    text = "The capital of France is Paris. The capital of France is Paris. The capital of France is Paris."
+    pred = lm.predict(LmPrompt(
+        text=text,
+        echo=True,
+        max_tokens=1,
+        model_internals_request=ModelInternalsRequest(
+            return_hidden_states=True,
+            hidden_layer_indexes=[-1],
+        )
+    ))
+    expected_prompt_tokens = []
+    if is_chat:
+        expected_prompt_tokens += [
+            "<|im_start|>",
+            "user",
+            "\n",
+        ]
+    main_expected = [
+        "The",
+        " capital",
+        " of",
+        " France",
+        " is",
+        " Paris",
+        ".",
+        " The",
+        " capital",
+        " of",
+        " France",
+        " is",
+        " Paris",
+        ".",
+        " The",
+        " capital",
+        " of",
+        " France",
+        " is",
+        " Paris",
+        ".",
+    ]
+    expected_prompt_tokens += main_expected
+    if is_chat:
+        expected_prompt_tokens += [
+            "<|im_end|>",
+            "\n",
+            "<|im_start|>",
+            "assistant",
+            "\n",
+        ]
+    # does not include system prompt.
+    assert (
+        pred.prompt_tokens[-len(expected_prompt_tokens):]
+        == expected_prompt_tokens
+    )
+    if is_chat:
+        assert math.isnan(pred.prompt_logprobs[0])
+    main_start_idx = pred.prompt_tokens.index("The")
+    main_end_idx = main_start_idx + len(main_expected)
+    assert pred.prompt_tokens[main_start_idx:main_end_idx] == main_expected
+    actual_prob = np.exp(pred.prompt_logprobs[main_start_idx:main_end_idx])
+    print(actual_prob)
+    for i in range(3):
+        # should be consistent logprob
+        pred_retry = lm.predict(LmPrompt(
+            text=text,
+            echo=True,
+            max_tokens=1,
+        ))
+        retry_prob = np.exp(pred_retry.prompt_logprobs[main_start_idx:main_end_idx])
+        assert actual_prob == pytest.approx(retry_prob, abs=0.02)
+    expected_prob = [
+        0.0,  # 0  The
+        0.0,  # 1  capital
+        0.8,  # 2  of
+        0.0,  # 3  France
+        0.9,  # 4  is
+        0.7,  # 5  Paris
+        0.8,  # 6  .
+        0.1,  # 7  The
+        0.4,  # 8  capital
+        1.0,  # 9  of
+        0.0,  # 10 France
+        0.8,  # 11 is
+        0.2,  # 12 Paris
+        0.6,  # 13 .
+        0.1,  # 14  The
+        0.9,  # 15  capital
+        1.0,  # 16  of
+        0.8,  # 17 France
+        0.9,  # 19 is
+        0.9,  # 20 Paris
+        0.8,  # 21 .
+    ]
+    assert (
+        actual_prob
+        == pytest.approx(expected_prob, abs=0.07)
+    )
+    assert pred.internals.hidden_states[0].shape == (50, 896)
+    the_vec = pred.internals.hidden_states[0][main_start_idx]
+    france1_vec = pred.internals.hidden_states[0][main_start_idx + 3]
+    france2_vec = pred.internals.hidden_states[0][main_start_idx + 10]
+    # assert cosine similarity of two france vectors is high
+    def cosine_similarity_np(vec1: np.ndarray, vec2: np.ndarray) -> float:
+        """Compute cosine similarity between two 1D NumPy arrays."""
+        norm1 = np.linalg.norm(vec1)
+        norm2 = np.linalg.norm(vec2)
+        if norm1 == 0 or norm2 == 0:
+            raise ValueError("Cannot compute cosine similarity with zero-length vector.")
+        return np.dot(vec1, vec2) / (norm1 * norm2)
+    assert cosine_similarity_np(france1_vec, france2_vec) > 0.9
+    assert cosine_similarity_np(the_vec, france2_vec) < 0.7
+    paris1_vec = pred.internals.hidden_states[0][main_start_idx + 5]
+    paris2_vec = pred.internals.hidden_states[0][main_start_idx + 12]
+    assert cosine_similarity_np(paris1_vec, paris2_vec) > 0.9
+    assert cosine_similarity_np(the_vec, paris2_vec) < 0.7
+    assert cosine_similarity_np(paris1_vec, paris2_vec) > cosine_similarity_np(paris1_vec, france1_vec)
+
