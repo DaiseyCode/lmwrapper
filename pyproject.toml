@@ -1,5 +1,13 @@
 [build-system]
-requires = ["setuptools>=68.2.2"]
+requires = [
+    "setuptools",
+    "setuptools-scm",
+    "build",
+    "twine",
+    "pkginfo",
+    "wheel",
+    "packaging"
+]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
