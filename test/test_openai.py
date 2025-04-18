@@ -1,5 +1,8 @@
 import sys
+import tempfile
+import pickle
 import warnings
+from typing import TypeVar
 from unittest.mock import MagicMock
 
 import pytest
@@ -389,6 +392,39 @@ def test_backoff_parse3():
     )
     backoff = parse_backoff_time(mock_exception)
     assert backoff == 5
+
+T = TypeVar("T")
+
+
+def pickle_roundtrip(obj: T) -> T:
+    with tempfile.NamedTemporaryFile(delete=True) as temp_file:
+        # Serialize the info to the tempfile
+        pickle.dump(obj, temp_file)
+        temp_file.seek(0)  # Reset file pointer to the beginning
+        # Deserialize the info from the tempfile
+        new_obj = pickle.load(temp_file)
+    return new_obj
+
+
+def test_pickle_model_info():
+    info = OpenAiModelNames.gpt_4o_mini
+    assert info == pickle_roundtrip(info)
+
+
+def test_pickle_model():
+    lm = get_open_ai_lm(OpenAiModelNames.gpt_4o_mini)
+    pred1 = lm.predict(LmPrompt(
+        "Give 10 random numbers",
+        max_tokens=10, temperature=0.0, cache=False,
+    ))
+    lm2 = pickle_roundtrip(lm)
+    pred2 = lm2.predict(
+        LmPrompt(
+            "Give 10 random numbers",
+            max_tokens=10, temperature=0.0, cache=False,
+        ),
+    )
+    assert pred1.completion_text == pred2.completion_text
 
 
 if __name__ == "__main__":

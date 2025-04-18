@@ -60,6 +60,12 @@ class OpenAiModelInfo(str):
     def token_limit(self):
         return self._token_limit_input
 
+    def __reduce__(self):
+        return (
+            self.__class__,
+            (str(self), self._is_chat_model, self._is_o1_model, self._token_limit_input),
+        )
+
 
 class OpenAiModelNames(metaclass=_ModelNamesMeta):
     """
@@ -593,6 +599,18 @@ class OpenAIPredictor(LmPredictor):
         if not self.is_chat_model:
             return 16
         return None
+
+    def __reduce__(self):
+        return (
+            get_open_ai_lm,  # top‑level factory
+            (
+                self._engine_name,  # model_name
+                None, # Don't pickle the api key
+                self._api.organization,  # serialize Org ID not sure if smart
+                self._cache_outputs_default,
+                self._retry_on_rate_limit,
+            ),
+        )
 
 
 class OpenAiInstantiationHook(ABC):

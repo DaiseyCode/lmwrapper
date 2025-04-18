@@ -8,6 +8,12 @@ However, it is still pre-1.0 software, and does not claim to
 be super stable.
 
 
+## [0.16.1.0]
+
+### Added
+- Make openai model names and predictors picklable
+
+
 ## [0.16.0.0]
 
 ### Fixed
