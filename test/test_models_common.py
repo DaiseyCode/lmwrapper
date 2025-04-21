@@ -64,7 +64,7 @@ COMPLETION_MODELS = [
 ]
 
 CHAT_MODELS = [
-    MODEL_NAMES["4o_mini"],
+    MODEL_NAMES["4_1_nano"],
     MODEL_NAMES["3_5_haiku"],
     #MODEL_NAMES["qwen25_500M_instruct"]
 ]
