@@ -8,6 +8,15 @@ However, it is still pre-1.0 software, and does not claim to
 be super stable.
 
 
+## [0.16.2.0]
+
+### Added
+- Add model names for GPT 4.1, o4-mini, and o3.
+
+### Changed
+- The default model used when loading a open AI model to be 4.1-mini
+
+
 ## [0.16.1.0]
 
 ### Added
