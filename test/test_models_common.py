@@ -37,7 +37,8 @@ def skip_if_no_token_ops(func):
 MODEL_NAMES = {
     "3_5_turbo_instruct": get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct),
     "small_hug": get_huggingface_lm(DEFAULT_SMALL),
-    "4o_mini": get_open_ai_lm(OpenAiModelNames.gpt_4o_mini),
+    #"4o_mini": get_open_ai_lm(OpenAiModelNames.gpt_4o_mini),
+    "4_1_nano": get_open_ai_lm(OpenAiModelNames.gpt_4_1_nano),
     "3_5_haiku": get_claude_lm(ClaudeModelNames.claude_3_5_haiku),
     "3_5_turbo": get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo),
     #"qwen25_500M_instruct": get_huggingface_lm("Qwen/Qwen2.5-0.5B-Instruct"),

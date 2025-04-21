@@ -138,6 +138,15 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
     o1_mini_2024_09_12 = OpenAiModelInfo("o1-mini-2024-09-12", True, True, 128_000)
 
     o3_mini = OpenAiModelInfo("o3-mini", True, True, 200_000)
+    o4_mini = OpenAiModelInfo("o4-mini", True, True, 200_000)
+    o4_mini_2025_04_16 = OpenAiModelInfo("o4-mini-2025-04-16", True, True, 200_000)
+
+    o3 = OpenAiModelInfo("o3", True, True, 200_000)
+
+    gpt_4_1 = OpenAiModelInfo("gpt-4.1", True, False, 1_047_576)
+    gpt_4_1_mini = OpenAiModelInfo("gpt-4.1-mini", True, False, 1_047_576)
+    gpt_4_1_nano = OpenAiModelInfo("gpt-4.1-nano", True, False, 1_047_576)
+
 
     @classmethod
     def name_to_info(cls, name: str) -> OpenAiModelInfo | None:
@@ -150,7 +159,7 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
 
 
 def get_open_ai_lm(
-    model_name: str = OpenAiModelNames.gpt_4o_mini,
+    model_name: str = OpenAiModelNames.gpt_4_1_mini,
     api_key_secret: SecretInterface | None = None,
     organization: str | None = None,
     cache_outputs_default: bool = False,

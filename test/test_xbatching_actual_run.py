@@ -17,7 +17,7 @@ IS_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
 )
 def test_split_up_prompt_with_arithmetic():
     clear_cache_dir()
-    model_name = OpenAiModelNames.gpt_4o_mini
+    model_name = OpenAiModelNames.gpt_4_1_nano
     lm = get_open_ai_lm(model_name)
     cache = SqlBackedCache(lm=lm)
 
@@ -59,7 +59,7 @@ def test_split_up_prompt_with_arithmetic():
 )
 def test_failed_prompt():
     clear_cache_dir()
-    model_name = OpenAiModelNames.gpt_3_5_turbo
+    model_name = OpenAiModelNames.gpt_4_1_nano
     lm = get_open_ai_lm(model_name)
     cache = SqlBackedCache(lm=lm)
     batching_manager = OpenAiBatchManager(
