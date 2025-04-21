@@ -48,7 +48,7 @@ MODEL_NAMES = {
 ALL_MODELS = [
     MODEL_NAMES["3_5_turbo_instruct"],
     MODEL_NAMES["small_hug"],
-    MODEL_NAMES["4o_mini"],
+    MODEL_NAMES["4_1_nano"],
     MODEL_NAMES["3_5_haiku"],
 ]
 
