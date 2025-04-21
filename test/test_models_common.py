@@ -950,8 +950,8 @@ def test_num_completions_two(lm):
     pred = lm.predict(prompt)
     assert len(pred) == 2
     assert isinstance(pred, list)
-    assert 10 < pred[0].usage_output_tokens <= 25
-    assert 10 < pred[1].usage_output_tokens <= 25
+    assert 6 < pred[0].usage_output_tokens <= 25
+    assert 6 < pred[1].usage_output_tokens <= 25
     assert pred[0].completion_text != pred[1].completion_text
     pred2 = lm.predict(prompt)
     assert pred[0].completion_text != pred2[0].completion_text

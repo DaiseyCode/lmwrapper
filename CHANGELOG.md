@@ -8,7 +8,7 @@ However, it is still pre-1.0 software, and does not claim to
 be super stable.
 
 
-## [0.16.2.0]
+## [0.16.2.1]
 
 ### Added
 - Add model names for GPT 4.1, o4-mini, and o3.
