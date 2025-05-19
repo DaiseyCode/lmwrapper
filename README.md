@@ -153,14 +153,14 @@ from lmwrapper.structs import LmPrompt
 lm = get_open_ai_lm(OpenAiModelNames.gpt_4o_mini)
 
 prompt = LmPrompt(
-  "Describe Paris in one sentence", 
+  "Describe Paris in a few sentences", 
   cache=True,
   temperature=1,
-  max_tokens=10,
+  max_tokens=25,
 )
 first_prediction = lm.predict(prompt)
 print(first_prediction.completion_text) 
-# ... eg, "Paris is a city of romance and art, renowned for its iconic landmarks, vibrant culture, and rich history."
+# ... eg, "Paris is a city of romance and art, renowned for its iconic landmarks, vibrant culture, and rich history..."
 
 # The response to this prompt is now saved to the disk.
 # You could rerun this script and you would load from cache near-instantly.
@@ -294,7 +294,7 @@ from lmwrapper.huggingface_wrapper import get_huggingface_lm
 from lmwrapper.structs import LmPrompt
 
 # Download a small model for demo
-lm = get_huggingface_lm("gpt2") # 124M parameters
+lm = get_huggingface_lm("HuggingFaceTB/SmolLM2-135M")
 
 prediction = lm.predict(LmPrompt(
     "The capital of Germany is Berlin. The capital of France is",

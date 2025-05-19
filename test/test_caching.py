@@ -9,6 +9,7 @@ import pytest
 
 from lmwrapper.abstract_predictor import get_mock_predictor
 from lmwrapper.caching import set_cache_dir
+from lmwrapper.compatibility import has_transformers_compatibility_issues
 from lmwrapper.huggingface_wrapper.wrapper import get_huggingface_lm
 from lmwrapper.structs import LmPrompt
 
@@ -21,7 +22,8 @@ def test_set_cache_dir():
         tmpdirname = Path(tmpdirname)
         assert len(list(tmpdirname.rglob("*"))) == 0
         set_cache_dir(tmpdirname)
-        lm = get_huggingface_lm("gpt2")
+        model_name = "HuggingFaceTB/SmolLM2-135M"
+        lm = get_huggingface_lm(model_name)
         prompt = LmPrompt(
             "Write a story about fish:",
             max_tokens=10,
@@ -32,13 +34,13 @@ def test_set_cache_dir():
         prompt = dataclasses.replace(prompt, cache=True)
         r2 = lm.predict(prompt)
         assert r1.completion_text != r2.completion_text
-        lm2 = get_huggingface_lm("gpt2")
+        lm2 = get_huggingface_lm(model_name)
         r3 = lm2.predict(prompt)
         assert r2.completion_text == r3.completion_text
     with tempfile.TemporaryDirectory() as tmpdirname:
         tmpdirname = Path(tmpdirname)
         set_cache_dir(tmpdirname)
-        lm2 = get_huggingface_lm("gpt2")
+        lm2 = get_huggingface_lm(model_name)
         r4 = lm2.predict(prompt)
         assert r3.completion_text != r4.completion_text
 

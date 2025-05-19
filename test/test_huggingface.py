@@ -32,7 +32,8 @@ class Models(StrEnum):
     CodeLLama_7B_Instruct = "codellama/CodeLlama-7b-Instruct-hf"
     DistilGPT2 = "distilgpt2"
     GPT2 = "gpt2"
-    SMOLLM2_135M = "HuggingFaceTB/SmolLM2-135M-Instruct"
+    SMOLLM2_135M = "HuggingFaceTB/SmolLM2-135M"
+    SMOLLM2_135M_INSTRUCT = "HuggingFaceTB/SmolLM2-135M-Instruct"
     Mistral_7B = "mistralai/Mistral-7B-v0.1"
     qwen25_500M_instruct = "Qwen/Qwen2.5-0.5B-Instruct"
     QwenCoder25_500M = "Qwen/Qwen2.5-Coder-0.5B"
@@ -48,7 +49,7 @@ except RuntimeError:
     SMALL_GPU = True
 
 SEQ2SEQ_MODELS = {Models.CodeT5plus_220M}
-CAUSAL_MODELS = {Models.GPT2,}
+CAUSAL_MODELS = {Models.SMOLLM2_135M,}
 BIG_SEQ2SEQ_MODELS = {Models.CodeT5plus_6B, Models.InstructCodeT5plus_16B}
 BIG_CAUSAL_MODELS = {Models.CodeGen2_1B, Models.CodeGen2_3_7B, Models.Mistral_7B}
 BIG_MODELS = BIG_SEQ2SEQ_MODELS | BIG_CAUSAL_MODELS
@@ -1095,7 +1096,7 @@ def test_chat_qwen():
 
 
 def test_chat_smol():
-    model = Models.SMOLLM2_135M
+    model = Models.SMOLLM2_135M_INSTRUCT
     lm = get_huggingface_lm(
         model,
     )
@@ -1122,7 +1123,7 @@ def test_chat_smol():
 
 # so mac works 4.42.2 but not continue_final_message...
 def test_smol_continue_chat():
-    model = Models.SMOLLM2_135M
+    model = Models.SMOLLM2_135M_INSTRUCT
     lm = get_huggingface_lm(
         model,
     )
