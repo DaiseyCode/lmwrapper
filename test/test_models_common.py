@@ -74,7 +74,8 @@ CHAT_MODELS = [
 ECHOABLE_MODELS = [
     # get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo_instruct),
     # Won't work with now that echo disabled
-    get_huggingface_lm("gpt2"),
+    #get_huggingface_lm("gpt2"),
+    MODEL_NAMES["small_hug"],
 ]
 
 random_prompt = ("Give a random base-64 guid (answer with only the guid). "
@@ -332,6 +333,7 @@ capital_prompt = (
     "The capital of Germany is the city Berlin. "
     "The capital of Spain is the city Madrid. "
     "The capital of UK is the city London. "
+    "The capital of Japan is the city Tokyo. "
     "The capital of France"
 )
 

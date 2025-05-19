@@ -1,5 +1,7 @@
 import dataclasses
 import os
+
+from lmwrapper.compatibility import has_transformers_compatibility_issues
 from test.test_huggingface import BIG_MODELS, Models
 
 import numpy as np
@@ -14,15 +16,20 @@ IS_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
 
 HAS_CUDA = torch.cuda.is_available()
 
+models = [
+    (Models.CodeGen_350M, 20, 64 * 16),
+    (Models.CodeGen2_1B, 16, 2048),
+    # ^ Important to run since it doesn't use the same attentions value
+]
+if not has_transformers_compatibility_issues():
+    models = [
+        (Models.GPT2, 12, 768),
+    ] + models
+
 
 @pytest.mark.parametrize(
     "model_name_layers_hidden",
-    [
-        (Models.GPT2, 12, 768),
-        (Models.CodeGen_350M, 20, 64 * 16),
-        (Models.CodeGen2_1B, 16, 2048),
-        # ^ Important to run since it doesn't use the same attentions value
-    ],
+    models,
 )
 def test_get_internals_hidden_states(pytestconfig, model_name_layers_hidden):
     model_name, num_layers, hidden_size = model_name_layers_hidden

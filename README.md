@@ -114,10 +114,10 @@ print(pred.completion_text)  # "2 + 6 equals 8."
 pred = lm.predict(LmPrompt(
     [
         "What is 2+2?",  # user turn
-        "4",  # assistant turn
-        "What is 5+3?"  # user turn
-        "8",  # assistant turn
-        "What is 4+4?"  # user turn
+        "4",             # assistant turn
+        "What is 5+3?"   # user turn
+        "8",             # assistant turn
+        "What is 4+4?"   # user turn
         # We use few-shot turns to encourage the answer to be our desired format.
         #   If you don't give example turns you might get something like
         #   "4 + 4 equals 8." instead of just "8" as desired.
