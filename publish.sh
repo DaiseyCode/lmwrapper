@@ -7,6 +7,11 @@ for arg in "$@"; do
         echo "skipping checks"
         break
     fi
+    if [[ $arg == "--skiptests" ]]; then
+        skip_tests=true
+        echo "skipping tests"
+        break
+    fi
 done
 
 
@@ -54,12 +59,16 @@ if [ "$skip_checks" = false ]; then
   fi
 
   # Verify tests pass
-  ./run_tests.sh -x
-  if [ $? -ne 0 ]; then
-    echo "Tests failed. Abort."
-    exit 1
+  if [ "$skip_tests" = false ]; then
+    echo "Running tests..."
+    ./run_tests.sh -x
+    if [ $? -ne 0 ]; then
+      echo "Tests failed. Abort."
+      exit 1
+    fi
+  else
+    echo "Skipping tests."
   fi
-
 
   # Verify that the current version is tagged
   if [ -z "$(git tag --points-at HEAD)" ]; then
@@ -93,10 +102,6 @@ is_prod_mode=false
 for arg in "$@"; do
     if [[ $arg == "--prod" ]]; then
         is_prod_mode=true
-        # It's also good to remove the --prod flag from the arguments array if other parts of the script
-        # might misinterpret it. However, given the current script, it seems only this check uses it directly.
-        # If you need to pass arguments through to other commands later without --prod,
-        # you'd need to rebuild the arguments array. For now, just finding it is enough.
         break
     fi
 done
