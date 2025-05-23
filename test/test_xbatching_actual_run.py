@@ -92,15 +92,3 @@ def test_failed_prompt():
     assert results[1].has_errors
     assert not results[2].has_errors
     assert results[2].completion_text.strip() == "e"
-
-
-if __name__ == "__main__":
-    if not IS_GITHUB_ACTIONS:
-        # simple()
-        # print(list(get_unique_texts(int(1e6), OpenAiModelNames.gpt_3_5_turbo)))
-        # over50k()
-        # clear_cache_dir()
-        # bigarthmatic()
-        # token_queue_limit_try()
-        # failed_prompt()
-        pass
