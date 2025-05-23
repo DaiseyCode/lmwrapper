@@ -54,7 +54,6 @@ class OpenAiBatchManager:
         self._validate_prompts_input(prompts)
         self._awaiting_marker = object()
         self._output = [self._awaiting_marker] * len(prompts)
-        # TODO store the output as a hash to list[outputs]. Then can read from that for dup prompts
         self._num_yielded = 0
         self._cache = cache
         self._maintain_order = maintain_order
@@ -63,11 +62,11 @@ class OpenAiBatchManager:
         self._index_to_hash = [
             prompt_to_text_and_sample_hash(p, _cache_key) for i, p in enumerate(prompts)
         ]
-        self._prompt_hashes_to_index = {h: i for i, h in enumerate(self._index_to_hash)}
-        if len(self._prompt_hashes_to_index) != len(prompts):
-            raise NotImplementedError(
-                "Duplicate prompts detected. This is not currently handled",
-            )
+        self._prompt_hashes_to_index = {}
+        for i, h in enumerate(self._index_to_hash):
+            if h not in self._prompt_hashes_to_index:
+                self._prompt_hashes_to_index[h] = []
+            self._prompt_hashes_to_index[h].append(i)
         self._started = False
         self._lm: OpenAIPredictor = cache.lm
         self._batch_id_to_pbar = {}
@@ -182,15 +181,15 @@ class OpenAiBatchManager:
             return
         lines = []
         custom_ids = set()
+        # Deduplicate prompts at batch level to avoid sending identical requests
         for prompt in batch.prompts:
             custom_id = prompt_to_text_and_sample_hash(
                 prompt,
                 self._lm.get_model_cache_key(),
             )
             if custom_id in custom_ids:
-                raise RuntimeError(
-                    "Duplicate custom id target outputs? This should not happen?",
-                )
+                # Skip duplicate prompts - result will be distributed to all positions
+                continue
             l = json.dumps(_prompt_to_arg_dict_for_batch(prompt, self._lm, custom_id))
             custom_ids.add(custom_id)
             lines.append(l)
@@ -226,8 +225,9 @@ class OpenAiBatchManager:
         )
         place_holders = self._cache.put_batch_placeholders(batch_row, batch.prompts)
         for place_holder in place_holders:
-            index = self._prompt_hashes_to_index[place_holder.text_and_sample_hash]
-            self._output[index] = place_holder
+            indices = self._prompt_hashes_to_index[place_holder.text_and_sample_hash]
+            for index in indices:
+                self._output[index] = place_holder
 
     def _poll_completion(self, target: BatchPredictionPlaceholder | object):
         if not isinstance(target, BatchPredictionPlaceholder):
@@ -335,10 +335,14 @@ class OpenAiBatchManager:
             )
             if phash not in self._prompt_hashes_to_index:
                 continue
-            index = self._prompt_hashes_to_index[phash]
-            if self._output[index] is self._awaiting_marker or isinstance(
-                self._output[index],
-                BatchPredictionPlaceholder,
+            indices = self._prompt_hashes_to_index[phash]
+            # Check if any of the duplicate positions still need results
+            if any(
+                self._output[index] is self._awaiting_marker or isinstance(
+                    self._output[index],
+                    BatchPredictionPlaceholder,
+                )
+                for index in indices
             ):
                 needed_prompts.append(prompt)
         new_monitor = _BatchToMonitor(
@@ -436,8 +440,9 @@ class OpenAiBatchManager:
                 prompt,
                 self._lm.get_model_cache_key(),
             )
-            index = self._prompt_hashes_to_index[phash]
-            self._output[index] = self._awaiting_marker
+            indices = self._prompt_hashes_to_index[phash]
+            for index in indices:
+                self._output[index] = self._awaiting_marker
         for prompt in batch.prompts:
             self._cache.delete(prompt)
 
@@ -510,8 +515,9 @@ class OpenAiBatchManager:
                     "Custom id not found in a batch we started",
                     custom_id,
                 )
-            out_index = self._prompt_hashes_to_index[custom_id]
-            prompt = self._prompts[out_index]
+            out_indices = self._prompt_hashes_to_index[custom_id]
+            # Use first index to get the prompt (all duplicates have same prompt)
+            prompt = self._prompts[out_indices[0]]
             body = response["body"]
             if self._lm.is_chat_model:
                 body = openai.types.chat.ChatCompletion.parse_obj(body)
@@ -520,7 +526,9 @@ class OpenAiBatchManager:
             pred = self._lm.prediction_from_api_response(body, prompt)
             assert len(pred) == 1
             pred = pred[0]
-            self._output[out_index] = pred
+            # Set the same prediction for all duplicate prompt positions
+            for out_index in out_indices:
+                self._output[out_index] = pred
             self._cache.add_or_set(pred)
 
     def _update_cache_rows_from_errors(
@@ -553,15 +561,18 @@ class OpenAiBatchManager:
                     "Custom id not found in a batch we started",
                     custom_id,
                 )
-            out_index = self._prompt_hashes_to_index[custom_id]
-            prompt = self._prompts[out_index]
+            out_indices = self._prompt_hashes_to_index[custom_id]
+            # Use first index to get the prompt (all duplicates have same prompt)
+            prompt = self._prompts[out_indices[0]]
             pred = LmPrediction(
                 completion_text=None,
                 prompt=prompt,
                 metad=None,
                 error_message=json.dumps(body["error"]),
             )
-            self._output[out_index] = pred
+            # Set the same error prediction for all duplicate prompt positions
+            for out_index in out_indices:
+                self._output[out_index] = pred
             self._cache.add_or_set(pred)
 
     def _pbar_for_targer(self, api_id: str, total: int):

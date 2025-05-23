@@ -9,10 +9,10 @@ from lmwrapper.sqlcache import SqlBackedCache
 from lmwrapper.structs import LmPrompt
 
 IS_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
-
+SKIP_ALL = True
 
 @pytest.mark.skipif(
-    IS_GITHUB_ACTIONS or True, # taking too long right now
+    IS_GITHUB_ACTIONS or SKIP_ALL, # taking too long right now
     reason="Batches could take a long time so skip in CI",
 )
 def test_split_up_prompt_with_arithmetic():
@@ -54,12 +54,12 @@ def test_split_up_prompt_with_arithmetic():
 
 
 @pytest.mark.skipif(
-    IS_GITHUB_ACTIONS or True, # taking too long right now
+    IS_GITHUB_ACTIONS or SKIP_ALL, # taking too long right now
     reason="Batches could take a long time so skip in CI",
 )
 def test_failed_prompt():
     clear_cache_dir()
-    model_name = OpenAiModelNames.gpt_4_1_nano
+    model_name = "gpt-4.1-nano-2025-04-14"
     lm = get_open_ai_lm(model_name)
     cache = SqlBackedCache(lm=lm)
     batching_manager = OpenAiBatchManager(
@@ -67,13 +67,13 @@ def test_failed_prompt():
             LmPrompt(
                 "a",
                 cache=True,
-                max_tokens=30_000,  # output too big
+                max_tokens=60_000,  # output too big
                 temperature=0,
             ),
             LmPrompt(
                 "a",
                 cache=True,
-                max_tokens=30_000,  # output too big
+                max_tokens=3,
                 temperature=1000,  # Bad temp
             ),
             LmPrompt(  # A good prompt
@@ -92,10 +92,6 @@ def test_failed_prompt():
     assert results[1].has_errors
     assert not results[2].has_errors
     assert results[2].completion_text.strip() == "e"
-
-
-def test_why_fail():
-    assert True
 
 
 if __name__ == "__main__":

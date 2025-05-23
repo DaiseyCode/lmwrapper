@@ -8,6 +8,11 @@ However, it is still pre-1.0 software, and does not claim to
 be super stable.
 
 
+## [0.16.3.0]
+
+### Added
+- support for duplicates in a openai batch prompt
+
 ## [0.16.2.1]
 
 ### Added
