@@ -150,13 +150,13 @@ will always sample the same output on reruns).
 from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
 from lmwrapper.structs import LmPrompt
 
-lm = get_open_ai_lm(OpenAiModelNames.gpt_4o_mini)
+lm = get_open_ai_lm(OpenAiModelNames.gpt_4_1_nano)
 
 prompt = LmPrompt(
-  "Describe Paris in one sentence", 
+  "Briefly describe the city of Paris", 
   cache=True,
   temperature=1,
-  max_tokens=10,
+  max_tokens=25,
 )
 first_prediction = lm.predict(prompt)
 print(first_prediction.completion_text) 

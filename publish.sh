@@ -54,7 +54,7 @@ if [ "$skip_checks" = false ]; then
   fi
 
   # Verify tests pass
-  ./run_tests.sh
+  ./run_tests.sh -x
   if [ $? -ne 0 ]; then
     echo "Tests failed. Abort."
     exit 1
