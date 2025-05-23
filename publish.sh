@@ -89,7 +89,19 @@ fi # skip_checks
 # TODO switch user to manage and store the key
 
 # Publish to PyPI test unless the --prod flag is passed
-if [ "$1" == "--prod" ]; then
+is_prod_mode=false
+for arg in "$@"; do
+    if [[ $arg == "--prod" ]]; then
+        is_prod_mode=true
+        # It's also good to remove the --prod flag from the arguments array if other parts of the script
+        # might misinterpret it. However, given the current script, it seems only this check uses it directly.
+        # If you need to pass arguments through to other commands later without --prod,
+        # you'd need to rebuild the arguments array. For now, just finding it is enough.
+        break
+    fi
+done
+
+if [ "$is_prod_mode" = true ]; then
   echo "Publishing to PyPI production..."
   if [ "$skip_checks" = true ]; then
     echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!"
