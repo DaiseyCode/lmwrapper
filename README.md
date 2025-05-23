@@ -114,10 +114,10 @@ print(pred.completion_text)  # "2 + 6 equals 8."
 pred = lm.predict(LmPrompt(
     [
         "What is 2+2?",  # user turn
-        "4",             # assistant turn
-        "What is 5+3?"   # user turn
-        "8",             # assistant turn
-        "What is 4+4?"   # user turn
+        "4",  # assistant turn
+        "What is 5+3?"  # user turn
+        "8",  # assistant turn
+        "What is 4+4?"  # user turn
         # We use few-shot turns to encourage the answer to be our desired format.
         #   If you don't give example turns you might get something like
         #   "4 + 4 equals 8." instead of just "8" as desired.
@@ -153,14 +153,14 @@ from lmwrapper.structs import LmPrompt
 lm = get_open_ai_lm(OpenAiModelNames.gpt_4o_mini)
 
 prompt = LmPrompt(
-  "Describe Paris in a few sentences", 
+  "Describe Paris in one sentence", 
   cache=True,
   temperature=1,
-  max_tokens=25,
+  max_tokens=10,
 )
 first_prediction = lm.predict(prompt)
 print(first_prediction.completion_text) 
-# ... eg, "Paris is a city of romance and art, renowned for its iconic landmarks, vibrant culture, and rich history..."
+# ... eg, "Paris is a city of romance and art, renowned for its iconic landmarks, vibrant culture, and rich history."
 
 # The response to this prompt is now saved to the disk.
 # You could rerun this script and you would load from cache near-instantly.
@@ -294,7 +294,7 @@ from lmwrapper.huggingface_wrapper import get_huggingface_lm
 from lmwrapper.structs import LmPrompt
 
 # Download a small model for demo
-lm = get_huggingface_lm("HuggingFaceTB/SmolLM2-135M")
+lm = get_huggingface_lm("gpt2") # 124M parameters
 
 prediction = lm.predict(LmPrompt(
     "The capital of Germany is Berlin. The capital of France is",

@@ -134,9 +134,9 @@ def test_batch_starting_connection_error():
     assert calls == 3
 
 
-@pytest.mark.skip("duplicate prompts not working")
 def test_batch_dup_prompts():
-    """A test with duplicate values. Should only submit one of them"""
+    """Test that duplicate prompts are deduplicated at API level while maintaining order for results.
+    4 prompts with 3 unique values should only send 3 requests to OpenAI API."""
     clear_cache_dir()
     cache = SqlBackedCache(lm=get_open_ai_lm())
     orig_api = cache._lm._api
@@ -155,8 +155,17 @@ def test_batch_dup_prompts():
         assert kwargs["purpose"] == "batch"
         assert kwargs["file"] is not None
         file_text = kwargs["file"].getvalue().decode()
-        file_lines = file_text.split("\n")
-        assert len(file_lines) == 1, "unexpected number of lines"
+        file_lines = [line for line in file_text.split("\n") if line.strip()]
+        assert len(file_lines) == 3, "should have 3 unique prompts: hello, Goodbye, Yo"
+        
+        # Verify that the JSONL contains the expected unique prompts
+        import json
+        custom_ids = set()
+        for line in file_lines:
+            data = json.loads(line)
+            custom_ids.add(data["custom_id"])
+        # Should have 3 unique custom_ids corresponding to our 3 unique prompts
+        assert len(custom_ids) == 3, f"Expected 3 unique custom_ids, got {len(custom_ids)}"
         return openai.types.FileObject.model_validate(sample_file_resp)
 
     def mock_batches_create(**kwargs):
@@ -169,7 +178,12 @@ def test_batch_dup_prompts():
     mock_api.batches.create = mock_batches_create
 
     batch_manager = OpenAiBatchManager(
-        [LmPrompt("hello", cache=True) for i in range(2)],
+        [
+            LmPrompt("hello", cache=True),
+            LmPrompt("Goodbye", cache=True),
+            LmPrompt("hello", cache=True),
+            LmPrompt("Yo", cache=True),
+        ],
         cache=cache,
     )
     batch_manager.start_batch()

@@ -7,10 +7,11 @@ breaking changes, Y is new features or larger non-breaking changes, and Z is sma
 However, it is still pre-1.0 software, and does not claim to
 be super stable.
 
-## [0.17.0.0]
 
-### Changed
-- Updated all the dependency packages (Transformers, OpenAI, Anthropic, Numpy, etc) to latest versions. Might be breaking for any cached values.
+## [0.16.3.0]
+
+### Added
+- support for duplicates in a openai batch prompt
 
 ## [0.16.2.1]
 
