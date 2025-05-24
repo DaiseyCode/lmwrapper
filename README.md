@@ -269,13 +269,15 @@ to sort out / TODOs:
 - [X] Handle if openai batch expires unfinished in 24hrs (though not actually tested or observed this)
 - [X] Automatically splitting up batch when exceeding 100MB prompts limit
 - [X] Handling of failed prompts (like when have too many tokens). Use LmPrediction.has_errors and LmPrediction.error_message to check for an error on a response.
+- [X] Handle when there are duplicate prompts in batch submission
 - [ ] Claude batching
-- [ ] Handle when there are duplicate prompts in batch submission
 - [ ] Handle when a given prompt has `num_completions>1`
 - [ ] Automatically clean up API files after done (right now end up with a lot of file in [storage](https://platform.openai.com/storage/files). There isn't an obvious cost for these batch files, but this might change and it would be better to clean them up.)
-- [ ] Test on free-tier accounts. It is not clear what the tiny request limit counts
 - [ ] Fancy batching of HF
+- [ ] Configuration setting for whether process killing (like with ctrl+c) should attempt to kill the batch. Right now it intentially persists in background. Maybe takes adding a predictions.cancel_all() prop and user can make their own context.
 - [ ] Concurrent batching when in ASAP mode
+- [ ] A "scheduler" paradigm trading off batch, flex, and ASAP processing to hit some timing target
+- [ ] Test on free-tier accounts. It is not clear what the tiny request limit counts
 
 Please open an issue if you want to discuss one of these or something else.
 
