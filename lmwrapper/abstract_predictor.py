@@ -2,15 +2,16 @@ import dataclasses
 from abc import abstractmethod
 from collections.abc import Callable, Iterable
 from sqlite3 import OperationalError
+from typing import Generic, TypeVar, Union
 
 from ratemate import RateLimit
 
 from lmwrapper.batch_config import CompletionWindow
 from lmwrapper.sqlcache_struct import BatchPredictionPlaceholder
-from lmwrapper.structs import LM_CHAT_DIALOG_COERCIBLE_TYPES, LmPrediction, LmPrompt
+from lmwrapper.structs import LM_CHAT_DIALOG_COERCIBLE_TYPES, LmPrediction, LmPrompt, T
 
 
-class LmPredictor:
+class LmPredictor(Generic[T]):
     _rate_limit: RateLimit | None = None
 
     def __init__(
@@ -23,13 +24,13 @@ class LmPredictor:
 
         self._disk_cache = SqlBackedCache(self)
 
-    def find_prediction_class(self, prompt):
-        return LmPrediction
+    def find_prediction_class(self, prompt: LmPrompt[T]):
+        return LmPrediction[T]
 
     def predict(
         self,
-        prompt: LmPrompt | str | LM_CHAT_DIALOG_COERCIBLE_TYPES,
-    ) -> LmPrediction | list[LmPrediction]:
+        prompt: Union[LmPrompt[T], str, LM_CHAT_DIALOG_COERCIBLE_TYPES],
+    ) -> Union[LmPrediction[T], list[LmPrediction[T]]]:
         prompt = self._cast_prompt(prompt)
         should_cache = self._cache_default if prompt.cache is None else prompt.cache
         if should_cache and prompt.model_internals_request is not None:
@@ -74,7 +75,7 @@ class LmPredictor:
             return vals[0]
         return vals
 
-    def _read_cached_values(self, prompt: LmPrompt) -> list[LmPrediction]:
+    def _read_cached_values(self, prompt: LmPrompt[T]) -> list[LmPrediction[T]]:
         """
         Checks the cache for any matches of the prompt. Returns a list
         as if num_completions is >1 we might have multiple items
@@ -101,9 +102,9 @@ class LmPredictor:
 
     def predict_many(
         self,
-        prompts: list[LmPrompt],
+        prompts: list[LmPrompt[T]],
         completion_window: CompletionWindow,
-    ) -> Iterable[LmPrediction | list[LmPrediction]]:
+    ) -> Iterable[Union[LmPrediction[T], list[LmPrediction[T]]]]:
         self._validate_predict_many_prompts(prompts)
         for prompt in prompts:
             val = self.predict(prompt)
@@ -125,11 +126,11 @@ class LmPredictor:
 
     def remove_prompt_from_cache(
         self,
-        prompt: str | LmPrompt,
+        prompt: Union[str, LmPrompt[T]],
     ) -> bool:
         return self._disk_cache.delete(prompt)
 
-    def _validate_prompt(self, prompt: LmPrompt, raise_on_invalid: bool = True) -> bool:
+    def _validate_prompt(self, prompt: LmPrompt[T], raise_on_invalid: bool = True) -> bool:
         """Called on prediction to make sure the prompt is valid for the model"""
         return True
 
@@ -145,11 +146,11 @@ class LmPredictor:
     @abstractmethod
     def _predict_maybe_cached(
         self,
-        prompt: LmPrompt,
-    ) -> list[LmPrediction]:
+        prompt: LmPrompt[T],
+    ) -> Union[LmPrediction[T], list[LmPrediction[T]]]:
         pass
 
-    def _cast_prompt(self, prompt: str | LmPrompt) -> LmPrompt:
+    def _cast_prompt(self, prompt: Union[str, LmPrompt[T], list]) -> LmPrompt[T]:
         if isinstance(prompt, str):
             return LmPrompt(prompt, 100)
         if isinstance(prompt, list):
@@ -180,14 +181,14 @@ class LmPredictor:
             )
             raise ValueError(msg)
 
-    def estimate_tokens_in_prompt(self, prompt: LmPrompt) -> int:
+    def estimate_tokens_in_prompt(self, prompt: LmPrompt[T]) -> int:
         raise NotImplementedError
 
     @property
     def token_limit(self):
         raise NotImplementedError
 
-    def could_completion_go_over_token_limit(self, prompt: LmPrompt) -> bool:
+    def could_completion_go_over_token_limit(self, prompt: LmPrompt[T]) -> bool:
         count = self.estimate_tokens_in_prompt(prompt)
         return (
             count + (prompt.max_tokens or self.default_tokens_generated)
@@ -255,12 +256,14 @@ class LmPredictor:
 
 
 def get_mock_predictor(
-    predict_func: Callable[[LmPrompt], LmPrediction] = None,
+    predict_func: Callable[[LmPrompt[T]], LmPrediction[T]] = None,
     is_chat_model: bool = False,
 ):
     """Gets a mock predictor. By default returns whatever the prompt txt is"""
+    
+    S = TypeVar('S')  # Local TypeVar for the mock predictor
 
-    class MockPredict(LmPredictor):
+    class MockPredict(LmPredictor[S]):
         def get_model_cache_key(self):
             return "mock_predictor"
 
@@ -268,7 +271,7 @@ def get_mock_predictor(
         def is_chat_model(self) -> bool:
             return is_chat_model
 
-        def _predict_maybe_cached(self, prompt):
+        def _predict_maybe_cached(self, prompt: LmPrompt[S]) -> LmPrediction[S]:
             if predict_func is None:
                 return LmPrediction(
                     prompt.get_text_as_string_default_form(),
