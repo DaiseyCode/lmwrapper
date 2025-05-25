@@ -6,9 +6,16 @@ name: Python package
 on:
   push:
     branches: [ "master", "dev" ]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
 jobs:
   build:
+    if: |
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && 
+       contains(github.event.pull_request.labels.*.name, 'runtests'))
     timeout-minutes: 30
     runs-on: ubuntu-latest
     environment:
@@ -40,4 +47,4 @@ jobs:
         pytest
       env:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }
