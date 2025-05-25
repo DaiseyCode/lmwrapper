@@ -1,12 +1,16 @@
 import contextlib
 import dataclasses
+import json
 import pickle
 import statistics
 from dataclasses import dataclass, field
-from typing import Any, Optional, Union
+from typing import Any, Generic, Optional, TypeVar, Union
 
 from lmwrapper.internals import ModelInternalsResults
 from lmwrapper.utils import StrEnum
+
+# Define TypeVar for user metadata
+T = TypeVar('T')
 
 LM_CHAT_DIALOG_COERCIBLE_TYPES = Union[
     str,
@@ -34,7 +38,7 @@ class StopMode(StrEnum):
 
 
 @dataclass(frozen=True)
-class LmPrompt:
+class LmPrompt(Generic[T]):
     text: str | LM_CHAT_DIALOG_COERCIBLE_TYPES
     """The actual text of the prompt. If it is a LM_CHAT_DIALOG_COERCIBLE_TYPES
     which can become a LmChatDialog (such as a list of strings) it will be converted
@@ -125,7 +129,7 @@ class LmPrompt:
     """Whether or not to add special tokens when encoding the prompt."""
     model_internals_request: Optional["ModelInternalsRequest"] = None
     """Used to attempt to get hidden states and attentions from the model."""
-    user_metadata: Any = None
+    user_metadata: Optional[T] = None
     """Optional user-defined metadata that gets transferred to the resulting LmPrediction.
     This is not used for caching and can be any type. It's useful for tracking
     additional information with each prompt and prediction (e.g., ground truth labels,
@@ -244,8 +248,6 @@ class LmPrompt:
             
         if include_user_metadata and self.user_metadata is not None:
             try:
-                # Try to serialize the user_metadata
-                import json
                 # Test if it's JSON serializable
                 json.dumps(self.user_metadata)
                 out["user_metadata"] = self.user_metadata
@@ -337,10 +339,10 @@ class LmChatDialog(list[LmChatTurn]):
 
 
 @dataclass
-class LmPrediction:
+class LmPrediction(Generic[T]):
     completion_text: str | None
     """The new text generated. It might be None if errors"""
-    prompt: LmPrompt
+    prompt: LmPrompt[T]
     metad: Any
     internals: ModelInternalsResults | None = field(default=None, kw_only=True)
     error_message: str | None = field(default=None, kw_only=True)
