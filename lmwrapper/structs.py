@@ -125,6 +125,11 @@ class LmPrompt:
     """Whether or not to add special tokens when encoding the prompt."""
     model_internals_request: Optional["ModelInternalsRequest"] = None
     """Used to attempt to get hidden states and attentions from the model."""
+    user_metadata: Any = None
+    """Optional user-defined metadata that gets transferred to the resulting LmPrediction.
+    This is not used for caching and can be any type. It's useful for tracking
+    additional information with each prompt and prediction (e.g., ground truth labels,
+    problem identifiers)."""
 
     # TODO: make a auto_reduce_max_tokens to reduce when might go over.
 
@@ -213,6 +218,9 @@ class LmPrompt:
         Serialize the prompt into a json-compatible dictionary. Note this is not
         guaranteed to be the same as the JSON representation for use
         in an openai api call. This is just for serialization purposes.
+        
+        Note: user_metadata is deliberately excluded from serialization as it should
+        not be part of the cache key.
         """
         out = {
             "max_tokens": self.max_tokens,

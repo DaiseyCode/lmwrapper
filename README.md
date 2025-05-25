@@ -364,7 +364,7 @@ please make a Github Issue.
 - [X] Anthropic interface (basic)
     - [X] Claude system messages
 - [X] Use the huggingface chat templates for chat models if available
-- [ ] Be able to add user metadata to a prompt
+- [X] Be able to add user metadata to a prompt
 - [ ] Automatic cache eviction to limit count or disk size (right now have to run a SQL query to delete entries before a certain time or matching your criteria)
 - [ ] Multimodal/images in super easy format (like automatically process pil, opencv, etc)
 - [ ] sort through usage of quantized models
