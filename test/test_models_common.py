@@ -1150,13 +1150,42 @@ def test_user_metadata_predict_many(lm):
     ]
     
     # Use predict_many and verify metadata is preserved
-    results = list(lm.predict_many(prompts, CompletionWindow(None)))
+    results = list(lm.predict_many(prompts, CompletionWindow.ASAP))
     
     for i, result in enumerate(results):
         expected_id = i + 1
         expected_answer = expected_id * 2
         assert result.prompt.user_metadata["question_id"] == expected_id
         assert result.prompt.user_metadata["expected_answer"] == expected_answer
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
+def test_user_metadata_with_cache_hit(lm):
+    """Test that user_metadata is preserved when there's a cache hit."""
+    # First prompt with metadata to populate the cache
+    prompt1 = LmPrompt(
+        "What is 5 + 5?",
+        max_tokens=5,
+        cache=True,
+        temperature=0,
+        user_metadata={"original": True, "id": 1}
+    )
+    result1 = lm.predict(prompt1)
+    
+    # Same prompt with different metadata should use cache but keep the new metadata
+    prompt2 = LmPrompt(
+        "What is 5 + 5?",
+        max_tokens=5,
+        cache=True,
+        temperature=0,
+        user_metadata={"original": False, "id": 2}
+    )
+    result2 = lm.predict(prompt2)
+    
+    # Check that the result is from cache but has the new metadata
+    assert result2.was_cached
+    assert result2.prompt.user_metadata["original"] == False
+    assert result2.prompt.user_metadata["id"] == 2
 
 
 @pytest.mark.parametrize(
