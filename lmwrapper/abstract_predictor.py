@@ -2,7 +2,7 @@ import dataclasses
 from abc import abstractmethod
 from collections.abc import Callable, Iterable
 from sqlite3 import OperationalError
-from typing import Generic, TypeVar, Union
+from typing import TypeVar, Union
 
 from ratemate import RateLimit
 
@@ -11,7 +11,7 @@ from lmwrapper.sqlcache_struct import BatchPredictionPlaceholder
 from lmwrapper.structs import LM_CHAT_DIALOG_COERCIBLE_TYPES, LmPrediction, LmPrompt, T
 
 
-class LmPredictor(Generic[T]):
+class LmPredictor:
     _rate_limit: RateLimit | None = None
 
     def __init__(
@@ -29,8 +29,8 @@ class LmPredictor(Generic[T]):
 
     def predict(
         self,
-        prompt: Union[LmPrompt[T], str, LM_CHAT_DIALOG_COERCIBLE_TYPES],
-    ) -> Union[LmPrediction[T], list[LmPrediction[T]]]:
+        prompt: LmPrompt[T] | str | LM_CHAT_DIALOG_COERCIBLE_TYPES,
+    ) -> LmPrediction[T] | list[LmPrediction[T]]:
         prompt = self._cast_prompt(prompt)
         should_cache = self._cache_default if prompt.cache is None else prompt.cache
         if should_cache and prompt.model_internals_request is not None:
@@ -104,7 +104,7 @@ class LmPredictor(Generic[T]):
         self,
         prompts: list[LmPrompt[T]],
         completion_window: CompletionWindow,
-    ) -> Iterable[Union[LmPrediction[T], list[LmPrediction[T]]]]:
+    ) -> Iterable[LmPrediction[T] | list[LmPrediction[T]]]:
         self._validate_predict_many_prompts(prompts)
         for prompt in prompts:
             val = self.predict(prompt)
@@ -126,7 +126,7 @@ class LmPredictor(Generic[T]):
 
     def remove_prompt_from_cache(
         self,
-        prompt: Union[str, LmPrompt[T]],
+        prompt: str | LmPrompt[T],
     ) -> bool:
         return self._disk_cache.delete(prompt)
 
@@ -147,10 +147,10 @@ class LmPredictor(Generic[T]):
     def _predict_maybe_cached(
         self,
         prompt: LmPrompt[T],
-    ) -> Union[LmPrediction[T], list[LmPrediction[T]]]:
+    ) -> LmPrediction[T] | list[LmPrediction[T]]:
         pass
 
-    def _cast_prompt(self, prompt: Union[str, LmPrompt[T], list]) -> LmPrompt[T]:
+    def _cast_prompt(self, prompt: str | LmPrompt[T] | list) -> LmPrompt[T]:
         if isinstance(prompt, str):
             return LmPrompt(prompt, 100)
         if isinstance(prompt, list):

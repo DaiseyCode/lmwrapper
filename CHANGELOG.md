@@ -7,6 +7,11 @@ breaking changes, Y is new features or larger non-breaking changes, and Z is sma
 However, it is still pre-1.0 software, and does not claim to
 be super stable.
 
+## [0.16.4.0]
+
+### Added
+- Added user_metadata field to LmPrompt class with generic type support
+- Added serialization support for user_metadata in LmPrompt.dict_serialize and LmPrediction.dict_serialize
 
 ## [0.16.3.0]
 
