@@ -201,6 +201,7 @@ def make_prompts(data) -> list[LmPrompt]:
             max_tokens=10,
             temperature=0,
             cache=True,
+            metadata={"country": country}
         ) 
         for country in data
     ]
@@ -216,9 +217,10 @@ predictions = lm.predict_many(
     #                   the non-batching API at a higher cost.
 ) # The batch is submitted here
 
-for ex, pred in zip(data, predictions):  # Will wait for the batch to complete
-    print(f"Country: {ex} --- Capital: {pred.completion_text}")
-    if ex == "France": assert pred.completion_text == "Paris" 
+for pred in predictions:  # Will wait for the batch to complete
+    country = pred.prompt.metadata['country']
+    print(f"Country: {country} --- Capital: {pred.completion_text}")
+    if country == "France": assert pred.completion_text == "Paris" 
     # ...
 ```
 
@@ -364,7 +366,7 @@ please make a Github Issue.
 - [X] Anthropic interface (basic)
     - [X] Claude system messages
 - [X] Use the huggingface chat templates for chat models if available
-- [ ] Be able to add user metadata to a prompt
+- [X] Be able to add metadata to a prompt
 - [ ] Automatic cache eviction to limit count or disk size (right now have to run a SQL query to delete entries before a certain time or matching your criteria)
 - [ ] Multimodal/images in super easy format (like automatically process pil, opencv, etc)
 - [ ] sort through usage of quantized models

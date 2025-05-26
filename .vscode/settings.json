@@ -3,5 +3,6 @@
         "-s", "-vv", "--runslow",
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+    "python.defaultInterpreterPath": "~/miniconda3/envs/lmwrapper/bin/python",
 }
