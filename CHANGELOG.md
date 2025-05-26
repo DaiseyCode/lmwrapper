@@ -10,7 +10,7 @@ be super stable.
 ## [0.16.4.0]
 
 ### Added
-- Added user_metadata field to LmPrompt class with generic type support
+- Added metadata field to LmPrompt class with generic type support
 
 ## [0.16.3.0]
 

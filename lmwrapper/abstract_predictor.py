@@ -263,7 +263,7 @@ def get_mock_predictor(
     
     S = TypeVar('S')  # Local TypeVar for the mock predictor
 
-    class MockPredict(LmPredictor[S]):
+    class MockPredict(LmPredictor):
         def get_model_cache_key(self):
             return "mock_predictor"
 

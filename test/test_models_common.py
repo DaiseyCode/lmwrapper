@@ -1109,17 +1109,17 @@ def test_system_prompt(lm):
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
-def test_user_metadata_predict(lm):
+def test_metadata_predict(lm):
     # Test with string metadata
     prompt = LmPrompt(
         "Count from 1 to 5:",
         max_tokens=10,
         cache=False,
         temperature=0,
-        user_metadata="test_metadata_string"
+        metadata="test_metadata_string"
     )
     pred = lm.predict(prompt)
-    assert pred.prompt.user_metadata == "test_metadata_string"
+    assert pred.prompt.metadata == "test_metadata_string"
     
     # Test with dictionary metadata
     metadata_dict = {"label": "counting", "id": 12345}
@@ -1128,16 +1128,16 @@ def test_user_metadata_predict(lm):
         max_tokens=10,
         cache=False,
         temperature=0,
-        user_metadata=metadata_dict
+        metadata=metadata_dict
     )
     pred = lm.predict(prompt)
-    assert pred.prompt.user_metadata == metadata_dict
-    assert pred.prompt.user_metadata["label"] == "counting"
-    assert pred.prompt.user_metadata["id"] == 12345
+    assert pred.prompt.metadata == metadata_dict
+    assert pred.prompt.metadata["label"] == "counting"
+    assert pred.prompt.metadata["id"] == 12345
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
-def test_user_metadata_predict_many(lm):
+def test_metadata_predict_many(lm):
     # Create prompts with different metadata
     prompts = [
         LmPrompt(
@@ -1145,7 +1145,7 @@ def test_user_metadata_predict_many(lm):
             max_tokens=5,
             cache=False,
             temperature=0,
-            user_metadata={"question_id": i, "expected_answer": i*2}
+            metadata={"question_id": i, "expected_answer": i*2}
         )
         for i in range(1, 4)
     ]
@@ -1156,20 +1156,20 @@ def test_user_metadata_predict_many(lm):
     for i, result in enumerate(results):
         expected_id = i + 1
         expected_answer = expected_id * 2
-        assert result.prompt.user_metadata["question_id"] == expected_id
-        assert result.prompt.user_metadata["expected_answer"] == expected_answer
+        assert result.prompt.metadata["question_id"] == expected_id
+        assert result.prompt.metadata["expected_answer"] == expected_answer
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
-def test_user_metadata_with_cache_hit(lm: LmPredictor):
-    """Test that user_metadata is preserved when there's a cache hit."""
+def test_metadata_with_cache_hit(lm: LmPredictor):
+    """Test that metadata is preserved when there's a cache hit."""
     # First prompt with metadata to populate the cache
     prompt1 = LmPrompt(
         "What is 5 + 5?",
         max_tokens=5,
         cache=True,
         temperature=0,
-        user_metadata={"original": True, "id": 1}
+        metadata={"original": True, "id": 1}
     )
     result1 = lm.predict(prompt1)
     
@@ -1179,14 +1179,14 @@ def test_user_metadata_with_cache_hit(lm: LmPredictor):
         max_tokens=5,
         cache=True,
         temperature=0,
-        user_metadata={"original": False, "id": 2}
+        metadata={"original": False, "id": 2}
     )
     result2 = lm.predict(prompt2)
     
     # Check that the result is from cache but has the new metadata
     assert result2.was_cached
-    assert result2.prompt.user_metadata["original"] == False
-    assert result2.prompt.user_metadata["id"] == 2
+    assert result2.prompt.metadata["original"] == False
+    assert result2.prompt.metadata["id"] == 2
 
 
 @pytest.mark.parametrize(

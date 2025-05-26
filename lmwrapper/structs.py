@@ -129,7 +129,7 @@ class LmPrompt(Generic[T]):
     """Whether or not to add special tokens when encoding the prompt."""
     model_internals_request: Optional["ModelInternalsRequest"] = None
     """Used to attempt to get hidden states and attentions from the model."""
-    user_metadata: Optional[T] = None
+    metadata: Optional[T] = None
     """Optional user-defined metadata that gets transferred to the resulting LmPrediction.
     This is not used for caching and can be any type. It's useful for tracking
     additional information with each prompt and prediction (e.g., ground truth labels,
@@ -217,15 +217,15 @@ class LmPrompt(Generic[T]):
         else:
             return self.text
 
-    def dict_serialize(self, include_user_metadata: bool = False) -> dict:
+    def dict_serialize(self, include_metadata: bool = False) -> dict:
         """
         Serialize the prompt into a json-compatible dictionary. Note this is not
         guaranteed to be the same as the JSON representation for use
         in an openai api call. This is just for serialization purposes.
         
         Args:
-            include_user_metadata: Whether to include user_metadata in serialization.
-                Default is False since user_metadata should not be part of the cache key.
+            include_metadata: Whether to include metadata in serialization.
+                Default is False since metadata should not be part of the cache key.
         """
         out = {
             "max_tokens": self.max_tokens,
@@ -246,11 +246,11 @@ class LmPrompt(Generic[T]):
         else:
             out["text"] = self.text
             
-        if include_user_metadata and self.user_metadata is not None:
+        if include_metadata and self.metadata is not None:
             try:
                 # Test if it's JSON serializable
-                json.dumps(self.user_metadata)
-                out["user_metadata"] = self.user_metadata
+                json.dumps(self.metadata)
+                out["metadata"] = self.metadata
             except (TypeError, ValueError):
                 # If metadata isn't JSON serializable, leave it out
                 pass
@@ -481,11 +481,11 @@ class LmPrediction(Generic[T]):
         self,
         pull_out_props: bool = True,
         include_metad: bool = False,
-        include_user_metadata: bool = False,
+        include_metadata: bool = False,
     ) -> dict[str, Any]:
         out = {
             "completion_text": self.completion_text,
-            "prompt": self.prompt.dict_serialize(include_user_metadata=include_user_metadata),
+            "prompt": self.prompt.dict_serialize(include_metadata=include_metadata),
             "was_cached": self.was_cached,
             "error_message": self.error_message,
         }
