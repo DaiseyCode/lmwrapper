@@ -201,6 +201,7 @@ def make_prompts(data) -> list[LmPrompt]:
             max_tokens=10,
             temperature=0,
             cache=True,
+            user_metadata={"country": country}
         ) 
         for country in data
     ]
@@ -216,9 +217,10 @@ predictions = lm.predict_many(
     #                   the non-batching API at a higher cost.
 ) # The batch is submitted here
 
-for ex, pred in zip(data, predictions):  # Will wait for the batch to complete
-    print(f"Country: {ex} --- Capital: {pred.completion_text}")
-    if ex == "France": assert pred.completion_text == "Paris" 
+for pred in predictions:  # Will wait for the batch to complete
+    country = pred.prompt.user_metadata['country']
+    print(f"Country: {country} --- Capital: {pred.completion_text}")
+    if country == "France": assert pred.completion_text == "Paris" 
     # ...
 ```
 

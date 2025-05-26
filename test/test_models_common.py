@@ -8,6 +8,7 @@ import time
 import numpy as np
 import pytest
 
+from lmwrapper.abstract_predictor import LmPredictor
 from lmwrapper.batch_config import CompletionWindow
 from lmwrapper.caching import cache_dir, clear_cache_dir
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
@@ -1160,7 +1161,7 @@ def test_user_metadata_predict_many(lm):
 
 
 @pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
-def test_user_metadata_with_cache_hit(lm):
+def test_user_metadata_with_cache_hit(lm: LmPredictor):
     """Test that user_metadata is preserved when there's a cache hit."""
     # First prompt with metadata to populate the cache
     prompt1 = LmPrompt(

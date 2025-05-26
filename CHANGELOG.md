@@ -11,7 +11,6 @@ be super stable.
 
 ### Added
 - Added user_metadata field to LmPrompt class with generic type support
-- Added serialization support for user_metadata in LmPrompt.dict_serialize and LmPrediction.dict_serialize
 
 ## [0.16.3.0]
 
