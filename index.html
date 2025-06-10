@@ -742,25 +742,27 @@ as the normal API.</p>
 </span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>            <span class="n">max_tokens</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
 </span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a>            <span class="n">temperature</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
 </span><span id="__span-9-16"><a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a>            <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-9-17"><a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a>        <span class="p">)</span> 
-</span><span id="__span-9-18"><a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a>        <span class="k">for</span> <span class="n">country</span> <span class="ow">in</span> <span class="n">data</span>
-</span><span id="__span-9-19"><a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a>    <span class="p">]</span>
-</span><span id="__span-9-20"><a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a>
-</span><span id="__span-9-21"><a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a><span class="n">data</span> <span class="o">=</span> <span class="n">load_dataset</span><span class="p">()</span>
-</span><span id="__span-9-22"><a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="n">prompts</span> <span class="o">=</span> <span class="n">make_prompts</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
-</span><span id="__span-9-23"><a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="n">lm</span> <span class="o">=</span> <span class="n">get_open_ai_lm</span><span class="p">(</span><span class="n">OpenAiModelNames</span><span class="o">.</span><span class="n">gpt_4_1_nano</span><span class="p">)</span>
-</span><span id="__span-9-24"><a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a><span class="n">predictions</span> <span class="o">=</span> <span class="n">lm</span><span class="o">.</span><span class="n">predict_many</span><span class="p">(</span>
-</span><span id="__span-9-25"><a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a>    <span class="n">prompts</span><span class="p">,</span>
-</span><span id="__span-9-26"><a id="__codelineno-9-26" name="__codelineno-9-26" href="#__codelineno-9-26"></a>    <span class="n">completion_window</span><span class="o">=</span><span class="n">CompletionWindow</span><span class="o">.</span><span class="n">BATCH_ANY</span> 
-</span><span id="__span-9-27"><a id="__codelineno-9-27" name="__codelineno-9-27" href="#__codelineno-9-27"></a>    <span class="c1">#                 ^ swap out for CompletionWindow.ASAP</span>
-</span><span id="__span-9-28"><a id="__codelineno-9-28" name="__codelineno-9-28" href="#__codelineno-9-28"></a>    <span class="c1">#                   to complete as soon as possible via</span>
-</span><span id="__span-9-29"><a id="__codelineno-9-29" name="__codelineno-9-29" href="#__codelineno-9-29"></a>    <span class="c1">#                   the non-batching API at a higher cost.</span>
-</span><span id="__span-9-30"><a id="__codelineno-9-30" name="__codelineno-9-30" href="#__codelineno-9-30"></a><span class="p">)</span> <span class="c1"># The batch is submitted here</span>
-</span><span id="__span-9-31"><a id="__codelineno-9-31" name="__codelineno-9-31" href="#__codelineno-9-31"></a>
-</span><span id="__span-9-32"><a id="__codelineno-9-32" name="__codelineno-9-32" href="#__codelineno-9-32"></a><span class="k">for</span> <span class="n">ex</span><span class="p">,</span> <span class="n">pred</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">predictions</span><span class="p">):</span>  <span class="c1"># Will wait for the batch to complete</span>
-</span><span id="__span-9-33"><a id="__codelineno-9-33" name="__codelineno-9-33" href="#__codelineno-9-33"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Country: </span><span class="si">{</span><span class="n">ex</span><span class="si">}</span><span class="s2"> --- Capital: </span><span class="si">{</span><span class="n">pred</span><span class="o">.</span><span class="n">completion_text</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-</span><span id="__span-9-34"><a id="__codelineno-9-34" name="__codelineno-9-34" href="#__codelineno-9-34"></a>    <span class="k">if</span> <span class="n">ex</span> <span class="o">==</span> <span class="s2">&quot;France&quot;</span><span class="p">:</span> <span class="k">assert</span> <span class="n">pred</span><span class="o">.</span><span class="n">completion_text</span> <span class="o">==</span> <span class="s2">&quot;Paris&quot;</span> 
-</span><span id="__span-9-35"><a id="__codelineno-9-35" name="__codelineno-9-35" href="#__codelineno-9-35"></a>    <span class="c1"># ...</span>
+</span><span id="__span-9-17"><a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a>            <span class="n">metadata</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;country&quot;</span><span class="p">:</span> <span class="n">country</span><span class="p">}</span>
+</span><span id="__span-9-18"><a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a>        <span class="p">)</span> 
+</span><span id="__span-9-19"><a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a>        <span class="k">for</span> <span class="n">country</span> <span class="ow">in</span> <span class="n">data</span>
+</span><span id="__span-9-20"><a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a>    <span class="p">]</span>
+</span><span id="__span-9-21"><a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a>
+</span><span id="__span-9-22"><a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="n">data</span> <span class="o">=</span> <span class="n">load_dataset</span><span class="p">()</span>
+</span><span id="__span-9-23"><a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="n">prompts</span> <span class="o">=</span> <span class="n">make_prompts</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+</span><span id="__span-9-24"><a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a><span class="n">lm</span> <span class="o">=</span> <span class="n">get_open_ai_lm</span><span class="p">(</span><span class="n">OpenAiModelNames</span><span class="o">.</span><span class="n">gpt_4_1_nano</span><span class="p">)</span>
+</span><span id="__span-9-25"><a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a><span class="n">predictions</span> <span class="o">=</span> <span class="n">lm</span><span class="o">.</span><span class="n">predict_many</span><span class="p">(</span>
+</span><span id="__span-9-26"><a id="__codelineno-9-26" name="__codelineno-9-26" href="#__codelineno-9-26"></a>    <span class="n">prompts</span><span class="p">,</span>
+</span><span id="__span-9-27"><a id="__codelineno-9-27" name="__codelineno-9-27" href="#__codelineno-9-27"></a>    <span class="n">completion_window</span><span class="o">=</span><span class="n">CompletionWindow</span><span class="o">.</span><span class="n">BATCH_ANY</span> 
+</span><span id="__span-9-28"><a id="__codelineno-9-28" name="__codelineno-9-28" href="#__codelineno-9-28"></a>    <span class="c1">#                 ^ swap out for CompletionWindow.ASAP</span>
+</span><span id="__span-9-29"><a id="__codelineno-9-29" name="__codelineno-9-29" href="#__codelineno-9-29"></a>    <span class="c1">#                   to complete as soon as possible via</span>
+</span><span id="__span-9-30"><a id="__codelineno-9-30" name="__codelineno-9-30" href="#__codelineno-9-30"></a>    <span class="c1">#                   the non-batching API at a higher cost.</span>
+</span><span id="__span-9-31"><a id="__codelineno-9-31" name="__codelineno-9-31" href="#__codelineno-9-31"></a><span class="p">)</span> <span class="c1"># The batch is submitted here</span>
+</span><span id="__span-9-32"><a id="__codelineno-9-32" name="__codelineno-9-32" href="#__codelineno-9-32"></a>
+</span><span id="__span-9-33"><a id="__codelineno-9-33" name="__codelineno-9-33" href="#__codelineno-9-33"></a><span class="k">for</span> <span class="n">pred</span> <span class="ow">in</span> <span class="n">predictions</span><span class="p">:</span>  <span class="c1"># Will wait for the batch to complete</span>
+</span><span id="__span-9-34"><a id="__codelineno-9-34" name="__codelineno-9-34" href="#__codelineno-9-34"></a>    <span class="n">country</span> <span class="o">=</span> <span class="n">pred</span><span class="o">.</span><span class="n">prompt</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s1">&#39;country&#39;</span><span class="p">]</span>
+</span><span id="__span-9-35"><a id="__codelineno-9-35" name="__codelineno-9-35" href="#__codelineno-9-35"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Country: </span><span class="si">{</span><span class="n">country</span><span class="si">}</span><span class="s2"> --- Capital: </span><span class="si">{</span><span class="n">pred</span><span class="o">.</span><span class="n">completion_text</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="__span-9-36"><a id="__codelineno-9-36" name="__codelineno-9-36" href="#__codelineno-9-36"></a>    <span class="k">if</span> <span class="n">country</span> <span class="o">==</span> <span class="s2">&quot;France&quot;</span><span class="p">:</span> <span class="k">assert</span> <span class="n">pred</span><span class="o">.</span><span class="n">completion_text</span> <span class="o">==</span> <span class="s2">&quot;Paris&quot;</span> 
+</span><span id="__span-9-37"><a id="__codelineno-9-37" name="__codelineno-9-37" href="#__codelineno-9-37"></a>    <span class="c1"># ...</span>
 </span></code></pre></div>
 <p>The above code could technically take up to 24hrs to complete. However,
 OpenAI seems to complete these quicker (for example, these three prompts in ~1 minute or less). In a large batch, you don't have to keep the process running for hours. Thanks to <code>lmwrapper</code> cacheing it will automatically load or pick back up waiting on the
@@ -803,13 +805,15 @@ to sort out / TODOs:</p>
 <li>[X] Handle if openai batch expires unfinished in 24hrs (though not actually tested or observed this)</li>
 <li>[X] Automatically splitting up batch when exceeding 100MB prompts limit</li>
 <li>[X] Handling of failed prompts (like when have too many tokens). Use LmPrediction.has_errors and LmPrediction.error_message to check for an error on a response.</li>
+<li>[X] Handle when there are duplicate prompts in batch submission</li>
 <li>[ ] Claude batching</li>
-<li>[ ] Handle when there are duplicate prompts in batch submission</li>
 <li>[ ] Handle when a given prompt has <code>num_completions&gt;1</code></li>
 <li>[ ] Automatically clean up API files after done (right now end up with a lot of file in <a href="https://platform.openai.com/storage/files">storage</a>. There isn't an obvious cost for these batch files, but this might change and it would be better to clean them up.)</li>
-<li>[ ] Test on free-tier accounts. It is not clear what the tiny request limit counts</li>
 <li>[ ] Fancy batching of HF</li>
+<li>[ ] Configuration setting for whether process killing (like with ctrl+c) should attempt to kill the batch. Right now it intentially persists in background. Maybe takes adding a predictions.cancel_all() prop and user can make their own context.</li>
 <li>[ ] Concurrent batching when in ASAP mode</li>
+<li>[ ] A "scheduler" paradigm trading off batch, flex, and ASAP processing to hit some timing target</li>
+<li>[ ] Test on free-tier accounts. It is not clear what the tiny request limit counts</li>
 </ul>
 <p>Please open an issue if you want to discuss one of these or something else.</p>
 <p>Note, in the progress bars in PyCharm can be bit cleaner if you enable 
@@ -881,7 +885,7 @@ please make a Github Issue.</p>
 </ul>
 </li>
 <li>[X] Use the huggingface chat templates for chat models if available</li>
-<li>[ ] Be able to add user metadata to a prompt</li>
+<li>[X] Be able to add metadata to a prompt</li>
 <li>[ ] Automatic cache eviction to limit count or disk size (right now have to run a SQL query to delete entries before a certain time or matching your criteria)</li>
 <li>[ ] Multimodal/images in super easy format (like automatically process pil, opencv, etc)</li>
 <li>[ ] sort through usage of quantized models</li>
