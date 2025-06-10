@@ -8,6 +8,7 @@ import time
 import numpy as np
 import pytest
 
+from lmwrapper.abstract_predictor import LmPredictor
 from lmwrapper.batch_config import CompletionWindow
 from lmwrapper.caching import cache_dir, clear_cache_dir
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
@@ -1105,6 +1106,87 @@ def test_system_prompt(lm):
         ),
     )
     assert pred.completion_text.strip() == "PARIS"
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
+def test_metadata_predict(lm):
+    # Test with string metadata
+    prompt = LmPrompt(
+        "Count from 1 to 5:",
+        max_tokens=10,
+        cache=False,
+        temperature=0,
+        metadata="test_metadata_string"
+    )
+    pred = lm.predict(prompt)
+    assert pred.prompt.metadata == "test_metadata_string"
+    
+    # Test with dictionary metadata
+    metadata_dict = {"label": "counting", "id": 12345}
+    prompt = LmPrompt(
+        "Count from 1 to 5:",
+        max_tokens=10,
+        cache=False,
+        temperature=0,
+        metadata=metadata_dict
+    )
+    pred = lm.predict(prompt)
+    assert pred.prompt.metadata == metadata_dict
+    assert pred.prompt.metadata["label"] == "counting"
+    assert pred.prompt.metadata["id"] == 12345
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
+def test_metadata_predict_many(lm):
+    # Create prompts with different metadata
+    prompts = [
+        LmPrompt(
+            f"What is {i} + {i}?",
+            max_tokens=5,
+            cache=False,
+            temperature=0,
+            metadata={"question_id": i, "expected_answer": i*2}
+        )
+        for i in range(1, 4)
+    ]
+    
+    # Use predict_many and verify metadata is preserved
+    results = list(lm.predict_many(prompts, CompletionWindow.ASAP))
+    
+    for i, result in enumerate(results):
+        expected_id = i + 1
+        expected_answer = expected_id * 2
+        assert result.prompt.metadata["question_id"] == expected_id
+        assert result.prompt.metadata["expected_answer"] == expected_answer
+
+
+@pytest.mark.parametrize("lm", ALL_MODELS, ids=get_model_name)
+def test_metadata_with_cache_hit(lm: LmPredictor):
+    """Test that metadata is preserved when there's a cache hit."""
+    # First prompt with metadata to populate the cache
+    prompt1 = LmPrompt(
+        "What is 5 + 5?",
+        max_tokens=5,
+        cache=True,
+        temperature=0,
+        metadata={"original": True, "id": 1}
+    )
+    result1 = lm.predict(prompt1)
+    
+    # Same prompt with different metadata should use cache but keep the new metadata
+    prompt2 = LmPrompt(
+        "What is 5 + 5?",
+        max_tokens=5,
+        cache=True,
+        temperature=0,
+        metadata={"original": False, "id": 2}
+    )
+    result2 = lm.predict(prompt2)
+    
+    # Check that the result is from cache but has the new metadata
+    assert result2.was_cached
+    assert result2.prompt.metadata["original"] == False
+    assert result2.prompt.metadata["id"] == 2
 
 
 @pytest.mark.parametrize(
