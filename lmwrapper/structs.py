@@ -454,6 +454,36 @@ class LmPrediction:
             msg,
         )
 
+    def make_reply_prompt(
+        self,
+        new_turns: LM_CHAT_DIALOG_COERCIBLE_TYPES,
+        **override_prompt_params,
+    ) -> LmPrompt:
+        """
+        Continue the dialog with the given input.
+        This will return a new prompt that can be used to continue the dialog.
+        The new prompt will have the same prompt as the original prompt, but with the
+        new input added to the end.
+        
+        Args:
+            new_turns: The new dialog turns to add to the conversation.
+            **override_prompt_params: Optional parameters to override in the new prompt
+                (e.g., temperature=0.5, max_tokens=100).
+        """
+        # Get the existing dialog (handles both string and chat cases)
+        existing_dialog = list(self.prompt.get_text_as_chat())
+        
+        # Add the completion as an assistant turn if there is one
+        if self.completion_text is not None:
+            existing_dialog.append(LmChatTurn(role=ChatGptRoles.assistant, content=self.completion_text))
+        
+        # Create new dialog with existing dialog + new turns
+        extended_dialog_content = existing_dialog + list(LmChatDialog(new_turns))
+        new_dialog = LmChatDialog(extended_dialog_content)
+        
+        # Create a new prompt with the extended dialog and any parameter overrides
+        return self.prompt.replace(text=new_dialog, **override_prompt_params)
+
     def dict_serialize(
         self,
         pull_out_props: bool = True,

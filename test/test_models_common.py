@@ -14,7 +14,7 @@ from lmwrapper.huggingface_wrapper import get_huggingface_lm
 from lmwrapper.huggingface_wrapper.wrapper import get_huggingface_lm
 from lmwrapper.openai_wrapper import get_open_ai_lm
 from lmwrapper.openai_wrapper.wrapper import OpenAiModelNames, get_open_ai_lm
-from lmwrapper.structs import LmPrompt, LmChatTurn, ChatGptRoles
+from lmwrapper.structs import LmPrompt, LmChatTurn, ChatGptRoles, LmChatDialog
 from test.test_params import DEFAULT_SMALL
 from lmwrapper.claude_wrapper.wrapper import get_claude_lm, ClaudeModelNames
 from functools import wraps
@@ -1119,3 +1119,38 @@ def test_prefilled_prompt(lm):
         "Oui oui, the capital of France is Paris. The most famous landmark is the Eiffel",
     ], max_tokens=1, cache=False))
     assert pred.completion_text.strip() == "Tower"
+
+
+@pytest.mark.parametrize("lm", CHAT_MODELS, ids=get_model_name)
+def test_make_reply_prompt(lm):
+    # Initial conversation
+    initial_prompt = LmPrompt(
+        "What is the capital of France?", max_tokens=10, temperature=0, cache=False)
+    pred = lm.predict(initial_prompt)
+    assert "paris" in pred.completion_text.strip().lower()
+    new_prompt = pred.make_reply_prompt(
+        "What is its most famous landmark?",
+        max_tokens=100,
+        temperature=0,
+    )
+    assert new_prompt.text == LmChatDialog([
+        LmChatTurn(ChatGptRoles.user, "What is the capital of France?"),
+        LmChatTurn(ChatGptRoles.assistant, pred.completion_text),
+        LmChatTurn(ChatGptRoles.user, "What is its most famous landmark?"),
+    ])
+    new_prompt = pred.make_reply_prompt(
+        [
+            "What is its most famous landmark?",
+            "The Eiffel Tower",
+            "How tall is it?",
+        ],
+        max_tokens=100,
+        temperature=0,
+    )
+    assert new_prompt.text == LmChatDialog([
+        LmChatTurn(ChatGptRoles.user, "What is the capital of France?"),
+        LmChatTurn(ChatGptRoles.assistant, pred.completion_text),
+        LmChatTurn(ChatGptRoles.user, "What is its most famous landmark?"),
+        LmChatTurn(ChatGptRoles.assistant, "The Eiffel Tower"),
+        LmChatTurn(ChatGptRoles.user, "How tall is it?"),
+    ])

@@ -8,6 +8,11 @@ However, it is still pre-1.0 software, and does not claim to
 be super stable.
 
 
+## [0.16.4.0]
+
+### Added
+- Added `make_reply_prompt` method to `LmPrediction` for continuing dialogs by creating new prompts that include the original conversation, the model's response, and new turns
+
 ## [0.16.3.0]
 
 ### Added
