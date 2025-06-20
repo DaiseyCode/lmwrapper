@@ -315,7 +315,7 @@ accessing the model internal states.
 
 ## Claude
 ```python
-from lmwrapper.claude_wrapper.wrapper import (
+from lmwrapper.claude_wrapper import (
     get_claude_lm, ClaudeModelNames
 )
 lm = get_claude_lm(ClaudeModelNames.claude_3_5_haiku)

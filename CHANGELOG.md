@@ -7,10 +7,18 @@ breaking changes, Y is new features or larger non-breaking changes, and Z is sma
 However, it is still pre-1.0 software, and does not claim to
 be super stable.
 
+## [0.16.5.0]
+
+### Added
+- Added Claude model names for Claude 4
+- Added a __init__ in claude_wrapper so can import directly from that module
+
 ## [0.16.4.0]
 
 ### Added
-- Added metadata field to LmPrompt class with generic type support
+- Added metadata field to LmPrompt class with generic type support. This can clean
+  up usage of the batch api by associating an output with metadata. 
+  It also allows potential in the future for "first available" modes for these APIs.
 
 ## [0.16.4.0]
 

@@ -184,6 +184,10 @@ class ClaudeModelNames(metaclass=_ModelNamesMeta):
         "claude-3-5-sonnet-20241022", 8196)
     claude_3_5_haiku = ClaudeModelInfo(
         "claude-3-5-haiku-20241022", 8196)
+    claude_4_sonnet = ClaudeModelInfo(
+        "claude-sonnet-4-20250514", 200_000)
+    claude_4_opus = ClaudeModelInfo(
+        "claude-opus-4-20250514", 200_000)
 
     @classmethod
     def name_to_info(cls, name: str) -> ClaudeModelInfo | None:
@@ -196,7 +200,7 @@ class ClaudeModelNames(metaclass=_ModelNamesMeta):
 
 
 def get_claude_lm(
-    model_name: str = ClaudeModelNames.claude_3_5_haiku,
+    model_name: str = ClaudeModelNames.claude_4_sonnet,
     api_key_secret: SecretInterface | None = None,
     cache_outputs_default: bool = False,
 ) -> ClaudePredictor:
