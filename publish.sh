@@ -1,5 +1,6 @@
 # Check if the --skipchecks arg is set.
 skip_checks=false
+skip_tests=false
 
 for arg in "$@"; do
     if [[ $arg == "--skipchecks" ]]; then
