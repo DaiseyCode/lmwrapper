@@ -38,7 +38,7 @@ class LmPredictor:
             raise NotImplementedError(
                 "Cannot yet cache predictions with model internals request",
             )
-        self._validate_prompt(prompt, raise_on_invalid=True)
+        is_valid, prompt = self._validate_prompt(prompt, raise_on_invalid=True)
         num_completions = prompt.num_completions or 1
         if should_cache:
             cached_vals = self._read_cached_values(prompt)
