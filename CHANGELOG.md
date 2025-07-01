@@ -7,6 +7,14 @@ breaking changes, Y is new features or larger non-breaking changes, and Z is sma
 However, it is still pre-1.0 software, and does not claim to
 be super stable.
 
+## [0.16.6.0]
+
+### Added
+- reasoning_style property on a predictor
+
+### Changed
+- Degrade to logprob=None if requesting logprobs on a o1 model
+
 ## [0.16.5.0]
 
 ### Added

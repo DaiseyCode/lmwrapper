@@ -10,7 +10,7 @@ from transformers import GenerationConfig, PreTrainedModel, PreTrainedTokenizerF
 from transformers.utils.generic import TensorType
 
 from lmwrapper._TokenStoppingCriteria import _TokenStoppingCriteria
-from lmwrapper.abstract_predictor import LmPredictor
+from lmwrapper.abstract_predictor import LmPredictor, LmReasoningStyle
 from lmwrapper.compatibility import check_transformers_compatibility
 from lmwrapper.huggingface_wrapper.prediction import HuggingFacePrediction
 from lmwrapper.huggingface_wrapper.utilstorch import log_cuda_mem
@@ -52,6 +52,10 @@ class HuggingFacePredictor(LmPredictor):
     @property
     def supports_token_operations(self) -> bool:
         return True
+
+    @property
+    def reasoning_style(self) -> LmReasoningStyle:
+        return LmReasoningStyle.NEVER_THINK
 
     def _verify_initial_prompt(self, prompt: LmPrompt):
         if prompt.is_text_a_chat() and not self._use_chat_mode:

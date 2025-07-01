@@ -1,4 +1,5 @@
 import dataclasses
+from enum import Enum
 from abc import abstractmethod
 from collections.abc import Callable, Iterable
 from sqlite3 import OperationalError
@@ -130,9 +131,19 @@ class LmPredictor:
     ) -> bool:
         return self._disk_cache.delete(prompt)
 
-    def _validate_prompt(self, prompt: LmPrompt[T], raise_on_invalid: bool = True) -> bool:
-        """Called on prediction to make sure the prompt is valid for the model"""
-        return True
+    def _validate_prompt(
+        self, 
+        prompt: LmPrompt[T], 
+        raise_on_invalid: bool = True
+    ) -> tuple[bool, LmPrompt[T] | None]:
+        """Called on prediction to make sure the prompt is valid for the model
+
+        Returns:
+            tuple[bool, LmPrompt[T]]: Whether the prompt is valid and a potentially
+                modified prompt that would be valid. If no such prompt is possible,
+                then None is returned.
+        """
+        return True, prompt
 
     @abstractmethod
     def get_model_cache_key(self):
@@ -187,7 +198,12 @@ class LmPredictor:
     @property
     def token_limit(self):
         raise NotImplementedError
-
+    
+    @property
+    def reasoning_style(self) -> 'LmReasoningStyle':
+        """The style of hidden CoT-style reasoning the model supports"""
+        return LmReasoningStyle.UNKNOWN
+    
     def could_completion_go_over_token_limit(self, prompt: LmPrompt[T]) -> bool:
         count = self.estimate_tokens_in_prompt(prompt)
         return (
@@ -253,6 +269,19 @@ class LmPredictor:
         chat responses. This can be used to guide the model towards
         a specific format of response."""
         return False
+
+
+class LmReasoningStyle(Enum):
+    """
+    The style of reasoning thinking the model uses.
+    """
+    NEVER_THINK = "NEVER_THINK"
+    """This model will never have reasoning tokens"""
+    CONFIGURABLE_THINKING = "CONFIGURABLE_THINKING"
+    """This token has configurable reasoning if specified in the prompt"""
+    ALWAYS_THINK = "ALWAYS_THINK"
+    """This model will always have reasoning tokens"""
+    UNKNOWN = "UNKNOWN"
 
 
 def get_mock_predictor(

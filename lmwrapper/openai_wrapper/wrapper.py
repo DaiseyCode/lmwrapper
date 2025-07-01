@@ -16,7 +16,7 @@ import tiktoken
 from openai import OpenAI, RateLimitError
 from openai.types.completion_choice import Logprobs
 
-from lmwrapper.abstract_predictor import LmPredictor
+from lmwrapper.abstract_predictor import LmPredictor, LmReasoningStyle
 from lmwrapper.batch_config import CompletionWindow
 from lmwrapper.secrets_manager import (
     SecretEnvVar,
@@ -400,7 +400,15 @@ class OpenAIPredictor(LmPredictor):
     def supports_token_operations(self) -> bool:
         return True
 
+    @property
+    def reasoning_style(self) -> LmReasoningStyle:
+        if self.is_o1_model:
+            return LmReasoningStyle.ALWAYS_THINK
+        return LmReasoningStyle.NEVER_THINK
+
     def _validate_prompt(self, prompt: LmPrompt, raise_on_invalid: bool = True) -> bool:
+        is_valid = True
+        modified_prompt = prompt
         if prompt.logprobs is not None and prompt.logprobs > MAX_LOG_PROB_PARM:
             message = (
                 f"Openai limits logprobs to be <= {MAX_LOG_PROB_PARM}. Larger values"
@@ -422,25 +430,28 @@ class OpenAIPredictor(LmPredictor):
             #         return False
             if prompt.logprobs is not None and prompt.logprobs > 0:
                 message = f"logprobs is set to {prompt.logprobs} but o1 models do not support logprobs. This will be ignored and a value of `None` will be used instead."
-                if raise_on_invalid:
-                    raise ValueError(message)
-                else:
-                    warnings.warn(message)
+                warnings.warn(message)
+                modified_prompt = dataclasses.replace(modified_prompt, logprobs=None)
+                is_valid = False
             if prompt.temperature != 1.0:
-                message = f"temperature is set to {prompt.temperature} but o1 models do not support temperature. This will be ignored and a value of 1.0 will be used instead."
+                message = f"temperature is set to {prompt.temperature} but o1 models do not support temperature."
                 if raise_on_invalid:
                     raise ValueError(message)
                 else:
+                    message += " This will be ignored and a value of 1.0 will be used instead."
                     warnings.warn(message)
-                    return False
+                    modified_prompt = dataclasses.replace(modified_prompt, temperature=1.0)
+                    is_valid = False
             if prompt.stop:
-                message = f"stop is set to {prompt.stop} but o1 models do not support stop tokens. This will be ignored."
+                message = f"stop is set to {prompt.stop} but o1 models do not support stop tokens."
                 if raise_on_invalid:
                     raise ValueError(message)
                 else:
+                    message += " This will be ignored."
                     warnings.warn(message)
-                    return False
-        return True
+                    modified_prompt = dataclasses.replace(modified_prompt, stop=None)
+                    is_valid = False
+        return is_valid, modified_prompt
 
     def model_name(self):
         return self._engine_name
