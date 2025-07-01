@@ -406,7 +406,7 @@ class OpenAIPredictor(LmPredictor):
             return LmReasoningStyle.ALWAYS_THINK
         return LmReasoningStyle.NEVER_THINK
 
-    def _validate_prompt(self, prompt: LmPrompt, raise_on_invalid: bool = True) -> bool:
+    def _validate_prompt(self, prompt: LmPrompt, raise_on_invalid: bool = True) -> tuple[bool, LmPrompt | None]:
         is_valid = True
         modified_prompt = prompt
         if prompt.logprobs is not None and prompt.logprobs > MAX_LOG_PROB_PARM:
@@ -705,14 +705,17 @@ def prompt_to_openai_args_dict(
     o1_model: bool,
     default_tokens_generated: int | None = 20,
 ) -> dict[str, Any]:
-    max_toks = (
-        prompt.max_tokens if prompt.max_tokens is not None else default_tokens_generated
-    )
+    if prompt.max_completion_tokens is not None:
+        max_tokens = prompt.max_completion_tokens
+    elif prompt.max_tokens is not None:
+        max_tokens = prompt.max_tokens
+    else:
+        max_tokens = default_tokens_generated
     if o1_model:
         return dict(
             messages=prompt.get_text_as_chat().as_dicts(),
             model=engine_name,
-            max_completion_tokens=prompt.max_completion_tokens,
+            max_completion_tokens=max_tokens,
             n=prompt.num_completions or 1,
             presence_penalty=prompt.presence_penalty,
             top_logprobs=None,
@@ -724,7 +727,7 @@ def prompt_to_openai_args_dict(
             messages=prompt.get_text_as_chat().as_dicts(),
             model=engine_name,
             logprobs=prompt.logprobs > 0,
-            max_tokens=max_toks,
+            max_completion_tokens=max_tokens,
             n=prompt.num_completions or 1,
             presence_penalty=prompt.presence_penalty,
             stop=prompt.stop,
@@ -737,7 +740,7 @@ def prompt_to_openai_args_dict(
         return dict(
             model=engine_name,
             prompt=prompt.get_text_as_string_default_form(),
-            max_tokens=max_toks,
+            max_tokens=max_tokens,
             stop=prompt.stop,
             stream=False,
             logprobs=prompt.logprobs,

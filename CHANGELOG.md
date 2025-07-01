@@ -13,6 +13,8 @@ be super stable.
 - reasoning_style property on a predictor
 
 ### Changed
+- Make `max_tokens` and `max_completion_tokens` be direct aliases of each other
+  (so we don't error out if use max_tokens on the o1 models)
 - Degrade to logprob=None if requesting logprobs on a o1 model
 
 ## [0.16.5.0]

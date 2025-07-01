@@ -105,10 +105,22 @@ def test_o1_mode():
     out = lm.predict(
         LmPrompt(
             "What is 2+2? Answer with just one number.",
-            # max_tokens=100,
             max_completion_tokens=1000,
             cache=False,
             logprobs=0,
+        ),
+    )
+    assert out.completion_text.strip() == "4"
+
+
+def test_o1_mode_permissive():
+    lm = get_open_ai_lm(OpenAiModelNames.o4_mini)
+    out = lm.predict(
+        LmPrompt(
+            "What is 2+2? Answer with just one number.",
+            max_tokens=1000,  # Should handle fallback to max_completion_tokens
+            cache=False,
+            logprobs=1,       # should handle fallback to logprobs=0
         ),
     )
     assert out.completion_text.strip() == "4"
