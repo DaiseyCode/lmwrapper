@@ -7,6 +7,15 @@ breaking changes, Y is new features or larger non-breaking changes, and Z is sma
 However, it is still pre-1.0 software, and does not claim to
 be super stable.
 
+
+## [0.17.0.0]
+
+### Changed
+- Make `max_completion_tokens` removed. The attempted aliasing in 0.16.6 was
+  causing some edge cases with dataclass replace. Just going to make everything
+  use `max_tokens`.
+
+
 ## [0.16.6.0]
 
 ### Added

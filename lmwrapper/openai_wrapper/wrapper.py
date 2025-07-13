@@ -705,9 +705,7 @@ def prompt_to_openai_args_dict(
     o1_model: bool,
     default_tokens_generated: int | None = 20,
 ) -> dict[str, Any]:
-    if prompt.max_completion_tokens is not None:
-        max_tokens = prompt.max_completion_tokens
-    elif prompt.max_tokens is not None:
+    if prompt.max_tokens is not None:
         max_tokens = prompt.max_tokens
     else:
         max_tokens = default_tokens_generated

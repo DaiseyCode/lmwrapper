@@ -1236,39 +1236,3 @@ def test_make_reply_prompt(lm):
         LmChatTurn(ChatGptRoles.assistant, "The Eiffel Tower"),
         LmChatTurn(ChatGptRoles.user, "How tall is it?"),
     ])
-
-
-@pytest.mark.parametrize("lm", CHAT_MODELS, ids=get_model_name)
-def test_max_tokens_alias_cache(lm):
-    clear_cache_dir()
-    text = "Write a two page story about a dog."
-    prompt = LmPrompt(
-        text,
-        max_tokens=10,
-        cache=True,
-    )
-    r1 = lm.predict(prompt)
-    assert len(r1.completion_text.split(" ")) < 10 * 2
-    assert not r1.was_cached
-    prompt = LmPrompt(
-        text,
-        max_completion_tokens=10,
-        cache=True,
-    )
-    r2 = lm.predict(prompt)
-    assert r2.was_cached
-    prompt = LmPrompt(
-        text,
-        max_completion_tokens=5,
-        cache=True,
-    )
-    r3 = lm.predict(prompt)
-    assert not r3.was_cached
-    assert len(r3.completion_text.split(" ")) < 5 * 2
-    prompt = LmPrompt(
-        text,
-        max_tokens=5,
-        cache=True,
-    )
-    r4 = lm.predict(prompt)
-    assert r4.was_cached

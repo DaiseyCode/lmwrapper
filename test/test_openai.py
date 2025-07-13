@@ -105,7 +105,7 @@ def test_o1_mode():
     out = lm.predict(
         LmPrompt(
             "What is 2+2? Answer with just one number.",
-            max_completion_tokens=1000,
+            max_tokens=1000,
             cache=False,
             logprobs=0,
         ),
@@ -118,9 +118,9 @@ def test_o1_mode_permissive():
     out = lm.predict(
         LmPrompt(
             "What is 2+2? Answer with just one number.",
-            max_tokens=1000,  # Should handle fallback to max_completion_tokens
+            max_tokens=1000,
             cache=False,
-            logprobs=1,       # should handle fallback to logprobs=0
+            logprobs=1,
         ),
     )
     assert out.completion_text.strip() == "4"

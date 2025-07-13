@@ -37,25 +37,23 @@ class StopMode(StrEnum):
     likely to work for more models."""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class LmPrompt(Generic[T]):
     text: str | LM_CHAT_DIALOG_COERCIBLE_TYPES
     """The actual text of the prompt. If it is a LM_CHAT_DIALOG_COERCIBLE_TYPES
     which can become a LmChatDialog (such as a list of strings) it will be converted
     into a LmChatDialog."""
-    max_completion_tokens: int | None = None
-    """The maximum number of tokens to generate in the completion. If `None`
-    then the downstream model will choose some default value. This value
+    max_tokens: int | None = None
+    """The maximum number of tokens to generate in the completion. This might
+    include hidden reasoning tokens. 
+    If `None` then the downstream model will choose some default value. This value
     might be a function of the prompt input length, but this behaviour is not defined.
     This means it is possible that the default max might cause errors with long prompts.
-    It recommended that you specify a limit yourself to have more predictable
-    behaviour."""
-    max_tokens: int | None = None
-    """Treated the same as max_completion_tokens.
-    OpenAI made weird design decisions and deprecated this in favor of the new
-    max_completion_tokens in the o1 series. We support both args just to match them, 
-    but treat them as just aliases for each other. Unlike the OpenAI API, using
-    `max_tokens` will not error for o1 models.
+    Specify a limit yourself to have more predictable behavior.
+
+    Note that unlike in the OpenAI API, we do not separate out an arg
+    for `max_completion_tokens`. We automatically map `max_tokens` to
+    the appropriate arg for the model.
     """
     stop: list[str] = None
     """Sequences where the model will stop generating further tokens.
@@ -142,27 +140,38 @@ class LmPrompt(Generic[T]):
 
     # TODO: make a auto_reduce_max_tokens to reduce when might go over.
 
-    def __post_init__(self):
-        if isinstance(self.text, list):
-            # Convert the text into a chat dialog
-            object.__setattr__(self, "text", LmChatDialog(self.text))
-        # Check if both max_completion_tokens and max_tokens are explicitly set to different values
-        if self.max_completion_tokens is not None and self.max_tokens is not None:
-            if self.max_completion_tokens != self.max_tokens:
-                msg = "max_completion_tokens and max_tokens cannot both be set to different values."
-                raise ValueError(msg)
-        # Make the max_tokens and max_completion_tokens the same
-        if self.max_completion_tokens is not None:
-            object.__setattr__(self, "max_tokens", self.max_completion_tokens)
-        elif self.max_tokens is not None:
-            object.__setattr__(self, "max_completion_tokens", self.max_tokens)
-        assert self.max_tokens == self.max_completion_tokens
+    def __init__(
+        self,
+        text: str | LM_CHAT_DIALOG_COERCIBLE_TYPES,
+        max_tokens: int | None = None,
+        stop: list[str] = None,
+        stop_mode: StopMode = StopMode.AUTO,
+        logprobs: int = 1,
+        temperature: float = 1.0,
+        top_p: float = 1.0,
+        presence_penalty: float = 0.0,
+        frequency_penalty: float = 0.0,
+        num_completions: int | None = None,
+        cache: bool = None,
+        echo: bool = False,
+        add_bos_token: bool = None,
+        add_special_tokens: bool = True,
+        model_internals_request: Optional["ModelInternalsRequest"] = None,
+        metadata: Optional[T] = None,
+        max_completion_tokens: int | None = None,
+    ):
+        # Convert text to chat dialog if it's a list
+        if isinstance(text, list):
+            text = LmChatDialog(text)
 
-        if self.max_tokens is not None and not isinstance(self.max_tokens, int):
-            msg = "The max_tokens parameter should be an int."
+        # Validate max_tokens
+        if max_tokens is not None and not isinstance(max_tokens, int):
+            msg = "The max_tokens parameter should be an int or None."
             raise ValueError(msg)
-        if self.num_completions is not None and (
-            not isinstance(self.num_completions, int) or self.num_completions <= 0
+        
+        # Validate num_completions
+        if num_completions is not None and (
+            not isinstance(num_completions, int) or num_completions <= 0
         ):
             msg = (
                 "The num_completions parameter should be an "
@@ -170,46 +179,78 @@ class LmPrompt(Generic[T]):
                 "non-list item will be returned)"
             )
             raise ValueError(msg)
-        if self.stop is not None:
-            if not isinstance(self.stop, list):
+
+        if max_completion_tokens is not None:
+            msg = "max_completion_tokens is not supported in v0.17. Always max_tokens instead (regardless of model type)."
+            raise ValueError(msg)
+        
+        # Validate stop
+        if stop is not None:
+            if not isinstance(stop, list):
                 msg = "The stop parameter should be a list of strings on where to stop."
-                raise ValueError(
-                    msg,
-                )
-            if not all(isinstance(x, str) for x in self.stop):
+                raise ValueError(msg)
+            if not all(isinstance(x, str) for x in stop):
                 msg = "The stop parameter should be a list of strings on where to stop."
-                raise ValueError(
-                    msg,
-                )
-        if isinstance(self.temperature, int):
-            object.__setattr__(self, "temperature", float(self.temperature))
-        if not isinstance(self.temperature, float):
+                raise ValueError(msg)
+        
+        # Convert temperature to float if it's an int
+        if isinstance(temperature, int):
+            temperature = float(temperature)
+        
+        # Validate temperature
+        if not isinstance(temperature, float):
             msg = "The temperature parameter should be a float."
             raise ValueError(msg)
-        if self.temperature < 0.0:
+        if temperature < 0.0:
             msg = "The temperature parameter should be a positive float."
             raise ValueError(msg)
-        if not isinstance(self.top_p, float):
+        
+        # Validate top_p
+        if not isinstance(top_p, float):
             msg = "The top_p parameter should be a float."
             raise ValueError(msg)
-        if not isinstance(self.presence_penalty, float):
+        
+        # Validate presence_penalty
+        if not isinstance(presence_penalty, float):
             msg = "The presence_penalty parameter should be a float."
             raise ValueError(msg)
-        if self.cache is not None and not isinstance(self.cache, bool):
+        
+        # Validate cache
+        if cache is not None and not isinstance(cache, bool):
             msg = "The cache parameter should be a bool."
             raise ValueError(msg)
-        if self.logprobs is not None and not isinstance(self.logprobs, int):
+        
+        # Validate logprobs
+        if logprobs is not None and not isinstance(logprobs, int):
             msg = (
                 "The logprob parameter should be int denoting number of probs return,"
                 " or None."
             )
-            raise ValueError(
-                msg,
-            )
-        if self.stop_mode != StopMode.AUTO:
+            raise ValueError(msg)
+        
+        # Validate stop_mode
+        if stop_mode != StopMode.AUTO:
             raise NotImplementedError(
                 "Only StopMode.AUTO is supported at this time as a temporary hack",
             )
+
+        # Set all attributes using object.__setattr__ since the class is frozen
+        object.__setattr__(self, "text", text)
+        object.__setattr__(self, "max_tokens", max_tokens)
+        object.__setattr__(self, "stop", stop)
+        object.__setattr__(self, "stop_mode", stop_mode)
+        object.__setattr__(self, "logprobs", logprobs)
+        object.__setattr__(self, "temperature", temperature)
+        object.__setattr__(self, "top_p", top_p)
+        object.__setattr__(self, "presence_penalty", presence_penalty)
+        object.__setattr__(self, "frequency_penalty", frequency_penalty)
+        object.__setattr__(self, "num_completions", num_completions)
+        object.__setattr__(self, "cache", cache)
+        object.__setattr__(self, "echo", echo)
+        object.__setattr__(self, "add_bos_token", add_bos_token)
+        object.__setattr__(self, "add_special_tokens", add_special_tokens)
+        object.__setattr__(self, "model_internals_request", model_internals_request)
+        object.__setattr__(self, "metadata", metadata)
 
     def is_deterministic_sampling(self) -> bool:
         return (self.temperature < 1e-4) or (self.top_p < 1e-4)
@@ -520,12 +561,6 @@ class LmPrediction(Generic[T]):
         # Create new dialog with existing dialog + new turns
         extended_dialog_content = existing_dialog + list(LmChatDialog(new_turns))
         new_dialog = LmChatDialog(extended_dialog_content)
-        
-        # Handle max_tokens/max_completion_tokens conflicts by clearing the opposite field
-        if "max_tokens" in override_prompt_params:
-            override_prompt_params["max_completion_tokens"] = None
-        elif "max_completion_tokens" in override_prompt_params:
-            override_prompt_params["max_tokens"] = None
         
         # Create a new prompt with the extended dialog and any parameter overrides
         return self.prompt.replace(text=new_dialog, **override_prompt_params)

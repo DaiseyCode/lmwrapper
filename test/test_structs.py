@@ -114,27 +114,3 @@ def test_chat_roles():
     assert chat[2].role == ChatGptRoles.user
     assert chat[3].role == ChatGptRoles.assistant
     assert chat[4].role == ChatGptRoles.user
-
-
-def test_alias_max_tokens():
-    prompt = LmPrompt(
-        text="Hello world",
-        max_tokens=10,
-    )
-    assert prompt.max_tokens == 10
-    assert prompt.max_completion_tokens == 10
-    assert prompt.max_tokens == prompt.max_completion_tokens
-
-    prompt = LmPrompt(
-        text="Hello world",
-    )
-    assert prompt.max_tokens is None
-    assert prompt.max_completion_tokens is None
-    assert prompt.max_tokens == prompt.max_completion_tokens
-
-    prompt = LmPrompt(
-        text="Hello world",
-        max_completion_tokens=10,
-    )
-    assert prompt.max_tokens == 10
-    assert prompt.max_completion_tokens == 10
