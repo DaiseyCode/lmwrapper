@@ -8,6 +8,12 @@ However, it is still pre-1.0 software, and does not claim to
 be super stable.
 
 
+## [0.17.1.0]
+
+### Added
+- Exponential backoff retries for antropic requests
+
+
 ## [0.17.0.0]
 
 ### Changed

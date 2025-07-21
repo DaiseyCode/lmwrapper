@@ -13,6 +13,7 @@ from lmwrapper.abstract_predictor import (
 )
 from lmwrapper.batch_config import CompletionWindow
 from lmwrapper.secrets_manager import SecretEnvVar, SecretFile, SecretInterface, assert_is_a_secret
+from lmwrapper.utils import retry_func_on_exception
 
 
 @dataclass
@@ -66,10 +67,47 @@ class ClaudePredictor(LmPredictor):
         api: anthropic.Anthropic,
         model: str,
         cache_outputs_default: bool = False,
+        retry_on_transient_errors: bool = True,
+        max_retries: int = 5,
     ):
+        """
+        Initialize Claude predictor with retry logic.
+        
+        Args:
+            api: Anthropic API client
+            model: Model name to use
+            cache_outputs_default: Whether to cache outputs by default
+            retry_on_transient_errors: Whether to retry on transient errors (429 rate limit, 
+                500+ server errors including 529 overloaded, network/timeout issues).
+                Does NOT retry on permanent errors like 401 auth or 400 bad request.
+            max_retries: Maximum number of retry attempts with exponential backoff
+        """
         super().__init__(cache_outputs_default)
         self._api = api
         self._model = model
+        self._retry_on_transient_errors_enabled = retry_on_transient_errors
+        
+        # Create retry decorators for different error types
+        if retry_on_transient_errors:
+            # Only retry on truly transient errors:
+            # - RateLimitError (429): Rate limiting 
+            # - InternalServerError (>=500): Server errors including 529 overloaded
+            # - APIConnectionError: Network connectivity issues
+            # - APITimeoutError: Request timeouts
+            self._retry_on_transient_errors = retry_func_on_exception(
+                exception=(
+                    anthropic.RateLimitError,           # 429 rate limit
+                    anthropic.InternalServerError,      # 500+, including 529 overloaded
+                    anthropic.APIConnectionError,       # Network issues
+                    anthropic.APITimeoutError,          # Timeouts
+                ),
+                max_retries=max_retries,
+                linear_backoff_factor=10,
+                exponential_backoff_factor=2,
+                extra_message=" (transient error - will retry)"
+            )
+        else:
+            self._retry_on_transient_errors = lambda func: func
 
     def find_prediction_class(self, prompt):
         return ClaudePrediction
@@ -122,7 +160,18 @@ class ClaudePredictor(LmPredictor):
             )
             if system_message is not None:
                 response["system"] = system_message['content']
-            response = self._api.messages.create(**response)
+            
+            # Apply retry logic for API calls
+            def make_api_call():
+                return self._api.messages.create(**response)
+            
+            # Apply retry logic for transient errors only
+            if self._retry_on_transient_errors_enabled:
+                retried_api_call = self._retry_on_transient_errors(make_api_call)
+                response = retried_api_call()
+            else:
+                response = make_api_call()
+            
             # Create predictions for each choice
             assert len(response.content) == 1
             content = response.content[0]
@@ -203,7 +252,24 @@ def get_claude_lm(
     model_name: str = ClaudeModelNames.claude_4_sonnet,
     api_key_secret: SecretInterface | None = None,
     cache_outputs_default: bool = False,
+    retry_on_transient_errors: bool = True,
+    max_retries: int = 4,
 ) -> ClaudePredictor:
+    """
+    Create a Claude language model predictor with optional retry logic.
+    
+    Args:
+        model_name: The Claude model to use
+        api_key_secret: Secret interface for the API key 
+        cache_outputs_default: Whether to cache outputs by default
+        retry_on_transient_errors: Whether to retry on transient errors only (429 rate limit, 
+            500+ server errors including 529 overloaded, network/timeout issues).
+            Does NOT retry on permanent errors like 401 auth or 400 bad request.
+        max_retries: Maximum number of retry attempts for transient errors
+        
+    Returns:
+        ClaudePredictor instance with retry logic configured
+    """
     if api_key_secret is None:
         api_key_secret = SecretEnvVar("ANTHROPIC_API_KEY")
         if not api_key_secret.is_readable():
@@ -234,6 +300,8 @@ def get_claude_lm(
         api=client,
         model=model_name,
         cache_outputs_default=cache_outputs_default,
+        retry_on_transient_errors=retry_on_transient_errors,
+        max_retries=max_retries,
     )
 
 
