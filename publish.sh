@@ -122,7 +122,7 @@ if [ "$is_prod_mode" = true ]; then
     echo "Aborted."
     exit 1
   fi
-  python3 -m twine upload dist/*
+  python -m twine upload dist/*
   if [ $? -ne 0 ]; then
     echo "PyPI upload failed. Aborting documentation deployment."
     exit 1
@@ -134,7 +134,7 @@ if [ "$is_prod_mode" = true ]; then
   ./deploy_docs.sh
 else
   echo "Publishing to PyPI test..."
-  python3 -m twine upload --repository testpypi dist/*
+  python -m twine upload --repository testpypi dist/*
   if [ $? -ne 0 ]; then
     echo "TestPyPI upload failed."
     exit 1
