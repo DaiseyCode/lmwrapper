@@ -147,6 +147,13 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
     gpt_4_1_mini = OpenAiModelInfo("gpt-4.1-mini", True, False, 1_047_576)
     gpt_4_1_nano = OpenAiModelInfo("gpt-4.1-nano", True, False, 1_047_576)
 
+    gpt_5 = OpenAiModelInfo("gpt-5", True, True, 400_000)
+    gpt_5_mini = OpenAiModelInfo("gpt-5-mini", True, True, 400_000)
+    gpt_5_nano = OpenAiModelInfo("gpt-5-nano", True, True, 400_000)
+
+    gpt_5_1 = OpenAiModelInfo("gpt-5.1", True, True, 400_000)
+    gpt_5_1_codex = OpenAiModelInfo("gpt-5.1-codex", True, True, 400_000)
+    gpt_5_1_codex_mini = OpenAiModelInfo("gpt-5.1-codex-mini", True, True, 400_000)
 
     @classmethod
     def name_to_info(cls, name: str) -> OpenAiModelInfo | None:
@@ -710,18 +717,20 @@ def prompt_to_openai_args_dict(
     else:
         max_tokens = default_tokens_generated
     if o1_model:
-        return dict(
+        args = dict(
             messages=prompt.get_text_as_chat().as_dicts(),
             model=engine_name,
             max_completion_tokens=max_tokens,
             n=prompt.num_completions or 1,
             presence_penalty=prompt.presence_penalty,
             top_logprobs=None,
-            top_p=prompt.top_p,
         )
+        if prompt.top_p is not None:
+            args["top_p"] = prompt.top_p
+        return args
     # all o1 models are chat models
     elif chat_model:
-        return dict(
+        args = dict(
             messages=prompt.get_text_as_chat().as_dicts(),
             model=engine_name,
             logprobs=prompt.logprobs > 0,
@@ -732,10 +741,12 @@ def prompt_to_openai_args_dict(
             temperature=prompt.temperature,
             # top_logprobs accepts ints 0 to 20, logprobs must be a boolean true
             top_logprobs=prompt.logprobs if prompt.logprobs > 0 else None,
-            top_p=prompt.top_p,
         )
+        if prompt.top_p is not None:
+            args["top_p"] = prompt.top_p
+        return args
     else:
-        return dict(
+        args = dict(
             model=engine_name,
             prompt=prompt.get_text_as_string_default_form(),
             max_tokens=max_tokens,
@@ -743,8 +754,10 @@ def prompt_to_openai_args_dict(
             stream=False,
             logprobs=prompt.logprobs,
             temperature=prompt.temperature,
-            top_p=prompt.top_p,
             presence_penalty=prompt.presence_penalty,
             n=prompt.num_completions or 1,
             echo=prompt.echo,
         )
+        if prompt.top_p is not None:
+            args["top_p"] = prompt.top_p
+        return args

@@ -81,7 +81,7 @@ class HuggingFacePredictor(LmPredictor):
             raise NotImplementedError(
                 msg,
             )
-        if prompt.logprobs and prompt.top_p != 1.0:
+        if prompt.logprobs and prompt.top_p is not None and prompt.top_p != 1.0:
             logging.warning("Logprobs may not be correct if top_p != 1.0")
 
         if prompt.presence_penalty != 0.0:

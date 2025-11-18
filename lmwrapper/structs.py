@@ -81,12 +81,13 @@ class LmPrompt(Generic[T]):
     """What sampling temperature to use, between 0 and 2.
     Higher values like 0.8 will make the output more random, while lower values
     like 0.2 will make it more focused and deterministic."""
-    top_p: float = 1.0
+    top_p: float | None = None
     """An alternative to sampling with temperature, called nucleus sampling, where the
     model considers the results of the tokens with top_p probability mass. So 0.1 means
     only the tokens comprising the top 10% probability mass are considered.
     If set to float < 1, only the smallest set of most probable tokens with
-    probabilities that add up to top_p or higher are kept for generation."""
+    probabilities that add up to top_p or higher are kept for generation.
+    If None, will be passed as None to the API (using model default)."""
     presence_penalty: float = 0.0
     """Number between -2.0 and 2.0. Positive values penalize new tokens based on whether
     they appear in the text so far, increasing the model's likelihood
@@ -148,7 +149,7 @@ class LmPrompt(Generic[T]):
         stop_mode: StopMode = StopMode.AUTO,
         logprobs: int = 1,
         temperature: float = 1.0,
-        top_p: float = 1.0,
+        top_p: float | None = None,
         presence_penalty: float = 0.0,
         frequency_penalty: float = 0.0,
         num_completions: int | None = None,
@@ -205,9 +206,9 @@ class LmPrompt(Generic[T]):
             msg = "The temperature parameter should be a positive float."
             raise ValueError(msg)
         
-        # Validate top_p
-        if not isinstance(top_p, float):
-            msg = "The top_p parameter should be a float."
+        # Validate top_p (allow None to pass through to API)
+        if top_p is not None and not isinstance(top_p, float):
+            msg = "The top_p parameter should be a float or None."
             raise ValueError(msg)
         
         # Validate presence_penalty
@@ -253,7 +254,7 @@ class LmPrompt(Generic[T]):
         object.__setattr__(self, "metadata", metadata)
 
     def is_deterministic_sampling(self) -> bool:
-        return (self.temperature < 1e-4) or (self.top_p < 1e-4)
+        return (self.temperature < 1e-4) or (self.top_p is not None and self.top_p < 1e-4)
 
     def replace(self, **kwargs) -> "LmPrompt":
         """Returns a new prompt with the given parameters replaced."""

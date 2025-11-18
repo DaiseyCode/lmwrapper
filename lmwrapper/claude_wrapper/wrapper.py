@@ -156,8 +156,9 @@ class ClaudePredictor(LmPredictor):
                 ),
                 temperature=prompt.temperature,
                 messages=messages,
-                top_p=prompt.top_p,
             )
+            if prompt.top_p is not None:
+                response["top_p"] = prompt.top_p
             if system_message is not None:
                 response["system"] = system_message['content']
             
@@ -237,6 +238,10 @@ class ClaudeModelNames(metaclass=_ModelNamesMeta):
         "claude-sonnet-4-20250514", 200_000)
     claude_4_opus = ClaudeModelInfo(
         "claude-opus-4-20250514", 200_000)
+    claude_4_5_sonnet = ClaudeModelInfo(
+        "claude-sonnet-4-5-20250929", 1_000_000)
+    claude_4_5_haiku = ClaudeModelInfo(
+        "claude-haiku-4-5-20251001", 200_000)
 
     @classmethod
     def name_to_info(cls, name: str) -> ClaudeModelInfo | None:

@@ -42,6 +42,9 @@ MODEL_NAMES = {
     "4_1_nano": get_open_ai_lm(OpenAiModelNames.gpt_4_1_nano),
     "3_5_haiku": get_claude_lm(ClaudeModelNames.claude_3_5_haiku),
     "3_5_turbo": get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo),
+    "gpt_5_nano": get_open_ai_lm(OpenAiModelNames.gpt_5_nano),
+    "claude_4_5_sonnet": get_claude_lm(ClaudeModelNames.claude_4_5_sonnet),
+    "claude_4_5_haiku": get_claude_lm(ClaudeModelNames.claude_4_5_haiku),
     #"qwen25_500M_instruct": get_huggingface_lm("Qwen/Qwen2.5-0.5B-Instruct"),
 }
 
@@ -50,8 +53,7 @@ ALL_MODELS = [
     MODEL_NAMES["3_5_turbo_instruct"],
     MODEL_NAMES["small_hug"],
     MODEL_NAMES["4o_mini"],
-    #MODEL_NAMES["4_1_nano"],
-    MODEL_NAMES["3_5_haiku"],
+    MODEL_NAMES["claude_4_5_haiku"],
 ]
 
 ALL_MODELS_OLD = [
@@ -66,8 +68,9 @@ COMPLETION_MODELS = [
 ]
 
 CHAT_MODELS = [
-    MODEL_NAMES["4_1_nano"],
-    MODEL_NAMES["3_5_haiku"],
+    #MODEL_NAMES["4_1_nano"],
+    MODEL_NAMES["gpt_5_nano"],
+    MODEL_NAMES["claude_4_5_haiku"],
     #MODEL_NAMES["qwen25_500M_instruct"]
 ]
 
@@ -1098,13 +1101,18 @@ def test_system_prompt(lm):
     pred = lm.predict(
         LmPrompt(
             [
-                LmChatTurn(ChatGptRoles.system, "Always answer with only a single word in all capital letters"),
+                LmChatTurn(
+                    ChatGptRoles.system, 
+                    "Always answer with only a single word in all capital letters."
+                ),
                 LmChatTurn(ChatGptRoles.user, "what is the capital of france"),
             ],
             max_tokens=10,
             cache=False,
         ),
     )
+    print("completion text")
+    print(pred.completion_text)
     assert pred.completion_text.strip() == "PARIS"
 
 
