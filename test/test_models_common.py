@@ -1222,7 +1222,6 @@ def test_make_reply_prompt(lm):
     new_prompt = pred.make_reply_prompt(
         "What is its most famous landmark?",
         max_tokens=100,
-        temperature=0,
     )
     assert new_prompt.text == LmChatDialog([
         LmChatTurn(ChatGptRoles.user, "What is the capital of France?"),

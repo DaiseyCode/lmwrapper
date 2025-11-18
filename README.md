@@ -89,7 +89,7 @@ from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
 from lmwrapper.structs import LmPrompt, LmChatTurn
 
 lm = get_open_ai_lm(
-    model_name=OpenAiModelNames.gpt_5_nano,
+    model_name=OpenAiModelNames.gpt_4_1_nano,
     api_key_secret=None,  # By default, this will read from the OPENAI_API_KEY environment variable.
     # If that isn't set, it will try the file ~/oai_key.txt
     # You need to place the key in one of these places,
@@ -106,7 +106,8 @@ print(pred.completion_text)  # "2 + 2 equals 4."
 pred = lm.predict(LmPrompt(
     "What is 2+6?",
     max_tokens=10,
-    temperature=0, # Set this to 0 for deterministic completions
+    temperature=0, # Set this to 0 for deterministic completions. 
+                   # Note, GPT-5 does not support temperature.
 ))
 print(pred.completion_text)  # "2 + 6 equals 8."
 
@@ -150,7 +151,7 @@ will always sample the same output on reruns).
 from lmwrapper.openai_wrapper import get_open_ai_lm, OpenAiModelNames
 from lmwrapper.structs import LmPrompt
 
-lm = get_open_ai_lm(OpenAiModelNames.gpt_5_nano)
+lm = get_open_ai_lm(OpenAiModelNames.gpt_4_1_nano)
 
 prompt = LmPrompt(
   "Briefly describe the city of Paris", 
@@ -208,7 +209,7 @@ def make_prompts(data) -> list[LmPrompt]:
 
 data = load_dataset()
 prompts = make_prompts(data)
-lm = get_open_ai_lm(OpenAiModelNames.gpt_5_nano)
+lm = get_open_ai_lm(OpenAiModelNames.gpt_4_1_nano)
 predictions = lm.predict_many(
     prompts,
     completion_window=CompletionWindow.BATCH_ANY 
