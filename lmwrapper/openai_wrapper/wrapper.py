@@ -26,6 +26,11 @@ from lmwrapper.secrets_manager import (
 )
 from lmwrapper.structs import LmPrediction, LmPrompt
 
+# Aliases for shorter lines
+NEVER_THINK = LmReasoningStyle.NEVER_THINK
+ALWAYS_THINK = LmReasoningStyle.ALWAYS_THINK
+CONFIGURABLE_THINKING = LmReasoningStyle.CONFIGURABLE_THINKING
+
 PRINT_ON_PREDICT = False
 
 MAX_LOG_PROB_PARM = 5
@@ -43,12 +48,12 @@ class OpenAiModelInfo(str):
         cls,
         name: str,
         is_chat_model: bool,
-        is_o1_model: bool,
+        reasoning_style: LmReasoningStyle,
         token_limit_input: int,
     ):
         instance = super().__new__(cls, name)
         instance._is_chat_model = is_chat_model
-        instance._is_o1_model = is_o1_model
+        instance._reasoning_style = reasoning_style
         instance._token_limit_input = token_limit_input
         return instance
 
@@ -57,13 +62,17 @@ class OpenAiModelInfo(str):
         return self._is_chat_model
 
     @property
+    def reasoning_style(self):
+        return self._reasoning_style
+
+    @property
     def token_limit(self):
         return self._token_limit_input
 
     def __reduce__(self):
         return (
             self.__class__,
-            (str(self), self._is_chat_model, self._is_o1_model, self._token_limit_input),
+            (str(self), self._is_chat_model, self._reasoning_style, self._token_limit_input),
         )
 
 
@@ -73,26 +82,26 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
     documentation on OpenAI's website at the time.
     """
 
-    gpt_3_5_turbo = OpenAiModelInfo("gpt-3.5-turbo", True, False, 4096)
+    gpt_3_5_turbo = OpenAiModelInfo("gpt-3.5-turbo", True, NEVER_THINK, 4096)
     """Most capable GPT-3.5 model and optimized for chat at 1/10th the cost of text-davinci-003.
     Will be updated with our latest model iteration 2 weeks after it is released."""
-    gpt_3_5_turbo_16k = OpenAiModelInfo("gpt-3.5-turbo-16k", True, False, 16384)
+    gpt_3_5_turbo_16k = OpenAiModelInfo("gpt-3.5-turbo-16k", True, NEVER_THINK, 16384)
     """Same capabilities as the standard gpt-3.5-turbo model but with 4 times the context."""
     gpt_3_5_turbo_instruct = OpenAiModelInfo(
-        "gpt-3.5-turbo-instruct", False, False, 4096
+        "gpt-3.5-turbo-instruct", False, NEVER_THINK, 4096
     )
     """A GPT-3.5 version but for completion"""
-    code_davinci_002 = OpenAiModelInfo("code-davinci-002", False, False, 4097)
+    code_davinci_002 = OpenAiModelInfo("code-davinci-002", False, NEVER_THINK, 4097)
     """Can do any language task with better quality, longer output, and consistent instruction-following
     than the curie, babbage, or ada models.
     Also supports some additional features such as inserting text."""
-    gpt_4 = OpenAiModelInfo("gpt-4", True, False, 8192)
+    gpt_4 = OpenAiModelInfo("gpt-4", True, NEVER_THINK, 8192)
     """More capable than any GPT-3.5 model, able to do more complex tasks, and optimized for chat.
     Will be updated with our latest model iteration 2 weeks after it is released."""
-    gpt_4_32k = OpenAiModelInfo("gpt-4-32k", True, False, 32768)
+    gpt_4_32k = OpenAiModelInfo("gpt-4-32k", True, NEVER_THINK, 32768)
     """Same capabilities as the base gpt-4 mode but with 4x the context length.
     Will be updated with our latest model iteration."""
-    gpt_4_turbo = OpenAiModelInfo("gpt-4-1106-preview", True, False, 128_000)
+    gpt_4_turbo = OpenAiModelInfo("gpt-4-1106-preview", True, NEVER_THINK, 128_000)
     """GPT-4 model with improved instruction following, JSON mode,
     reproducible outputs, parallel function calling, and more.
     Returns a maximum of 4,096 output tokens. This preview model is
@@ -103,9 +112,9 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
 
     see: https://help.openai.com/en/articles/8555510-gpt-4-turbo
     """
-    gpt_4o = OpenAiModelInfo("gpt-4o", True, False, 128_000)
+    gpt_4o = OpenAiModelInfo("gpt-4o", True, NEVER_THINK, 128_000)
     """
-    GPT-4o (“o” for “omni”) is our most advanced model. 
+    GPT-4o ("o" for "omni") is our most advanced model. 
     It is multimodal (accepting text or image inputs and outputting text), 
     and it has the same high intelligence as GPT-4 Turbo but 
     is much more efficient—it generates text 2x faster and is 50% cheaper. 
@@ -115,45 +124,43 @@ class OpenAiModelNames(metaclass=_ModelNamesMeta):
 
     Point can change
     """
-    gpt_4o_2024_11_20 = OpenAiModelInfo("gpt-4o-2024-11-20", True, False, 128_000)
-    gpt_4o_2024_05_13 = OpenAiModelInfo("gpt-4o-2024-05-13", True, False, 128_000)
-    gpt_4o_mini = OpenAiModelInfo("gpt-4o-mini", True, False, 128_000)
+    gpt_4o_2024_11_20 = OpenAiModelInfo("gpt-4o-2024-11-20", True, NEVER_THINK, 128_000)
+    gpt_4o_2024_05_13 = OpenAiModelInfo("gpt-4o-2024-05-13", True, NEVER_THINK, 128_000)
+    gpt_4o_mini = OpenAiModelInfo("gpt-4o-mini", True, NEVER_THINK, 128_000)
     """Our affordable and intelligent small model for fast, lightweight tasks. 
     GPT-4o mini is cheaper and more capable than GPT-3.5 Turbo. """
     gpt_4o_mini_2024_07_18 = OpenAiModelInfo(
-        "gpt-4o-mini-2024-07-18", True, False, 128_000
+        "gpt-4o-mini-2024-07-18", True, NEVER_THINK, 128_000
     )
 
-    o1 = OpenAiModelInfo("o1", True, True, 200_000)
+    o1 = OpenAiModelInfo("o1", True, ALWAYS_THINK, 200_000)
     """
     The o1 series of large language models are trained with reinforcement learning to perform complex reasoning. o1 models think before they answer, producing a long internal chain of thought before responding to the user.
     """
-    o1_preview = OpenAiModelInfo("o1-preview", True, True, 128_000)
+    o1_preview = OpenAiModelInfo("o1-preview", True, ALWAYS_THINK, 128_000)
     """o1-preview: reasoning model designed to solve hard problems across domains."""
     o1_preview_2024_09_12 = OpenAiModelInfo(
-        "o1-preview-2024-09-12", True, True, 128_000
+        "o1-preview-2024-09-12", True, ALWAYS_THINK, 128_000
     )
     """o1-mini: faster and cheaper reasoning model particularly good at coding, math, and science."""
-    o1_mini = OpenAiModelInfo("o1-mini", True, True, 128_000)
-    o1_mini_2024_09_12 = OpenAiModelInfo("o1-mini-2024-09-12", True, True, 128_000)
+    o1_mini = OpenAiModelInfo("o1-mini", True, ALWAYS_THINK, 128_000)
+    o1_mini_2024_09_12 = OpenAiModelInfo("o1-mini-2024-09-12", True, ALWAYS_THINK, 128_000)
 
-    o3_mini = OpenAiModelInfo("o3-mini", True, True, 200_000)
-    o4_mini = OpenAiModelInfo("o4-mini", True, True, 200_000)
-    o4_mini_2025_04_16 = OpenAiModelInfo("o4-mini-2025-04-16", True, True, 200_000)
+    o3_mini = OpenAiModelInfo("o3-mini", True, ALWAYS_THINK, 200_000)
+    o4_mini = OpenAiModelInfo("o4-mini", True, ALWAYS_THINK, 200_000)
+    o4_mini_2025_04_16 = OpenAiModelInfo("o4-mini-2025-04-16", True, ALWAYS_THINK, 200_000)
 
-    o3 = OpenAiModelInfo("o3", True, True, 200_000)
+    o3 = OpenAiModelInfo("o3", True, ALWAYS_THINK, 200_000)
 
-    gpt_4_1 = OpenAiModelInfo("gpt-4.1", True, False, 1_047_576)
-    gpt_4_1_mini = OpenAiModelInfo("gpt-4.1-mini", True, False, 1_047_576)
-    gpt_4_1_nano = OpenAiModelInfo("gpt-4.1-nano", True, False, 1_047_576)
+    gpt_4_1 = OpenAiModelInfo("gpt-4.1", True, NEVER_THINK, 1_047_576)
+    gpt_4_1_mini = OpenAiModelInfo("gpt-4.1-mini", True, NEVER_THINK, 1_047_576)
+    gpt_4_1_nano = OpenAiModelInfo("gpt-4.1-nano", True, NEVER_THINK, 1_047_576)
 
-    gpt_5 = OpenAiModelInfo("gpt-5", True, True, 400_000)
-    gpt_5_mini = OpenAiModelInfo("gpt-5-mini", True, True, 400_000)
-    gpt_5_nano = OpenAiModelInfo("gpt-5-nano", True, True, 400_000)
+    gpt_5 = OpenAiModelInfo("gpt-5", True, ALWAYS_THINK, 400_000)
+    gpt_5_mini = OpenAiModelInfo("gpt-5-mini", True, ALWAYS_THINK, 400_000)
+    gpt_5_nano = OpenAiModelInfo("gpt-5-nano", True, ALWAYS_THINK, 400_000)
 
-    gpt_5_1 = OpenAiModelInfo("gpt-5.1", True, True, 400_000)
-    gpt_5_1_codex = OpenAiModelInfo("gpt-5.1-codex", True, True, 400_000)
-    gpt_5_1_codex_mini = OpenAiModelInfo("gpt-5.1-codex-mini", True, True, 400_000)
+    gpt_5_1 = OpenAiModelInfo("gpt-5.1", True, CONFIGURABLE_THINKING, 400_000)
 
     @classmethod
     def name_to_info(cls, name: str) -> OpenAiModelInfo | None:
@@ -355,7 +362,7 @@ class OpenAIPredictor(LmPredictor):
         api: OpenAI,
         engine_name: str,
         chat_mode: bool | None = None,
-        o1_mode: bool | None = None,
+        reasoning_style: LmReasoningStyle | None = None,
         cache_outputs_default: bool = False,
         retry_on_rate_limit: bool = False,
     ):
@@ -375,7 +382,7 @@ class OpenAIPredictor(LmPredictor):
         self._retry_on_rate_limit = retry_on_rate_limit
         info = OpenAiModelNames.name_to_info(engine_name)
         self._chat_mode = info.is_chat_model if chat_mode is None else chat_mode
-        self._o1_mode = info._is_o1_model if o1_mode is None else o1_mode
+        self._reasoning_style = info.reasoning_style if reasoning_style is None else reasoning_style
         if self._chat_mode is None:
             msg = (
                 "`chat_mode` is not provided as a parameter and cannot be inferred from"
@@ -409,9 +416,7 @@ class OpenAIPredictor(LmPredictor):
 
     @property
     def reasoning_style(self) -> LmReasoningStyle:
-        if self.is_o1_model:
-            return LmReasoningStyle.ALWAYS_THINK
-        return LmReasoningStyle.NEVER_THINK
+        return self._reasoning_style
 
     def _validate_prompt(self, prompt: LmPrompt, raise_on_invalid: bool = True) -> tuple[bool, LmPrompt | None]:
         is_valid = True
@@ -427,7 +432,7 @@ class OpenAIPredictor(LmPredictor):
             else:
                 warnings.warn(message)
                 return False
-        if self._o1_mode:
+        if self._reasoning_style == ALWAYS_THINK:
             # if prompt.max_tokens:
             #     message = f"o1 type models use `max_completion_tokens` instead of `max_tokens` but you have set max tokens to f{prompt.max_tokens}. Instead, `max_completion_tokens` will be used. `max_completion_tokens` is currently set to: {prompt.max_completion_tokens}"
             #     if raise_on_invalid:
@@ -472,10 +477,6 @@ class OpenAIPredictor(LmPredictor):
     @property
     def is_chat_model(self):
         return self._chat_mode
-    
-    @property
-    def is_o1_model(self):
-        return self._o1_mode
 
     @property
     def token_limit(self):
@@ -533,7 +534,7 @@ class OpenAIPredictor(LmPredictor):
                 prompt,
                 self._engine_name,
                 self._chat_mode,
-                self._o1_mode,
+                self._reasoning_style,
                 default_tokens_generated=self.default_tokens_generated,
             )
 
@@ -709,14 +710,14 @@ def prompt_to_openai_args_dict(
     prompt: LmPrompt,
     engine_name: str,
     chat_model: bool,
-    o1_model: bool,
+    reasoning_style: LmReasoningStyle,
     default_tokens_generated: int | None = 20,
 ) -> dict[str, Any]:
     if prompt.max_tokens is not None:
         max_tokens = prompt.max_tokens
     else:
         max_tokens = default_tokens_generated
-    if o1_model:
+    if reasoning_style == ALWAYS_THINK:
         args = dict(
             messages=prompt.get_text_as_chat().as_dicts(),
             model=engine_name,

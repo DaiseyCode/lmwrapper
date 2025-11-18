@@ -113,6 +113,19 @@ def test_o1_mode():
     assert out.completion_text.strip() == "4"
 
 
+def test_gpt_5_1_mode():
+    lm = get_open_ai_lm(OpenAiModelNames.gpt_5_1)
+    out = lm.predict(
+        LmPrompt(
+            "What is 2+2? Answer with just one number.",
+            max_tokens=1000,
+            cache=False,
+            logprobs=0,
+        ),
+    )
+    assert out.completion_text.strip() == "4"
+
+
 def test_o1_mode_permissive():
     lm = get_open_ai_lm(OpenAiModelNames.o4_mini)
     out = lm.predict(

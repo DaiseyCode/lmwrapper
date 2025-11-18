@@ -8,7 +8,7 @@ import time
 import numpy as np
 import pytest
 
-from lmwrapper.abstract_predictor import LmPredictor
+from lmwrapper.abstract_predictor import LmPredictor, LmReasoningStyle
 from lmwrapper.batch_config import CompletionWindow
 from lmwrapper.caching import cache_dir, clear_cache_dir
 from lmwrapper.huggingface_wrapper import get_huggingface_lm
@@ -43,6 +43,7 @@ MODEL_NAMES = {
     "3_5_haiku": get_claude_lm(ClaudeModelNames.claude_3_5_haiku),
     "3_5_turbo": get_open_ai_lm(OpenAiModelNames.gpt_3_5_turbo),
     "gpt_5_nano": get_open_ai_lm(OpenAiModelNames.gpt_5_nano),
+    "gpt_5_1": get_open_ai_lm(OpenAiModelNames.gpt_5_1),
     "claude_4_5_sonnet": get_claude_lm(ClaudeModelNames.claude_4_5_sonnet),
     "claude_4_5_haiku": get_claude_lm(ClaudeModelNames.claude_4_5_haiku),
     #"qwen25_500M_instruct": get_huggingface_lm("Qwen/Qwen2.5-0.5B-Instruct"),
@@ -1097,7 +1098,7 @@ def test_num_completions_two_cached(lm):
 
 
 @pytest.mark.parametrize("lm", CHAT_MODELS, ids=get_model_name)
-def test_system_prompt(lm):
+def test_system_prompt(lm: LmPredictor):
     pred = lm.predict(
         LmPrompt(
             [
@@ -1107,7 +1108,7 @@ def test_system_prompt(lm):
                 ),
                 LmChatTurn(ChatGptRoles.user, "what is the capital of france"),
             ],
-            max_tokens=10,
+            max_tokens=10 if not lm.reasoning_style == LmReasoningStyle.ALWAYS_THINK else 1000,
             cache=False,
         ),
     )
