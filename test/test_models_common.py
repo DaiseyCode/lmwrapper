@@ -1215,8 +1215,16 @@ def test_prefilled_prompt(lm):
 @pytest.mark.parametrize("lm", CHAT_MODELS, ids=get_model_name)
 def test_make_reply_prompt(lm):
     # Initial conversation
+    # Skip temperature for ALWAYS_THINK models as they don't support it
+    # ALWAYS_THINK models need more tokens for reasoning
+    prompt_kwargs = {
+        "max_tokens": 1000 if lm.reasoning_style == LmReasoningStyle.ALWAYS_THINK else 10,
+        "cache": False
+    }
+    if lm.reasoning_style != LmReasoningStyle.ALWAYS_THINK:
+        prompt_kwargs["temperature"] = 0
     initial_prompt = LmPrompt(
-        "What is the capital of France?", max_tokens=10, temperature=0, cache=False)
+        "What is the capital of France?", **prompt_kwargs)
     pred = lm.predict(initial_prompt)
     assert "paris" in pred.completion_text.strip().lower()
     new_prompt = pred.make_reply_prompt(
@@ -1235,7 +1243,6 @@ def test_make_reply_prompt(lm):
             "How tall is it?",
         ],
         max_tokens=100,
-        temperature=0,
     )
     assert new_prompt.text == LmChatDialog([
         LmChatTurn(ChatGptRoles.user, "What is the capital of France?"),
